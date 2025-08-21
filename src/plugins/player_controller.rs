@@ -1,28 +1,17 @@
 use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion};
 
+pub const DEFAULT_PLAYER_SPEED : f32 = 10.0;
+pub const DEFAULT_SENSITIVITY : f32 = 0.12;
+
 pub struct PlayerControllerPlugin;
 
 impl Plugin for PlayerControllerPlugin {
     fn build(&self, app: &mut App) {
-        use bevy::input::{gamepad, keyboard, mouse, touch};
         app
 
-        .insert_resource(PlayerConfig {default_speed : 5.0})
-        .insert_resource(MouseConfig {sensitivity : 0.12})
-
-        .add_systems(PreUpdate,
-            (
-                handle_input_mouse,
-                handle_input_movement,
-            )
-                .chain()
-                .after(mouse::mouse_button_input_system)
-                .after(keyboard::keyboard_input_system)
-                .after(gamepad::gamepad_event_processing_system)
-                .after(gamepad::gamepad_connection_system)
-                .after(touch::touch_screen_input_system),
-        );
+        .insert_resource(PlayerConfig {default_speed : DEFAULT_PLAYER_SPEED})
+        .insert_resource(MouseConfig {sensitivity : DEFAULT_SENSITIVITY});
     }
 }
 
@@ -45,13 +34,8 @@ pub struct MouseConfig {
 }
 
 
-// FUNCTIONALITIES
-pub fn mouse_lock() {todo!()}
-pub fn mouse_release() {todo!()}
-
-
 // UPDATE
-fn handle_input_movement(
+pub fn handle_input_movement(
     time: Res<Time>,
     input: Res<ButtonInput<KeyCode>>,
     cfg: Res<PlayerConfig>,
@@ -74,7 +58,7 @@ fn handle_input_movement(
     }
 }
 
-fn handle_input_mouse(
+pub fn handle_input_mouse(
     mut motions: EventReader<MouseMotion>,
     cfg: Res<MouseConfig>,
     mut q: Query<(&mut Transform, &mut PlayerController)>,

@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.16.1", features = ["wayland"] }
+haalka = "0.5.1"

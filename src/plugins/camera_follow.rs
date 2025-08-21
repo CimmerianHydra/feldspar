@@ -1,15 +1,5 @@
 use bevy::prelude::*;
 
-pub struct CameraFollowPlugin;
-
-impl Plugin for CameraFollowPlugin {
-    fn build(&self, app: &mut App) {
-        app
-
-        .add_systems(PreUpdate, update_cameras_transform_to_targets);
-    }
-}
-
 #[derive(Component)]
 pub struct CameraFollow {
     pub target : Entity,
@@ -17,7 +7,7 @@ pub struct CameraFollow {
 }
 
 // UPDATE
-pub fn update_cameras_transform_to_targets(
+pub fn update_camera_transform_to_target(
     targets: Query<&GlobalTransform>,
     mut cams: Query<(&mut Transform, &CameraFollow), With<Camera3d>>,
 ) {

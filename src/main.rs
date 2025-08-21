@@ -1,19 +1,54 @@
 use bevy::prelude::*;
+use bevy::input::{gamepad, keyboard, mouse, touch};
 
 mod plugins;
-use plugins::player_controller::{PlayerControllerPlugin, PlayerController};
-use plugins::camera_follow::{CameraFollowPlugin, CameraFollow};
-
-#[derive(Component)]
-struct Block;
+use plugins::player_controller::{
+    PlayerControllerPlugin,
+    PlayerController,
+    handle_input_mouse,
+    handle_input_movement,
+};
+use plugins::camera_follow::{
+    CameraFollow,
+    update_camera_transform_to_target,
+};
+use plugins::game_state::{GameState, PausePlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(PausePlugin)
         .add_plugins(PlayerControllerPlugin)
-        .add_plugins(CameraFollowPlugin)
+
+
+        // Early setup (will eventually be removed)
         .add_systems(Startup, setup)
-        // .add_systems(Update, debugging)
+
+
+        // Player input handling
+        .add_systems(PreUpdate,
+            (
+                        handle_input_mouse,
+                        handle_input_movement,
+                    )
+                    .chain()
+                    .run_if(in_state(GameState::Playing))
+                    .after(mouse::mouse_button_input_system)
+                    .after(keyboard::keyboard_input_system)
+                    .after(gamepad::gamepad_event_processing_system)
+                    .after(gamepad::gamepad_connection_system)
+                    .after(touch::touch_screen_input_system)
+        )
+
+        // Camera Follow
+        .add_systems(Update,
+            (
+                        update_camera_transform_to_target
+                    )
+                    .run_if(in_state(GameState::Playing))
+        )
+
+        // Run
         .run();
 }
 
@@ -48,7 +83,7 @@ fn setup(
     // camera
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::default(),
         CameraFollow { target : player, offset : Vec3::ZERO }
     ));
     
@@ -60,16 +95,8 @@ fn build_entity_default_player(
     commands
         .spawn((
             GlobalTransform::default(),
-            Transform::default(),
+            Transform::from_xyz(-2.5, 4.5, 9.0),
             PlayerController::default(),
         ))
         .id()
-}
-
-fn debugging(
-    mut q: Query<&mut Transform, With<PlayerController>>,
-) {
-    for t in &mut q {
-        info!("The current player translation is: {:?}", t.translation)
-    }
 }
