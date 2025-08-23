@@ -2,7 +2,8 @@ use bevy::prelude::*;
 use bevy::input::mouse::{MouseMotion};
 
 pub const DEFAULT_PLAYER_SPEED : f32 = 10.0;
-pub const DEFAULT_SENSITIVITY : f32 = 0.12;
+pub const DEFAULT_SENSITIVITY_X : f32 = 0.15;
+pub const DEFAULT_SENSITIVITY_Y : f32 = 0.12;
 
 pub struct PlayerControllerPlugin;
 
@@ -11,7 +12,7 @@ impl Plugin for PlayerControllerPlugin {
         app
 
         .insert_resource(PlayerConfig {default_speed : DEFAULT_PLAYER_SPEED})
-        .insert_resource(MouseConfig {sensitivity : DEFAULT_SENSITIVITY});
+        .insert_resource(MouseConfig {sensitivity : Vec2::from((DEFAULT_SENSITIVITY_X, DEFAULT_SENSITIVITY_Y))});
     }
 }
 
@@ -30,7 +31,7 @@ pub struct PlayerConfig {
 // Resources are global, thus we use this to set a sens. This could potentially be loaded from config files.
 #[derive(Resource)]
 pub struct MouseConfig {
-    sensitivity : f32,
+    sensitivity : Vec2,
 }
 
 
@@ -73,8 +74,8 @@ pub fn handle_input_mouse(
     }
 
     for (mut t, mut ctl) in &mut q {
-        ctl.yaw   -= delta.x * cfg.sensitivity;
-        ctl.pitch -= delta.y * cfg.sensitivity;
+        ctl.yaw   -= delta.x * cfg.sensitivity.x;
+        ctl.pitch -= delta.y * cfg.sensitivity.y;
         ctl.pitch = ctl.pitch.clamp(-89.9, 89.9);
 
         let yaw = Quat::from_rotation_y(ctl.yaw.to_radians());

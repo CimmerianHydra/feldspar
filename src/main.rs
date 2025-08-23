@@ -1,57 +1,19 @@
+//! A simple 3D scene with light shining over a cube sitting on a plane.
+
 use bevy::prelude::*;
-use bevy::input::{gamepad, keyboard, mouse, touch};
 
 mod plugins;
-use plugins::player_controller::{
-    PlayerControllerPlugin,
-    PlayerController,
-    handle_input_mouse,
-    handle_input_movement,
-};
-use plugins::camera_follow::{
-    CameraFollow,
-    update_camera_transform_to_target,
-};
-use plugins::game_state::{GameState, PausePlugin};
+use plugins::ui_pickup::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(PausePlugin)
-        .add_plugins(PlayerControllerPlugin)
-
-
-        // Early setup (will eventually be removed)
+        .add_plugins(FollowCursorPlugin)
         .add_systems(Startup, setup)
-
-
-        // Player input handling
-        .add_systems(PreUpdate,
-            (
-                        handle_input_mouse,
-                        handle_input_movement,
-                    )
-                    .chain()
-                    .run_if(in_state(GameState::Playing))
-                    .after(mouse::mouse_button_input_system)
-                    .after(keyboard::keyboard_input_system)
-                    .after(gamepad::gamepad_event_processing_system)
-                    .after(gamepad::gamepad_connection_system)
-                    .after(touch::touch_screen_input_system)
-        )
-
-        // Camera Follow
-        .add_systems(Update,
-            (
-                        update_camera_transform_to_target
-                    )
-                    .run_if(in_state(GameState::Playing))
-        )
-
-        // Run
         .run();
 }
 
+/// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -77,26 +39,36 @@ fn setup(
         },
         Transform::from_xyz(4.0, 8.0, 4.0),
     ));
-
-    let player = build_entity_default_player(&mut commands);
-
     // camera
     commands.spawn((
         Camera3d::default(),
-        Transform::default(),
-        CameraFollow { target : player, offset : Vec3::ZERO }
+        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
+
+
+    // camera
+    commands.spawn((
+        Camera2d,
+        Camera {
+            order : 1,
+            ..default()
+        },
+        UiPickingCamera
+    ));
+
+    // ui element that follows the mouse
+    commands.spawn((
+        Node {
+            // Use the CSS Grid algorithm for laying out this node
+            display: Display::Flex,
+            // Make node fill 10% of parent
+            width: Val::Percent(10.0),
+            height: Val::Percent(10.0),
+            ..default()
+        },
+        Pickable::default(),
+        BackgroundColor(Color::WHITE),
+        FollowCursor::default(),
     ));
     
-}
-
-fn build_entity_default_player(
-    commands : &mut Commands,
-) -> Entity {
-    commands
-        .spawn((
-            GlobalTransform::default(),
-            Transform::from_xyz(-2.5, 4.5, 9.0),
-            PlayerController::default(),
-        ))
-        .id()
 }

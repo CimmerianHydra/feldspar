@@ -3,8 +3,8 @@ use bevy::window::{CursorGrabMode};
 
 #[derive(States, Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
-    #[default]
     Playing,
+    #[default]
     Paused,
 }
 

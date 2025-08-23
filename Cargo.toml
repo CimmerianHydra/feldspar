@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { version = "0.16.1", features = ["wayland"] }
-haalka = "0.5.1"
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main"}
+uuid = "1.18.0"
