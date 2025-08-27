@@ -1,15 +1,19 @@
 //! A simple 3D scene with light shining over a cube sitting on a plane.
 
+use bevy::log::Level;
+use bevy::log::LogPlugin;
 use bevy::prelude::*;
 
 mod plugins;
-use plugins::ui_pickup::*;
+use plugins::item::*;
+
+use crate::plugins::inventory::UiInventoryPlugin;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
-        .add_plugins(FollowCursorPlugin)
-        .add_systems(Startup, setup)
+        .add_plugins(DefaultPlugins.set(LogPlugin {level:Level::DEBUG,..Default::default()}))
+        .add_plugins(UiInventoryPlugin)
+        //.add_systems(Startup, setup)
         .run();
 }
 
@@ -42,33 +46,7 @@ fn setup(
     // camera
     commands.spawn((
         Camera3d::default(),
+        bevy::render::view::NoIndirectDrawing,
         Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
-
-
-    // camera
-    commands.spawn((
-        Camera2d,
-        Camera {
-            order : 1,
-            ..default()
-        },
-        UiPickingCamera
-    ));
-
-    // ui element that follows the mouse
-    commands.spawn((
-        Node {
-            // Use the CSS Grid algorithm for laying out this node
-            display: Display::Flex,
-            // Make node fill 10% of parent
-            width: Val::Percent(10.0),
-            height: Val::Percent(10.0),
-            ..default()
-        },
-        Pickable::default(),
-        BackgroundColor(Color::WHITE),
-        FollowCursor::default(),
-    ));
-    
 }

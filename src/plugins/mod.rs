@@ -1,2 +1,3 @@
 pub mod player_controller;
-pub mod ui_pickup;
+pub mod item;
+pub mod inventory;
