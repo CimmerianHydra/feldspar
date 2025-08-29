@@ -47,7 +47,21 @@ fn setup(
     // camera
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            order : 0,
+            ..default()
+        },
         bevy::render::view::NoIndirectDrawing,
         Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
+
+    // UI Camera
+    commands.spawn((
+        Camera2d::default(),
+        Camera {
+            order : 1,
+            ..default()
+        }
+    ));
+    
 }

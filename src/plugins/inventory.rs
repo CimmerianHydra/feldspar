@@ -265,15 +265,6 @@ fn apply_inventory_requests(
 /// as well as some provided config.
 /// The UI sends signals that modify the logical state of the inventory. (todo)
 
-const GRID_COLS: usize = 10;
-const GRID_ROWS: usize = 3;
-const SLOT_SIZE: f32 = 80.0;
-const GAP: f32 = 8.0;
-
-const COLOR_UI_BG: Color = Color::srgb_u8(32, 36, 44);
-const COLOR_UI_SLOT: Color = Color::srgb_u8(46, 52, 64);
-const COLOR_UI_OUTLINE: Color = Color::srgb_u8(90, 98, 120);
-
 pub struct UiInventoryPlugin;
 
 impl Plugin for UiInventoryPlugin {
@@ -304,10 +295,10 @@ fn demo(
     let cam = commands.spawn(Camera2d).id();
 
     let root = q_root.single().unwrap();
-    let demo_inventory = build_inventory(&mut commands, cam, 30);
+    let demo_inventory = build_inventory(&mut commands, cam, 3 * 10);
     let demo_panel = build_ui_panel(&mut commands, Some(root));
-    let demo_inv_grid: Entity = build_inventory_ui_grid(&mut commands, GRID_ROWS as u16, GRID_COLS as u16, Some(demo_panel));
-    let demo_inv_grid_two: Entity = build_inventory_ui_grid(&mut commands, 2 as u16, 2 as u16, Some(demo_panel));
+    let demo_inv_grid: Entity = build_inventory_ui_grid(&mut commands, 3, 10, Some(demo_panel));
+    let demo_inv_grid_two: Entity = build_inventory_ui_grid(&mut commands, 2, 2, Some(demo_panel));
 
     // TODO!!
     let ui_slot_entities = vec![];
@@ -586,6 +577,14 @@ fn cursor_px_in_node(comp: &ComputedNode, rel: &RelativeCursorPosition) -> Vec2 
 /// 
 /// Functions for the creation and management of logical and UI inventories.
 
+const SLOT_SIZE: f32 = 80.0;
+const GAP: f32 = 8.0;
+
+const COLOR_UI_BG: Color = Color::srgb_u8(32, 36, 44);
+const COLOR_UI_SLOT: Color = Color::srgb_u8(46, 52, 64);
+const COLOR_UI_OUTLINE: Color = Color::srgb_u8(90, 98, 120);
+const UI_PANEL_PADDING : f32 = 16.0;
+
 pub fn setup(
     mut commands : Commands,
 ) {
@@ -600,7 +599,7 @@ pub fn setup(
                 align_items: AlignItems::Center,
                 ..default()
             },
-            BackgroundColor(Color::srgb_u8(20, 20, 24)),
+            BackgroundColor(Color::srgba_u8(20, 20, 24, 64)),
         )).id();
 
     // Overlay (absolute, topmost)
@@ -631,8 +630,6 @@ pub fn build_inventory(
         InventoryOwnedBy(owner),
     )).id()
 }
-
-const UI_PANEL_PADDING : f32 = 16.0;
 
 pub fn build_ui_panel(
     commands : &mut Commands,
@@ -713,6 +710,12 @@ pub fn build_inventory_ui_grid(
 
     panel
     // TODO: bind UI slots to logical inventory slots for event writing.
+}
+
+pub fn set_parent_root(
+
+) {
+
 }
 
 /// --------- INVENTORY SPAWNING DEMO ---------
