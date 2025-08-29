@@ -1,0 +1,7 @@
+{
+  "id": 1,
+  "name": "Stone",
+  "tags": ["placeable", "mineable:pickaxe", "stone"],
+  "icon_path": "icons/stone.png",
+  "model_path": null
+}

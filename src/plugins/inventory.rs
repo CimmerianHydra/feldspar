@@ -47,7 +47,7 @@ impl Inventory {
     pub fn in_bounds(&self, i: usize) -> bool { i < self.capacity }
 }
 
-// Tag the “owner” who this inventory belongs to (player, chest, machine, ...).
+// Tag the "owner" who this inventory belongs to (player, chest, machine, ...).
 #[derive(Component, Debug)]
 #[relationship(relationship_target = EntityInventoryVector)]
 pub struct InventoryOwnedBy(pub Entity);
@@ -716,11 +716,6 @@ pub fn build_inventory_ui_grid(
     // TODO: bind UI slots to logical inventory slots for event writing.
 }
 
-pub fn set_parent_root(
-
-) {
-
-}
 
 /// --------- INVENTORY SPAWNING DEMO ---------
 

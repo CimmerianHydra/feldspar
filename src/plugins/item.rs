@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy::reflect::Reflect;
 use serde::{Serialize, Deserialize};
 
 
@@ -10,31 +9,69 @@ use serde::{Serialize, Deserialize};
 
 
 // Item "kind". Items are fundamental game objects and represent a certain item's "immutable" properties.
-#[derive(Asset, Serialize, Deserialize, Clone, Reflect)]
+/// The JSON-serialized asset (data-only).
+#[derive(bevy::asset::Asset, bevy::reflect::TypePath, Deserialize, Clone, Debug)]
 pub struct Item {
     pub id: ItemId,
     pub name: String,
-    pub icon_path: String,
+
+    #[serde(default = "max_stack")]
     pub max_stack: u16,
+    #[serde(default)]
     pub tags: Vec<String>,
+
+    // Keep paths as strings (resolve to handles elsewhere)
+    #[serde(default)]
+    pub icon_path: Option<String>,
+    #[serde(default)]
+    pub model_path: Option<String>,
 }
 
-#[derive(Reflect, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash)]
+const fn max_stack() -> u16 { 64 }
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ItemId(pub u32);
 
 
+/// Registry -> fast lookups by id or name
 #[derive(Resource, Default)]
 pub struct ItemRegistry {
-    pub items: std::collections::BTreeMap<ItemId, Handle<Item>>,
-    pub name_to_id: std::collections::BTreeMap<String, ItemId>,
+    pub by_id: std::collections::BTreeMap<ItemId, Handle<Item>>,
+    pub by_name: std::collections::BTreeMap<String, Handle<Item>>,
 }
 
-
-#[derive(Reflect, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Component)]
 pub struct ItemInstance {
-    pub item: Item,
-    pub qty: u16,
-    pub uid: Option<uuid::Uuid>,   // present when state is not default
+    pub item: ItemId,
+    #[serde(default = "one")] pub qty: u16,
+}
+const fn one() -> u16 { 1 }
+
+
+impl ItemInstance {
+    /// Start a fresh 1x instance from an `Item` asset, pre-filling defaults.
+    pub fn new_from_item(item: &Item) -> Self {
+        Self { item: item.id, qty: 1 }
+    }
+
+    /// Instances can stack only if both kind *and* state match exactly.
+    #[inline]
+    pub fn can_stack_with(&self, other: &Self) -> bool {
+        self.item == other.item
+    }
+
+    /// Merge `other` into `self` up to `max_stack`. Returns how many of `other`
+    /// could *not* be merged (0 means full merge).
+    pub fn absorb_from(&mut self, other: &mut Self, max_stack: u16) -> u16 {
+        // If they can't be stacked, return other
+
+        if !self.can_stack_with(other) { return other.qty };
+        let space = max_stack.saturating_sub(self.qty);
+        let take = std::cmp::min(space, other.qty);
+        self.qty += take;
+        other.qty -= take;
+        other.qty
+    }
 }
 
 /// <===================== GAME MECHANICS COMPONENTS =====================> ///
@@ -42,6 +79,8 @@ pub struct ItemInstance {
 /// These will influence how items play out in game and will be drawn in the UI.
 /// 
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Durability { pub current: u32, pub max: u32 }
 
 // #[derive(Component)]
 // pub struct ItemDurability(pub f32);
@@ -58,33 +97,5 @@ pub struct ItemInstance {
 //         Self(1)
 //     }
 // }
-
-
-/// <===================== UI =====================> ///
-/// 
-/// Functions and useful components to decide how the item will be drawn within the UI.
-/// 
-
-/// How the item will be represented in the UI.
-#[derive(Component)]
-pub enum UiItemAsset {
-    Atlas,
-    Model,
-    Texture,
-    AnimTexture,
-    Other
-}
-
-pub fn update_item_ui_node() {
-    // Might need to be called very sparsely
-    
-}
-
-pub fn build_item_ui_node() {
-
-    // If item has durability, add percentage.
-    // If item has count > 1, add number.
-
-}
 
 
