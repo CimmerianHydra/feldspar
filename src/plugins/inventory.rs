@@ -300,13 +300,16 @@ fn demo(
     q_overlay: Query<Entity, With<UiDragOverlay>>,
 ) {
 
-    // camera
+    // Camera
     let cam = commands.spawn(Camera2d).id();
 
     let root = q_root.single().unwrap();
     let demo_inventory = build_inventory(&mut commands, cam, 30);
-    let demo_panel = build_inventory_ui_grid(&mut commands, GRID_ROWS as u16, GRID_COLS as u16, Some(root));
+    let demo_panel = build_ui_panel(&mut commands, Some(root));
+    let demo_inv_grid: Entity = build_inventory_ui_grid(&mut commands, GRID_ROWS as u16, GRID_COLS as u16, Some(demo_panel));
+    let demo_inv_grid_two: Entity = build_inventory_ui_grid(&mut commands, 2 as u16, 2 as u16, Some(demo_panel));
 
+    // TODO!!
     let ui_slot_entities = vec![];
 
     // Demo items in first few slots
@@ -629,20 +632,24 @@ pub fn build_inventory(
     )).id()
 }
 
+const UI_PANEL_PADDING : f32 = 16.0;
+
 pub fn build_ui_panel(
     commands : &mut Commands,
     root : Option<Entity>,
 ) -> Entity {
     let panel = commands
-            .spawn((
-                Node{
-                    padding: UiRect::all(Val::Px(16.0)),
-                    ..default()
-                },
-                BackgroundColor(COLOR_UI_BG),
-                BorderColor::all(COLOR_UI_OUTLINE),
-                BorderRadius::all(Val::Px(8.0)),
-            )).id();
+        .spawn((
+            Node{
+                padding: UiRect::all(Val::Px(UI_PANEL_PADDING)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(COLOR_UI_BG),
+            BorderColor::all(COLOR_UI_OUTLINE),
+            BorderRadius::all(Val::Px(8.0)),
+        )).id();
     
     if let Some(r) = root {
         commands.entity(panel).set_parent_in_place(r);
@@ -670,12 +677,8 @@ pub fn build_inventory_ui_grid(
                 // This part is probably fine
                 column_gap: Val::Px(GAP),
                 row_gap: Val::Px(GAP),
-                padding: UiRect::all(Val::Px(16.0)),
                 ..default()
             },
-            BackgroundColor(COLOR_UI_BG),
-            BorderColor::all(COLOR_UI_OUTLINE),
-            BorderRadius::all(Val::Px(8.0)),
         )).id();
     
     if let Some(r) = root {
