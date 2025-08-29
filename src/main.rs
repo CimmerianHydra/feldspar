@@ -7,11 +7,12 @@ use bevy::prelude::*;
 mod plugins;
 use plugins::item::*;
 
-use crate::plugins::inventory::UiInventoryPlugin;
+use crate::plugins::inventory::{InventoryPlugin, UiInventoryPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(LogPlugin {level:Level::DEBUG,..Default::default()}))
+        .add_plugins(InventoryPlugin)
         .add_plugins(UiInventoryPlugin)
         //.add_systems(Startup, setup)
         .run();

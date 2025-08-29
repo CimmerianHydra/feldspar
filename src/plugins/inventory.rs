@@ -49,9 +49,12 @@ impl Inventory {
 
 // Tag the “owner” who this inventory belongs to (player, chest, machine, ...).
 #[derive(Component, Debug)]
-pub struct InventoryOwner {
-    pub owner: Entity,
-}
+#[relationship(relationship_target = EntityInventoryVector)]
+pub struct InventoryOwnedBy(pub Entity);
+
+#[derive(Component, Debug)]
+#[relationship_target(relationship = InventoryOwnedBy, linked_spawn)]
+pub struct EntityInventoryVector(Vec<Entity>);
 
 // Disambiguate multiple inventories per owner (“Main”, “Input”, “Output”, etc.)
 #[derive(Component, Debug, Clone)]
@@ -62,6 +65,9 @@ pub struct InventoryInput;
 
 #[derive(Component, Debug, Clone)]
 pub struct InventoryOutput;
+
+#[derive(Component, Debug, Clone)]
+pub struct InventoryEquip; // Objects in this inventory will also play out effects
 
 // ---------- Events ----------
 
@@ -259,8 +265,8 @@ fn apply_inventory_requests(
 /// as well as some provided config.
 /// The UI sends signals that modify the logical state of the inventory. (todo)
 
-const GRID_COLS: usize = 4;
-const GRID_ROWS: usize = 2;
+const GRID_COLS: usize = 10;
+const GRID_ROWS: usize = 3;
 const SLOT_SIZE: f32 = 80.0;
 const GAP: f32 = 8.0;
 
@@ -273,7 +279,8 @@ pub struct UiInventoryPlugin;
 impl Plugin for UiInventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<UiDragState>()
-            .add_systems(Startup, setup)
+            .add_systems(PreStartup, setup)
+            .add_systems(Startup, demo)
             .add_systems(
                 Update,
                 (
@@ -286,142 +293,24 @@ impl Plugin for UiInventoryPlugin {
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-
-    let freedrop : bool = true;
+fn demo(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    q_root: Query<Entity, With<UiBackground>>,
+    q_overlay: Query<Entity, With<UiDragOverlay>>,
+) {
 
     // camera
-    commands.spawn(Camera2d);
+    let cam = commands.spawn(Camera2d).id();
 
-    let font = asset_server.load("fonts/FiraSans-Bold.ttf");
+    let root = q_root.single().unwrap();
+    let demo_inventory = build_inventory(&mut commands, cam, 30);
+    let demo_panel = build_inventory_ui_grid(&mut commands, GRID_ROWS as u16, GRID_COLS as u16, Some(root));
 
-    // Root (full screen)
-    let root = commands
-        .spawn((
-            Node {
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgb_u8(20, 20, 24)),
-        )).id();
-
-    // Overlay (absolute, topmost)
-    let overlay = commands
-        .spawn((
-            UiDragOverlay,
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                top: Val::Px(0.0),
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-            ZIndex(1000),
-        ))
-        .set_parent_in_place(root).id();
-
-    // Inventory panel (CSS Grid)
-    let panel = commands
-        .spawn((
-            Node {
-                display: Display::Grid,
-
-                // This part needs to be done better...
-                grid_template_columns: vec![GridTrack::px(SLOT_SIZE),
-                                            GridTrack::px(SLOT_SIZE),
-                                            GridTrack::px(SLOT_SIZE),
-                                            GridTrack::px(SLOT_SIZE)],
-                grid_template_rows: vec![GridTrack::px(SLOT_SIZE), GridTrack::px(SLOT_SIZE)],
-
-                // This part is probably fine
-                column_gap: Val::Px(GAP),
-                row_gap: Val::Px(GAP),
-                padding: UiRect::all(Val::Px(16.0)),
-                ..default()
-            },
-            BackgroundColor(COLOR_UI_BG),
-            BorderColor::all(Color::srgb_u8(70, 80, 96)),
-            BorderRadius::all(Val::Px(8.0)),
-        ))
-        .set_parent_in_place(root).id();
-    
-
-
-
-    // Slots
-    let mut ui_slot_entities = Vec::new();
-    for _ in 0..GRID_ROWS * GRID_COLS {
-        let slot = commands
-            .spawn((
-                UiItemSlot,
-                Button, // gives Interaction
-                Node {
-                    width: Val::Px(SLOT_SIZE),
-                    height: Val::Px(SLOT_SIZE),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                BackgroundColor(COLOR_UI_SLOT),
-                Outline {
-                    width : Val::Px(1.0),
-                    color : COLOR_UI_OUTLINE,
-                    ..default()
-                },
-                BorderRadius::all(Val::Px(6.0)),
-            ))
-            .set_parent_in_place(panel).id();
-        ui_slot_entities.push(slot);
-    }
-
-    
-    if freedrop {
-        // // Free drop panel (CSS)
-        // let free_drop_panel = commands
-        // .spawn((
-        //     Node {
-        //         display: Display::Flex,
-        //         padding: UiRect::all(Val::Px(16.0)),
-        //         ..default()
-        //     },
-        //     BackgroundColor(COLOR_UI_BG),
-        //     BorderColor::all(Color::srgb_u8(70, 80, 96)),
-        //     BorderRadius::all(Val::Px(8.0)),
-        // ))
-        // .set_parent_in_place(root).id();
-
-        // Free drop area
-        let free_drop_slot = commands
-        .spawn((
-            UiItemSlot,
-            UiFreeDrop,
-            RelativeCursorPosition::default(),
-            Button, // gives Interaction
-            Node {
-                width: Val::Px(3.0*GAP + 4.0*SLOT_SIZE),
-                height: Val::Px(2.0*GAP + 3.0*SLOT_SIZE),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(COLOR_UI_SLOT),
-            Outline {
-                width : Val::Px(1.0),
-                color : COLOR_UI_OUTLINE,
-                ..default()
-            },
-            BorderRadius::all(Val::Px(6.0)),
-        ))
-        .set_parent_in_place(panel).id();
-    ui_slot_entities.push(free_drop_slot);
-    }
-
+    let ui_slot_entities = vec![];
 
     // Demo items in first few slots
+    let font: Handle<Font> = asset_server.load("fonts/FiraSans-Bold.ttf");
     for (i, &slot) in ui_slot_entities.iter().take(3).enumerate() {
         spawn_item_in_slot(
             &mut commands,
@@ -432,47 +321,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         );
     }
 
-    // Ensure overlay renders atop (already child of root)
-    let _ = overlay;
-}
-
-fn spawn_item_in_slot(
-    commands: &mut Commands,
-    slot: Entity,
-    font: &Handle<Font>,
-    label: &str,
-    color: Color,
-) {
-    let item = commands
-        .spawn((
-            Item,
-            Button, // clickable
-            Node {
-                width: Val::Px(SLOT_SIZE - 10.0),
-                height: Val::Px(SLOT_SIZE - 10.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-            BackgroundColor(color),
-            BorderRadius::all(Val::Px(4.0)),
-            ZIndex(0),
-            FocusPolicy::Block,
-        ))
-        .set_parent_in_place(slot)
-        .id();
-    
-    commands.entity(item).with_children(|c| {
-        c.spawn((
-            Text::new(label),
-            TextFont {
-                font: font.clone(),
-                font_size: 16.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-        ));
-    });
+    // Always call this at the end so it renders on top
+    let ol = q_overlay.single().unwrap();
 }
 
 /// --------- Systems (Node-based updates) ---------
@@ -485,8 +335,13 @@ use bevy::window::PrimaryWindow;
 #[derive(Component)]
 pub struct UiItemSlot;
 
+// Singleton that handles the item dragging overlay.
 #[derive(Component)]
 pub struct UiDragOverlay;
+
+// Singleton that represents the root of all UI nodes.
+#[derive(Component)]
+pub struct UiBackground;
 
 #[derive(Resource, Default)]
 pub struct UiDragState {
@@ -720,4 +575,181 @@ fn cursor_px_in_node(comp: &ComputedNode, rel: &RelativeCursorPosition) -> Vec2 
     let cursor_in_slot_px = (normalized + Vec2::splat(0.5)) * slot_size;
 
     return cursor_in_slot_px
+}
+
+
+
+/// --------- INVENTORY SPAWNING ---------
+/// 
+/// Functions for the creation and management of logical and UI inventories.
+
+pub fn setup(
+    mut commands : Commands,
+) {
+    // Root (full screen)
+    let root = commands
+        .spawn((
+            UiBackground,
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgb_u8(20, 20, 24)),
+        )).id();
+
+    // Overlay (absolute, topmost)
+    let overlay = commands
+        .spawn((
+            UiDragOverlay,
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.0),
+                top: Val::Px(0.0),
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+            ZIndex(1000),
+        ))
+        .set_parent_in_place(root).id();
+
+}
+
+pub fn build_inventory(
+    commands : &mut Commands,
+    owner : Entity,
+    capacity : usize,
+) -> Entity {
+    commands.spawn((
+        Inventory::new(capacity),
+        InventoryOwnedBy(owner),
+    )).id()
+}
+
+pub fn build_ui_panel(
+    commands : &mut Commands,
+    root : Option<Entity>,
+) -> Entity {
+    let panel = commands
+            .spawn((
+                Node{
+                    padding: UiRect::all(Val::Px(16.0)),
+                    ..default()
+                },
+                BackgroundColor(COLOR_UI_BG),
+                BorderColor::all(COLOR_UI_OUTLINE),
+                BorderRadius::all(Val::Px(8.0)),
+            )).id();
+    
+    if let Some(r) = root {
+        commands.entity(panel).set_parent_in_place(r);
+    }
+
+    panel
+}
+
+pub fn build_inventory_ui_grid(
+    commands : &mut Commands,
+    rows : u16,
+    cols : u16,
+    root : Option<Entity>,
+) -> Entity {
+    // Inventory panel (CSS Grid)
+    let panel = commands
+        .spawn((
+            Node {
+                display: Display::Grid,
+
+                // Is it RepeatedGridTrack or GridTrack that I should use? Dunno
+                grid_template_columns: RepeatedGridTrack::px(cols, SLOT_SIZE),
+                grid_template_rows: RepeatedGridTrack::px(rows, SLOT_SIZE),
+
+                // This part is probably fine
+                column_gap: Val::Px(GAP),
+                row_gap: Val::Px(GAP),
+                padding: UiRect::all(Val::Px(16.0)),
+                ..default()
+            },
+            BackgroundColor(COLOR_UI_BG),
+            BorderColor::all(COLOR_UI_OUTLINE),
+            BorderRadius::all(Val::Px(8.0)),
+        )).id();
+    
+    if let Some(r) = root {
+        commands.entity(panel).set_parent_in_place(r);
+    }
+    
+    // Slots
+    let mut ui_slot_entities = Vec::new();
+    for _ in 0..rows*cols {
+        let slot: Entity = commands
+            .spawn((
+                UiItemSlot,
+                Button, // gives Interaction
+                Node {
+                    width: Val::Px(SLOT_SIZE),
+                    height: Val::Px(SLOT_SIZE),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+                BackgroundColor(COLOR_UI_SLOT),
+                Outline {
+                    width : Val::Px(1.0),
+                    color : COLOR_UI_OUTLINE,
+                    ..default()
+                },
+                BorderRadius::all(Val::Px(6.0)),
+            ))
+            .set_parent_in_place(panel).id();
+        ui_slot_entities.push(slot);
+    }
+
+    panel
+    // TODO: bind UI slots to logical inventory slots for event writing.
+}
+
+/// --------- INVENTORY SPAWNING DEMO ---------
+
+// Spawns a demo item in UI slot, UI only.
+fn spawn_item_in_slot(
+    commands: &mut Commands,
+    slot: Entity,
+    font: &Handle<Font>,
+    label: &str,
+    color: Color,
+) {
+    let item = commands
+        .spawn((
+            Item,
+            Button, // clickable
+            Node {
+                width: Val::Px(SLOT_SIZE - 10.0),
+                height: Val::Px(SLOT_SIZE - 10.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(color),
+            BorderRadius::all(Val::Px(4.0)),
+            ZIndex(0),
+            FocusPolicy::Block,
+        ))
+        .set_parent_in_place(slot)
+        .id();
+    
+    commands.entity(item).with_children(|c| {
+        c.spawn((
+            Text::new(label),
+            TextFont {
+                font: font.clone(),
+                font_size: 16.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+        ));
+    });
 }
