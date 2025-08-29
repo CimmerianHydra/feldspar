@@ -329,6 +329,10 @@ use bevy::window::PrimaryWindow;
 #[derive(Component)]
 pub struct UiItemSlot;
 
+
+#[derive(Component)]
+pub struct UiItem;
+
 // Singleton that handles the item dragging overlay.
 #[derive(Component)]
 pub struct UiDragOverlay;
@@ -358,7 +362,7 @@ fn pick_up_item(
     // We only care about items whose Interaction changed this frame
     mut q_items: Query<
         (Entity, &mut Node, &mut ZIndex, &mut FocusPolicy, Option<&ChildOf>),
-        (With<Item>, Changed<Interaction>),
+        (With<UiItem>, Changed<Interaction>),
     >,
     // Used to check if we picked up from a FreeDrop area to store where it was
     q_freedrop: Query<(&ComputedNode, &RelativeCursorPosition), With<UiFreeDrop>>,
@@ -730,7 +734,7 @@ fn spawn_item_in_slot(
 ) {
     let item = commands
         .spawn((
-            Item,
+            UiItem,
             Button, // clickable
             Node {
                 width: Val::Px(SLOT_SIZE - 10.0),
