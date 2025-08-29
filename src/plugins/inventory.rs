@@ -6,17 +6,249 @@ use super::item::Item;
 /// 
 /// Totally decoupled from UI, just handled via events.
 
+// ---------- Core data ----------
 
+pub type ItemId = u32;
 
-/// An inventory must have item slots (as an array of entities). Each slot stores an item.
-#[derive(Component)]
-//#[require(ItemSlots)]
-pub struct Inventory; // Inventory marker, requires the bundle to have an entity vector.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ItemStack {
+    pub id: ItemId,
+    pub count: u16,
+    pub max_stack: u16,
+}
 
-#[derive(Component, Default)]
-pub struct ItemSlots {
-    slot_map : HashMap<usize, Entity>,
-    slot_max : usize,
+impl ItemStack {
+    pub fn new(id: ItemId, count: u16, max_stack: u16) -> Self {
+        Self { id, count, max_stack }
+    }
+    pub fn space_left(&self) -> u16 {
+        self.max_stack.saturating_sub(self.count)
+    }
+    pub fn is_full(&self) -> bool { self.count >= self.max_stack }
+    pub fn is_empty(&self) -> bool { self.count == 0 }
+}
+
+// Each *inventory* is its own entity.
+#[derive(Component, Debug)]
+pub struct Inventory {
+    pub capacity: usize,                    // total number of logical slots (0..capacity-1)
+    pub slots: HashMap<usize, ItemStack>,   // sparse storage: only occupied slots stored
+}
+
+impl Inventory {
+    pub fn new(capacity: usize) -> Self {
+        Self { capacity, slots: HashMap::new() }
+    }
+    pub fn get(&self, i: usize) -> Option<&ItemStack> { self.slots.get(&i) }
+    pub fn get_mut(&mut self, i: usize) -> Option<&mut ItemStack> { self.slots.get_mut(&i) }
+    pub fn set(&mut self, i: usize, stack: Option<ItemStack>) {
+        if let Some(s) = stack { self.slots.insert(i, s); } else { self.slots.remove(&i); }
+    }
+    pub fn in_bounds(&self, i: usize) -> bool { i < self.capacity }
+}
+
+// Tag the “owner” who this inventory belongs to (player, chest, machine, ...).
+#[derive(Component, Debug)]
+pub struct InventoryOwner {
+    pub owner: Entity,
+}
+
+// Disambiguate multiple inventories per owner (“Main”, “Input”, “Output”, etc.)
+#[derive(Component, Debug, Clone)]
+pub struct InventoryStorage;
+
+#[derive(Component, Debug, Clone)]
+pub struct InventoryInput;
+
+#[derive(Component, Debug, Clone)]
+pub struct InventoryOutput;
+
+// ---------- Events ----------
+
+// Request/command coming from UI or gameplay code.
+#[derive(BufferedEvent, Debug)]
+pub struct InventoryRequest {
+    pub id: u64,          // arbitrary correlation id; can be 0 if unused
+    pub action: InventoryAction,
+}
+
+#[derive(Debug)]
+pub enum InventoryAction {
+    // Put exactly this stack into slot (or None to clear).
+    Set {
+        inv: Entity,
+        slot: usize,
+        stack: Option<ItemStack>,
+    },
+    // Move items between slots, possibly across inventories.
+    Move {
+        from_inv: Entity,
+        from_slot: usize,
+        to_inv: Entity,
+        to_slot: usize,
+        amount: u16,       // how many to move (<= source.count)
+        allow_swap: bool,  // if dst has a different item, swap instead of failing
+    },
+}
+
+// Result + “what changed” notification.
+#[derive(BufferedEvent, Debug)]
+pub struct InventoryResult {
+    pub id: u64,
+    pub ok: bool,
+    pub details: Option<String>,
+}
+
+// Per-inventory batched changes (so UI can refresh efficiently).
+#[derive(BufferedEvent, Debug)]
+pub struct InventoryChanged {
+    pub inv: Entity,
+    pub changes: Vec<SlotChange>,
+}
+
+#[derive(Debug)]
+pub struct SlotChange {
+    pub slot: usize,
+    pub new_stack: Option<ItemStack>,
+}
+
+// ---------- Plugin ----------
+
+pub struct InventoryPlugin;
+
+impl Plugin for InventoryPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_event::<InventoryRequest>()
+           .add_event::<InventoryResult>()
+           .add_event::<InventoryChanged>()
+           .add_systems(Update, apply_inventory_requests);
+    }
+}
+
+// ---------- Systems (backend apply) ----------
+
+fn apply_inventory_requests(
+    mut ev_in: EventReader<InventoryRequest>,
+    mut ev_out_result: EventWriter<InventoryResult>,
+    mut ev_out_changed: EventWriter<InventoryChanged>,
+    mut q_inv: Query<&mut Inventory>,
+) {
+    for req in ev_in.read() {
+        let mut ok = true;
+        let mut details = None;
+        let mut changed_per_inv: HashMap<Entity, Vec<SlotChange>> = HashMap::new();
+
+        match &req.action {
+            InventoryAction::Set {
+                inv,
+                slot,
+                stack
+            } => {
+                let result = (
+                    || -> Result<(), String> {
+                        let mut inv_ref = q_inv.get_mut(*inv).map_err(|_| "Inventory entity not found")?;
+                        if !inv_ref.in_bounds(*slot) { return Err("Slot out of bounds".into()); }
+                        inv_ref.set(*slot, *stack);
+                        // record change
+                        changed_per_inv.entry(*inv)
+                            .or_default()
+                            .push(SlotChange { slot: *slot, new_stack: *stack });
+                        Ok(())
+                    }
+                )();
+                if let Err(e) = result { ok = false; details = Some(e); }
+            }
+
+            InventoryAction::Move {
+                from_inv,
+                from_slot,
+                to_inv,
+                to_slot,
+                amount,
+                allow_swap 
+            } => {
+                let result = (
+                    || -> Result<(), String> {
+                        let [mut src, mut dst] = q_inv.get_many_mut([*from_inv, *to_inv])
+                        .map_err(|_| "Source or destination inventory not found")?;
+                        
+                        if !src.in_bounds(*from_slot) || !dst.in_bounds(*to_slot) {
+                            return Err("Slot out of bounds".into());
+                        }
+
+                        // Borrow-dance: extract src stack, work in locals, then write back.
+                        let mut src_stack = match src.get(*from_slot).cloned() {
+                            Some(s) => s,
+                            None => return Err("Source slot empty".into()),
+                        };
+                        let move_n = (*amount).min(src_stack.count);
+                        if move_n == 0 { return Err("Move amount is zero".into()) };
+
+                        match dst.get(*to_slot).cloned() {
+                            // Destination empty means simple move
+                            None => {
+                                let moved = ItemStack::new(src_stack.id, move_n, src_stack.max_stack);
+                                dst.set(*to_slot, Some(moved));
+                                src_stack.count -= move_n;
+                                if src_stack.count == 0 { src.set(*from_slot, None); }
+                                else { src.set(*from_slot, Some(src_stack)); }
+
+                                changed_per_inv.entry(*from_inv).or_default()
+                                    .push(SlotChange { slot: *from_slot, new_stack: src.get(*from_slot).cloned() });
+                                changed_per_inv.entry(*to_inv).or_default()
+                                    .push(SlotChange { slot: *to_slot, new_stack: dst.get(*to_slot).cloned() });
+                            }
+
+                            Some(mut dst_stack) => {
+                                if dst_stack.id == src_stack.id {
+                                    // Merge stacks (respect max_stack)
+                                    let can_take = dst_stack.space_left();
+                                    let take = move_n.min(can_take);
+                                    if take == 0 {
+                                        return Err("Destination stack full".into());
+                                    }
+                                    dst_stack.count += take;
+                                    dst.set(*to_slot, Some(dst_stack));
+
+                                    src_stack.count -= take;
+                                    if src_stack.count == 0 { src.set(*from_slot, None); }
+                                    else { src.set(*from_slot, Some(src_stack)); }
+
+                                    changed_per_inv.entry(*from_inv).or_default()
+                                        .push(SlotChange { slot: *from_slot, new_stack: src.get(*from_slot).cloned() });
+                                    changed_per_inv.entry(*to_inv).or_default()
+                                        .push(SlotChange { slot: *to_slot, new_stack: dst.get(*to_slot).cloned() });
+                                } else if *allow_swap && move_n == src_stack.count {
+                                    // Swap full stacks (only if moving the full source stack)
+                                    dst.set(*to_slot, Some(src_stack));
+                                    src.set(*from_slot, Some(dst_stack));
+
+                                    changed_per_inv.entry(*from_inv).or_default()
+                                        .push(SlotChange { slot: *from_slot, new_stack: src.get(*from_slot).cloned() });
+                                    changed_per_inv.entry(*to_inv).or_default()
+                                        .push(SlotChange { slot: *to_slot, new_stack: dst.get(*to_slot).cloned() });
+                                } else {
+                                    return Err("Destination occupied by different item (swap not allowed)".into());
+                                }
+                            }
+                        }
+
+                        Ok(())
+                    }
+                )();
+                if let Err(e) = result { ok = false; details = Some(e); }
+            }
+        }
+
+        // Emit per-inventory change batches
+        for (inv, changes) in changed_per_inv {
+            if !changes.is_empty() {
+                ev_out_changed.write(InventoryChanged { inv, changes });
+            }
+        }
+        // Emit request result (OK / error)
+        ev_out_result.write(InventoryResult { id: req.id, ok, details });
+    }
 }
 
 
@@ -262,7 +494,7 @@ pub struct UiDragState {
     pub origin_slot: Option<Entity>,
     pub hovered_slot: Option<Entity>,
     pub grab_offset: Vec2,
-    pub last_free_drop_px: Option<Vec2>,
+    pub origin_free_drop_px: Option<Vec2>,
 }
 
 #[derive(Component)]
@@ -315,6 +547,22 @@ fn pick_up_item(
 
         // Cursor in window coordinates (top-left origin)
         let Some(cursor) = window.cursor_position() else { continue };
+        
+        // Store the "grab" offset — where inside the item the cursor is.
+        // For this demo we assume center; if you want pixel-perfect behavior,
+        // compute (cursor - item_top_left) at pickup time.
+        drag.grab_offset = Vec2::new(SLOT_SIZE * 0.5, SLOT_SIZE * 0.5);
+
+        // Additionally, if the item came from a FreeDrop area, store it in DragState
+        if let Ok((comp, rel)) = q_freedrop.get(parent.unwrap().0) {
+
+            // We want the item's top-left, not the cursor position; subtract grab offset
+            let item_top_left_in_slot_px = cursor_px_in_node(comp, rel) - drag.grab_offset;
+
+            drag.origin_free_drop_px = Some(item_top_left_in_slot_px);
+        } else {
+            drag.origin_free_drop_px = None;
+        }
 
         // Reparent the item under the Overlay so it draws above everything
         if let Ok(overlay) = q_overlay.single() {
@@ -325,34 +573,11 @@ fn pick_up_item(
         node.position_type = PositionType::Absolute;
 
         // Seed its position so it appears centered under the cursor on pickup
-        node.left = Val::Px(cursor.x - SLOT_SIZE * 0.5);
-        node.top  = Val::Px(cursor.y - SLOT_SIZE * 0.5);
+        node.left = Val::Px(cursor.x - drag.grab_offset.x);
+        node.top  = Val::Px(cursor.y - drag.grab_offset.y);
 
         // Bring it to the very front while dragging
         *z = ZIndex(999);
-
-        // Store the "grab" offset — where inside the item the cursor is.
-        // For this demo we assume center; if you want pixel-perfect behavior,
-        // compute (cursor - item_top_left) at pickup time.
-        drag.grab_offset = Vec2::new(SLOT_SIZE * 0.5, SLOT_SIZE * 0.5);
-
-        // Additionally, if the item came from a FreeDrop area, store it in DragState
-        if let Ok((comp, rel)) = q_freedrop.get(parent.unwrap().0) {
-
-            // Returns normalized coordinates ranging from (-0.5, 0.5) in both directions
-            let normalized = if let Some(n) = rel.normalized { n } else { Vec2::ZERO };
-
-            // Convert normalized slot coords (0..1) to pixels inside the slot
-            let slot_size = comp.size; // (width, height) in pixels after layout
-            let cursor_in_slot_px = (normalized + Vec2::splat(0.5)) * slot_size;
-
-            // We want the item's top-left, not the cursor position; subtract grab offset
-            let item_top_left_in_slot_px = cursor_in_slot_px - drag.grab_offset;
-
-            drag.last_free_drop_px = Some(item_top_left_in_slot_px);
-        } else {
-            drag.last_free_drop_px = None;
-        }
     }
 }
 
@@ -417,8 +642,9 @@ fn drop_item_on_click_release(
     mut drag: ResMut<UiDragState>,
     // To detect left button release precisely
     buttons: Res<ButtonInput<MouseButton>>,
-    // To query node properties and reset layout properties back to grid layout
+    // To query item node properties and reset layout properties back to grid layout
     mut q_node: Query<(&mut Node, &mut FocusPolicy, &mut ZIndex)>,
+    // To check if the original node was a FreeDrop
     q_freedrop: Query<(&ComputedNode, &RelativeCursorPosition), With<UiFreeDrop>>
 ) {
     // Bail if we're not currently dragging
@@ -433,7 +659,7 @@ fn drop_item_on_click_release(
     // Choose the drop parent:
     // - preferred: the slot currently hovered
     // - fallback: the original slot we picked the item from
-    // I love Rust's built-ins.
+    // I love Rust's built-ins
     let target_parent = drag.hovered_slot.or(drag.origin_slot);
 
     if let Some(slot) = target_parent {
@@ -451,21 +677,14 @@ fn drop_item_on_click_release(
             // Branch A: If the UiItemSlot is also a free drop area
             if let Ok((comp, rel)) = q_freedrop.get(slot) {
 
-                // Returns normalized coordinates ranging from (-0.5, 0.5) in both directions
-                let normalized = if let Some(n) = rel.normalized { n } else { Vec2::ZERO };
-
-                // Convert normalized slot coords (0..1) to pixels inside the slot
-                let slot_size = comp.size; // (width, height) in pixels after layout
-                let cursor_in_slot_px = (normalized + Vec2::splat(0.5)) * slot_size;
-
                 // We want the item's top-left, not the cursor position: subtract grab offset
-                let item_top_left_in_slot_px = if !drag.hovered_slot.is_none() {
-                    cursor_in_slot_px - drag.grab_offset
-                } else { 
-                    drag.last_free_drop_px.unwrap_or_default()
-                };
                 // Fallback: if we don't have a new target slot, and our origin is FreeDrop, use stored coords
-
+                let item_top_left_in_slot_px = if !drag.hovered_slot.is_none() {
+                    cursor_px_in_node(comp, rel) - drag.grab_offset
+                } else { 
+                    drag.origin_free_drop_px.unwrap_or_default()
+                };
+                
                 node.position_type = PositionType::Absolute;
                 node.left = Val::Px(item_top_left_in_slot_px.x);
                 node.top  = Val::Px(item_top_left_in_slot_px.y);
@@ -488,6 +707,17 @@ fn drop_item_on_click_release(
     drag.hovered_slot = None;
     drag.grab_offset = Vec2::ZERO;
 
-    // TODO: if successful, update logic inventory
+    // TODO: if successful, send out update event
 
+}
+
+fn cursor_px_in_node(comp: &ComputedNode, rel: &RelativeCursorPosition) -> Vec2 {
+    // Returns normalized coordinates ranging from (-0.5, 0.5) in both directions
+    let normalized = if let Some(n) = rel.normalized { n } else { Vec2::ZERO };
+
+    // Convert normalized slot coords (0..1) to pixels inside the slot
+    let slot_size = comp.size; // (width, height) in pixels after layout
+    let cursor_in_slot_px = (normalized + Vec2::splat(0.5)) * slot_size;
+
+    return cursor_in_slot_px
 }
