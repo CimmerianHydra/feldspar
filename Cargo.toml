@@ -4,11 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = { git = "https://github.com/bevyengine/bevy", branch = "main"}
-bevy_common_assets = { version = "0.13", features = ["json"]}
+bevy = { git = "https://github.com/bevyengine/bevy", branch = "main", features = ["debug"] }
+bevy_common_assets = { version = "0.16", features = ["json"]}
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.18.0" }
+rand = "0.10.1"
 
-# Enable max optimizations for dependencies, but not for our code:
+# Enable a small amount of optimization in the dev profile.
+[profile.dev]
+opt-level = 1
+
+# Enable a large amount of optimization in the dev profile for dependencies.
 [profile.dev.package."*"]
 opt-level = 3

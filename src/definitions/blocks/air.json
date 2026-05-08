@@ -1,0 +1,8 @@
+{
+    "name": "air",
+    "display_name": "Air",
+    "shape": "cube",
+    "texture": "",
+    "collision": false,
+    "visible": false
+}

@@ -1,67 +1,80 @@
-//! A simple 3D scene with light shining over a cube sitting on a plane.
-
-use bevy::log::Level;
-use bevy::log::LogPlugin;
 use bevy::prelude::*;
+use bevy::light::CascadeShadowConfigBuilder;
 
-mod plugins;
-use plugins::item::*;
+mod plugin;
+use plugin::camera::{FreeCameraPlugin, FreeCamera};
+use plugin::meshing::MeshingPlugin;
+use plugin::block_registry::BlockRegistryPlugin;
+use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
+use plugin::chunk::ChunkPlugin;
+use plugin::ui::UIPlugin;
+use plugin::weather::WeatherPlugin;
+use plugin::state::StatePlugin;
 
-use crate::plugins::inventory::{InventoryPlugin, UiInventoryPlugin};
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(LogPlugin {level:Level::DEBUG,..Default::default()}))
-        .add_plugins(InventoryPlugin)
-        .add_plugins(UiInventoryPlugin)
-        //.add_systems(Startup, setup)
+        // Plugins
+        .add_plugins(DefaultPlugins)
+        .add_plugins(StatePlugin)
+        .add_plugins(FreeCameraPlugin)
+        .add_plugins(MeshingPlugin)
+        .add_plugins(ChunkPlugin)
+        .add_plugins(UIPlugin)
+        .add_plugins(WeatherPlugin)
+        .add_plugins(BlockInteractionPlugin)
+        .add_plugins(BlockRegistryPlugin)
+
+        // Game systems (that can't fit into any one previous plugin neatly)
+        .add_systems(PreStartup, setup)
+        .add_systems(Startup, add_dda_ray_to_camera)
+
+        // .add_systems(Update, debug_sys)
+
         .run();
 }
 
 /// set up a simple 3D scene
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // circular base
-    commands.spawn((
-        Mesh3d(meshes.add(Circle::new(4.0))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-        Transform::from_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-    ));
-    // cube
-    commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
-        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
-        Transform::from_xyz(0.0, 0.5, 0.0),
-    ));
     // light
+    // directional 'sun' light
     commands.spawn((
-        PointLight {
-            shadows_enabled: true,
+        DirectionalLight {
+            illuminance: light_consts::lux::OVERCAST_DAY,
+            shadow_maps_enabled: true,
             ..default()
         },
-        Transform::from_xyz(4.0, 8.0, 4.0),
-    ));
-    // camera
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
-            order : 0,
+        Transform {
+            translation: Vec3::new(0.0, 16.0, 0.0),
+            rotation: Quat::from_rotation_x(- std::f32::consts::PI / 4.) * Quat::from_rotation_y(- std::f32::consts::PI / 4.),
             ..default()
         },
-        bevy::render::view::NoIndirectDrawing,
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
-    ));
-
-    // UI Camera
-    commands.spawn((
-        Camera2d::default(),
-        Camera {
-            order : 1,
+        // The default cascade config is designed to handle large scenes.
+        // As this example has a much smaller world, we can tighten the shadow
+        // bounds for better visual quality.
+        CascadeShadowConfigBuilder {
+            first_cascade_far_bound: 4.0,
+            maximum_distance: 100.0,
             ..default()
         }
+        .build(),
     ));
-    
 }
+
+fn add_dda_ray_to_camera(mut commands: Commands, query: Query<Entity, With<FreeCamera>>) {
+    if let Ok(entity) = query.single() {
+        commands.entity(entity).insert(DDARay { max_distance: 5.0 });
+    }
+}
+
+/*
+fn debug_sys(
+    camera_parameters: Query<(&DDARay, &Transform), With<FreeCamera>>,
+) {
+    if let Ok((ray, transform)) = camera_parameters.single() {
+        bevy::log::info!("Camera position: {:?}, direction: {:?}", transform.translation, transform.rotation * Vec3::Z);
+    }
+}
+*/

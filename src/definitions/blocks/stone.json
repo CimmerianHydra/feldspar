@@ -1,0 +1,8 @@
+{
+    "name": "stone",
+    "display_name": "Stone",
+    "shape": "cube",
+    "texture": "textures/blocks/stone.png",
+    "collision": true,
+    "visible": true
+}
