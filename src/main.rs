@@ -10,6 +10,7 @@ use plugin::chunk::ChunkPlugin;
 use plugin::ui::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
+use plugin::controls::ControlsPlugin;
 
 
 fn main() {
@@ -18,12 +19,13 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(StatePlugin)
         .add_plugins(FreeCameraPlugin)
+        .add_plugins(ControlsPlugin)
         .add_plugins(MeshingPlugin)
         .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)
-        .add_plugins(WeatherPlugin)
-        .add_plugins(BlockInteractionPlugin)
         .add_plugins(BlockRegistryPlugin)
+        .add_plugins(BlockInteractionPlugin)
+        .add_plugins(WeatherPlugin)
 
         // Game systems (that can't fit into any one previous plugin neatly)
         .add_systems(PreStartup, setup)

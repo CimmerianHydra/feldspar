@@ -10,3 +10,4 @@ pub mod weather;
 pub mod camera;
 pub mod state;
 pub mod shape;
+pub mod controls;

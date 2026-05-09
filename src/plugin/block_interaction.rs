@@ -3,11 +3,13 @@ use bevy::{
 };
 use bevy::render::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
+
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction, BlockShape};
 use crate::plugin::meshing::{BLOCK_SIZE};
 use crate::plugin::dimension::DimensionId;
+use crate::plugin::controls::{MouseEvent, MouseAction};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin and Component Definitions
@@ -28,15 +30,13 @@ impl Plugin for BlockInteractionPlugin {
         .add_systems(PreStartup, spawn_block_highlight_sys)
 
         .add_systems(Update, (
-                mouse_click_handling_sys,
                 cast_static_dda_ray_sys,
                 update_block_highlight_sys
             ).run_if(in_state(GameUpdateState::Running))
         )
 
         .add_observer(update_look_target_obs)
-        .add_observer(handle_primary_click_obs)
-        .add_observer(handle_secondary_click_obs)
+        .add_observer(handle_mouse_interaction_obs)
         .add_observer(static_voxel_write_obs)
         ;
     }
@@ -266,60 +266,36 @@ pub fn update_block_highlight_sys(
 // SECTION 4 – Block Selection Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-#[derive(Event)]
-pub struct MousePrimaryEvent;
-
-#[derive(Event)]
-pub struct MouseSecondaryEvent;
-
-
-// Placeholder, just sends events when the player clicks.
-fn mouse_click_handling_sys(
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    mut commands: Commands,
-) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        commands.trigger(MousePrimaryEvent);
-    }
-    if mouse_button_input.just_pressed(MouseButton::Right) {
-        commands.trigger(MouseSecondaryEvent);
-    }
-}
-
-fn handle_primary_click_obs(
-    _primary_click_event: On<MousePrimaryEvent>,
+fn handle_mouse_interaction_obs(
+    mouse_event: On<MouseEvent>,
     mut commands: Commands,
     look_target: Res<PlayerLookTarget>,
 ) {
-    match look_target.target {
-        Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
-            let event = StaticVoxelWriteRequest {
-                block_coord: pos,
-                dimension: DimensionId::OVERWORLD,
-                voxel: Voxel::AIR,
-            };
-            commands.trigger(event)
-        },
-        _ => { return }
-    }
-}
-
-fn handle_secondary_click_obs(
-    _primary_click_event: On<MouseSecondaryEvent>,
-    mut commands: Commands,
-    look_target: Res<PlayerLookTarget>,
-) {
-    match look_target.target {
-        Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
-            let neighbor_pos = pos + face.as_ivec3();
-            let event = StaticVoxelWriteRequest {
-                block_coord: neighbor_pos,
-                dimension: DimensionId::OVERWORLD,
-                voxel: Voxel::new(1, BlockShape::Cube, Direction::North),
-            };
-            commands.trigger(event)
-        },
-        _ => { return }
+    if mouse_event.action == MouseAction::Primary {
+        match look_target.target {
+            Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
+                let event = StaticVoxelWriteRequest {
+                    block_coord: pos,
+                    dimension: DimensionId::OVERWORLD,
+                    voxel: Voxel::AIR,
+                };
+                commands.trigger(event)
+            },
+            _ => { return }
+        }
+    } else if mouse_event.action == MouseAction::Secondary {
+            match look_target.target {
+            Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
+                let neighbor_pos = pos + face.as_ivec3();
+                let event = StaticVoxelWriteRequest {
+                    block_coord: neighbor_pos,
+                    dimension: DimensionId::OVERWORLD,
+                    voxel: Voxel::new(1, BlockShape::Cube, Direction::North),
+                };
+                commands.trigger(event)
+            },
+            _ => { return }
+        }
     }
 }
 

@@ -2,6 +2,7 @@ use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::plugin::state::GameUpdateState;
+use crate::plugin::controls::{MouseEvent, MouseAction};
 
 // Contains UI plugins and systems, such as block highlighting when looking at a block, and interaction prompts.
 pub struct UIPlugin;
@@ -11,7 +12,12 @@ impl Plugin for UIPlugin {
         // Add systems related to UI here
         app
 
+        .insert_resource(CurrentlyHighlightedHotbarSlot { index: 0 } )
+
+        .add_systems(Startup, spawn_gameui_sys)
+
         .add_systems(Update, button_sys)
+        .add_systems(Update, update_hotbar_highlight_sys)
 
         .add_systems(OnEnter(GameUpdateState::Running), cursor_lock_sys)
         .add_systems(OnEnter(GameUpdateState::Running), spawn_crosshair_sys)
@@ -20,6 +26,7 @@ impl Plugin for UIPlugin {
         .add_systems(OnEnter(GameUpdateState::Paused), spawn_pause_menu_sys)
 
         .add_observer(pause_menu_actions_obs)
+        .add_observer(update_hotbar_highlight_obs)
         ;
     }
 }
@@ -43,14 +50,25 @@ pub fn cursor_release_sys(
 // COLORS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const PANEL_COLOR: Color = Color::srgba(0.1, 0.1, 0.1, 0.95);
+const UI_PANEL_COLOR: Color = Color::srgba_u8(32, 36, 44, 230);
+const UI_PANEL_PADDING: Val = Val::Px(6.0);
+const UI_PANEL_RADIUS: Val = Val::Px(6.0);
+const UI_BORDER_COLOR: Color = Color::srgba_u8(90, 98, 120, 255);
+const UI_BORDER_THICKN: Val = Val::Px(2.0);
+const UI_HL_BORDER_COLOR: Color = Color::srgba_u8(250, 250, 250, 255);
+const UI_HL_BORDER_THICKN: Val = Val::Px(4.0);
+
+const UI_SLOT_COLOR: Color = Color::srgb_u8(46, 52, 64);
 
 const BUTTON_NORMAL: Color = Color::srgb(0.20, 0.20, 0.20);
 const BUTTON_HOVERED: Color = Color::srgb(0.30, 0.30, 0.30);
 const BUTTON_PRESSED: Color = Color::srgb(0.15, 0.45, 0.15);
 
-const QUIT_BUTTON_NORMAL: Color = Color::srgb(0.35, 0.15, 0.15);
-const QUIT_BUTTON_HOVERED: Color = Color::srgb(0.50, 0.20, 0.20);
+const SLOT_SIZE: Val = Val::Px(80.0);
+const SLOT_GAP: Val = Val::Px(6.0);
+
+const SLOTS: usize = 9;
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BUTTON BUILDER
@@ -140,6 +158,7 @@ pub fn build_pause_menu() -> impl Bundle {
         },
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
         DespawnOnExit(GameUpdateState::Paused),
+        ZIndex(1000),
     );
     return pause_menu_bundle
 }
@@ -160,14 +179,14 @@ fn spawn_pause_menu_sys(
     commands.spawn(build_pause_menu())
         .with_children(|parent| {
             parent.spawn(pause_text_bundle);
-            spawn_button(parent, "Resume", (PauseMenuButton { action: MenuActions::RESUME }));
-            spawn_button(parent, "Quit Game", (PauseMenuButton { action: MenuActions::QUIT }));
+            spawn_button(parent, "Resume", PauseMenuButton { action: MenuActions::RESUME });
+            spawn_button(parent, "Quit Game", PauseMenuButton { action: MenuActions::QUIT });
     });
 }
 
 fn pause_menu_actions_obs(
     button_press: On<ButtonPressedEvent>,
-    interaction_query: Query<(&PauseMenuButton), (With<Button>)>,
+    interaction_query: Query<&PauseMenuButton, With<Button>>,
     mut next_state: ResMut<NextState<GameUpdateState>>,
     mut app_exit_writer: MessageWriter<AppExit>,
 ) {
@@ -183,6 +202,16 @@ fn pause_menu_actions_obs(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GAME UI
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Component)]
+pub struct HotbarSlot {
+    index: usize,
+}
+
+#[derive(Resource)]
+pub struct CurrentlyHighlightedHotbarSlot {
+    index: usize,
+}
 
 pub fn spawn_crosshair_sys(
     mut commands: Commands,
@@ -215,4 +244,87 @@ pub fn spawn_crosshair_sys(
         .with_children(|parent| {
             parent.spawn(crosshair_entity);
     });
+}
+
+pub fn spawn_gameui_sys(
+    mut commands: Commands,
+) {
+    let game_ui_root = (Node {
+            width: percent(100),
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::FlexEnd,
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        ZIndex(0),
+    );
+
+    let hotbar_panel = (Node {
+            display: Display::Flex,
+            align_items: AlignItems::Baseline,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Row,
+            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+            border: UiRect::all(UI_BORDER_THICKN),
+            padding: UiRect::all(UI_PANEL_PADDING),
+            ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_PANEL_COLOR),
+    );
+
+    commands.spawn(game_ui_root)
+        .with_children(|parent| {
+            parent.spawn(hotbar_panel)
+                .with_children(|hotbar| {
+                    for index in 0..SLOTS {
+                        let slot_node = (Node {
+                            width: SLOT_SIZE,
+                            height: SLOT_SIZE,
+                            align_items: AlignItems::Center,
+                            justify_content: JustifyContent::Center,
+                            flex_direction: FlexDirection::Column,
+                            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+                            border: UiRect::all(UI_BORDER_THICKN),
+                            margin: UiRect::all(SLOT_GAP),
+                            ..default()
+                            },
+                            BorderColor::all(UI_BORDER_COLOR),
+                            BackgroundColor(UI_SLOT_COLOR),
+                            HotbarSlot { index },
+                        );
+                        hotbar.spawn(slot_node);
+                    }
+                });
+        });
+}
+
+fn update_hotbar_highlight_obs(
+    scroll_event: On<MouseEvent>,
+    mut current_highlight: ResMut<CurrentlyHighlightedHotbarSlot>,
+) {
+    match scroll_event.action {
+        MouseAction::ScrollDown => current_highlight.index += 1,
+        MouseAction::ScrollUp => current_highlight.index += SLOTS - 1,
+        _ => { return },
+    }
+    current_highlight.index = current_highlight.index % SLOTS;
+}
+
+pub fn update_hotbar_highlight_sys(
+    current_highlight: Res<CurrentlyHighlightedHotbarSlot>,
+    mut query: Query<(&mut Node, &mut BorderColor, &HotbarSlot)>
+) {
+    let current_index = current_highlight.index;
+
+    for (mut node, mut border_color, slot_data) in query.iter_mut() {
+        if slot_data.index == current_index {
+            *border_color = BorderColor::all(UI_HL_BORDER_COLOR);
+            node.border = UiRect::all(UI_HL_BORDER_THICKN);
+        } else {
+            *border_color = BorderColor::all(UI_BORDER_COLOR);
+            node.border = UiRect::all(UI_BORDER_THICKN);
+        }
+    }
 }
