@@ -79,6 +79,10 @@ impl BlockRegistry {
         new_registry.register_block(BlockDefinition::AIR());
         new_registry
     }
+
+    pub fn size(&self) -> usize {
+        self.blocks.len()
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -5,6 +5,8 @@ use bevy::render::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
+use crate::plugin::inventory::main::*;
+use crate::plugin::inventory::player_inventory::*;
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction, BlockShape};
 use crate::plugin::meshing::{BLOCK_SIZE};
@@ -26,6 +28,7 @@ impl Plugin for BlockInteractionPlugin {
         // Keeps track of which block or other entity is being looked at right now
         // Figured out from the combo of all raycasting systems (currently just DDA)
         .insert_resource(PlayerLookTarget{ target: None })
+        .insert_resource(PlayerHeldItems{ right_hand: None, left_hand: None })
 
         .add_systems(PreStartup, spawn_block_highlight_sys)
 
@@ -36,6 +39,7 @@ impl Plugin for BlockInteractionPlugin {
         )
 
         .add_observer(update_look_target_obs)
+        .add_observer(update_held_items_obs)
         .add_observer(handle_mouse_interaction_obs)
         .add_observer(static_voxel_write_obs)
         ;
@@ -374,4 +378,29 @@ fn static_voxel_write_obs(
     mut static_world_access: StaticWorldAccessMut,
 ) {
     static_world_access.set_voxel(event.block_coord, event.dimension, event.voxel);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 5 – Player Held Item
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Resource, Default)]
+pub struct PlayerHeldItems{
+    right_hand: Option<ItemStack>,
+    left_hand: Option<ItemStack>,
+}
+
+fn update_held_items_obs(
+    event: On<PlayerHotbarSelectedChange>,
+    mut held_items: ResMut<PlayerHeldItems>,
+    mut inv_query: Query<&Inventory, With<PlayerInventory>>,
+) {
+    if let Ok(inventory) = inv_query.single() {
+        let next_slot = event.new_index;
+        held_items.right_hand = inventory.slots()[next_slot];
+    }
+
+    if let Some(stack) = held_items.right_hand {
+        bevy::log::info!("Currently held item: {:?}", stack.item)
+    }
 }

@@ -11,7 +11,7 @@ use plugin::ui::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
 use plugin::controls::ControlsPlugin;
-
+use plugin::inventory::main::InventoryPlugin;
 
 fn main() {
     App::new()
@@ -24,6 +24,7 @@ fn main() {
         .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)
         .add_plugins(BlockRegistryPlugin)
+        .add_plugins(InventoryPlugin)
         .add_plugins(BlockInteractionPlugin)
         .add_plugins(WeatherPlugin)
 
@@ -57,11 +58,8 @@ fn setup(
         // As this example has a much smaller world, we can tighten the shadow
         // bounds for better visual quality.
         CascadeShadowConfigBuilder {
-            first_cascade_far_bound: 4.0,
-            maximum_distance: 100.0,
             ..default()
-        }
-        .build(),
+        }.build(),
     ));
 }
 

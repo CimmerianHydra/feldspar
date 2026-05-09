@@ -2,7 +2,7 @@ use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::plugin::state::GameUpdateState;
-use crate::plugin::controls::{MouseEvent, MouseAction};
+use crate::plugin::inventory::player_inventory::*;
 
 // Contains UI plugins and systems, such as block highlighting when looking at a block, and interaction prompts.
 pub struct UIPlugin;
@@ -12,12 +12,9 @@ impl Plugin for UIPlugin {
         // Add systems related to UI here
         app
 
-        .insert_resource(CurrentlyHighlightedHotbarSlot { index: 0 } )
-
         .add_systems(Startup, spawn_gameui_sys)
 
         .add_systems(Update, button_sys)
-        .add_systems(Update, update_hotbar_highlight_sys)
 
         .add_systems(OnEnter(GameUpdateState::Running), cursor_lock_sys)
         .add_systems(OnEnter(GameUpdateState::Running), spawn_crosshair_sys)
@@ -26,7 +23,7 @@ impl Plugin for UIPlugin {
         .add_systems(OnEnter(GameUpdateState::Paused), spawn_pause_menu_sys)
 
         .add_observer(pause_menu_actions_obs)
-        .add_observer(update_hotbar_highlight_obs)
+        .add_observer(sync_hotbar_highlight_obs)
         ;
     }
 }
@@ -66,8 +63,6 @@ const BUTTON_PRESSED: Color = Color::srgb(0.15, 0.45, 0.15);
 
 const SLOT_SIZE: Val = Val::Px(80.0);
 const SLOT_GAP: Val = Val::Px(6.0);
-
-const SLOTS: usize = 9;
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -208,11 +203,6 @@ pub struct HotbarSlot {
     index: usize,
 }
 
-#[derive(Resource)]
-pub struct CurrentlyHighlightedHotbarSlot {
-    index: usize,
-}
-
 pub fn spawn_crosshair_sys(
     mut commands: Commands,
 ) {
@@ -278,48 +268,24 @@ pub fn spawn_gameui_sys(
         .with_children(|parent| {
             parent.spawn(hotbar_panel)
                 .with_children(|hotbar| {
-                    for index in 0..SLOTS {
-                        let slot_node = (Node {
-                            width: SLOT_SIZE,
-                            height: SLOT_SIZE,
-                            align_items: AlignItems::Center,
-                            justify_content: JustifyContent::Center,
-                            flex_direction: FlexDirection::Column,
-                            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
-                            border: UiRect::all(UI_BORDER_THICKN),
-                            margin: UiRect::all(SLOT_GAP),
-                            ..default()
-                            },
-                            BorderColor::all(UI_BORDER_COLOR),
-                            BackgroundColor(UI_SLOT_COLOR),
-                            HotbarSlot { index },
-                        );
+                    let slot_node = build_ui_item_slot_highlighted(0);
+                    hotbar.spawn(slot_node);
+                    for index in 1..HOTBAR_CAPACITY {
+                        let slot_node = build_ui_item_slot(index);
                         hotbar.spawn(slot_node);
                     }
                 });
         });
 }
 
-fn update_hotbar_highlight_obs(
-    scroll_event: On<MouseEvent>,
-    mut current_highlight: ResMut<CurrentlyHighlightedHotbarSlot>,
-) {
-    match scroll_event.action {
-        MouseAction::ScrollDown => current_highlight.index += 1,
-        MouseAction::ScrollUp => current_highlight.index += SLOTS - 1,
-        _ => { return },
-    }
-    current_highlight.index = current_highlight.index % SLOTS;
-}
-
-pub fn update_hotbar_highlight_sys(
-    current_highlight: Res<CurrentlyHighlightedHotbarSlot>,
+fn sync_hotbar_highlight_obs(
+    event: On<PlayerHotbarSelectedChange>,
     mut query: Query<(&mut Node, &mut BorderColor, &HotbarSlot)>
 ) {
-    let current_index = current_highlight.index;
+    let new_index = event.new_index;
 
     for (mut node, mut border_color, slot_data) in query.iter_mut() {
-        if slot_data.index == current_index {
+        if slot_data.index == new_index {
             *border_color = BorderColor::all(UI_HL_BORDER_COLOR);
             node.border = UiRect::all(UI_HL_BORDER_THICKN);
         } else {
@@ -327,4 +293,44 @@ pub fn update_hotbar_highlight_sys(
             node.border = UiRect::all(UI_BORDER_THICKN);
         }
     }
+}
+
+fn build_ui_item_slot(
+    index: usize,
+) -> impl Bundle {
+    (Node {
+        width: SLOT_SIZE,
+        height: SLOT_SIZE,
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        flex_direction: FlexDirection::Column,
+        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+        border: UiRect::all(UI_BORDER_THICKN),
+        margin: UiRect::all(SLOT_GAP),
+        ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        HotbarSlot { index },
+    )
+}
+
+fn build_ui_item_slot_highlighted(
+    index: usize,
+) -> impl Bundle {
+    (Node {
+        width: SLOT_SIZE,
+        height: SLOT_SIZE,
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        flex_direction: FlexDirection::Column,
+        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+        border: UiRect::all(UI_HL_BORDER_THICKN),
+        margin: UiRect::all(SLOT_GAP),
+        ..default()
+        },
+        BorderColor::all(UI_HL_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        HotbarSlot { index },
+    )
 }

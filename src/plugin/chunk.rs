@@ -9,6 +9,9 @@ use crate::plugin::voxel::{BlockShape, Direction};
 
 // Contains chunk logic and plugins.
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 1 – Plugin Definition
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 pub struct ChunkPlugin;
 
 impl Plugin for ChunkPlugin {
@@ -92,7 +95,7 @@ fn spawn_test_chunk(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 3 – VOXEL CHUNK  (chunk.rs)
+// SECTION 2 – VOXEL CHUNK
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub const CHUNK_SIZE:   usize = 16;
@@ -187,7 +190,7 @@ impl VoxelChunk {
 pub struct NeedsRemeshing;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 – MARKER COMPONENTS  (markers.rs)
+// SECTION 3 – MARKER COMPONENTS 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Marks a `VoxelChunk` entity as a fixed, static world chunk.
@@ -318,6 +321,7 @@ impl StaticWorld {
 pub struct StaticWorldAccess<'w, 's> {
     world: Res<'w, StaticWorld>,
     chunks: Query<'w, 's, &'static VoxelChunk>,
+    block_entities:  Query<'w, 's, &'static ChunkBlockEntities>,
 }
 
 impl<'w, 's> StaticWorldAccess<'w, 's> {
@@ -343,6 +347,17 @@ impl<'w, 's> StaticWorldAccess<'w, 's> {
     ) -> Option<Entity> {
         let (chunk_pos, local_pos) = StaticWorld::to_chunk_local(world_pos);
         self.world.chunk_entity(dimension, chunk_pos)
+    }
+
+    pub fn get_block_entity(
+        &self,
+        world_pos: IVec3,
+        dimension: DimensionId,
+    ) -> Option<Entity> {
+        let (chunk_pos, local) = StaticWorld::to_chunk_local(world_pos);
+        let chunk_entity = self.world.chunk_entity(dimension, chunk_pos)?;
+        let table = self.block_entities.get(chunk_entity).ok()?;
+        table.get(local)
     }
 }
 
@@ -387,7 +402,7 @@ impl<'w, 's> StaticWorldAccessMut<'w, 's> {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 7 – SYSTEMS
+// SECTION 4 – SYSTEMS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Keeps `StaticWorld` up to date when new `StaticChunk` entities appear.
@@ -410,6 +425,123 @@ pub fn unregister_removed_chunks_sys(
         // The component may still be accessible in the same frame it was removed.
         if let Ok(chunk) = query.get(entity) {
             voxel_world.remove(chunk.dimension, chunk.position);
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 6 – BLOCK ENTITIES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Sparse map of local block positions → associated ECS entities.
+/// Lives as a *separate* component on the same chunk entity as `VoxelChunk`.
+///
+/// Only added to chunks that actually contain at least one interactive block,
+/// so plain terrain chunks pay zero overhead.
+///
+/// Local positions are in `[0, 15]³` matching `VoxelChunk`'s coordinate space.
+#[derive(Component, Default)]
+pub struct ChunkBlockEntities {
+    map: HashMap<UVec3, Entity>,
+}
+
+impl ChunkBlockEntities {
+    /// Register a block-entity at a local position.
+    pub fn insert(&mut self, local: UVec3, entity: Entity) {
+        self.map.insert(local, entity);
+    }
+
+    /// Remove the block-entity at a local position (e.g. block was broken).
+    pub fn remove(&mut self, local: UVec3) -> Option<Entity> {
+        self.map.remove(&local)
+    }
+
+    /// O(1) lookup.
+    pub fn get(&self, local: UVec3) -> Option<Entity> {
+        self.map.get(&local).copied()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Back-reference placed on every block-entity so it can locate itself in
+/// the world (useful for self-removal, chunk queries, serialization).
+#[derive(Component)]
+pub struct BlockEntityTag {
+    pub dimension:   DimensionId,
+    pub world_block: IVec3,   // absolute block position, NOT chunk-local
+}
+
+// ---------------------------------------------------------------------------
+
+/// Helper: spawn a block-entity, register it in the chunk's side-table,
+/// and attach a `BlockEntityTag`.
+///
+/// Returns `None` if the target chunk isn't loaded.
+/// The caller adds their own components (Inventory, Furnace, etc.) afterward.
+///
+/// ```rust
+/// if let Some(e) = spawn_block_entity(&mut commands, &mut world, &mut chunks,
+///                                     DimensionId::OVERWORLD, block_pos) {
+///     commands.entity(e).insert(Inventory::new(20));
+/// }
+/// ```
+pub fn spawn_block_entity(
+    commands:  &mut Commands,
+    world:     &StaticWorld,
+    chunks:    &mut Query<Option<&mut ChunkBlockEntities>>,
+    dimension: DimensionId,
+    world_block: IVec3,
+) -> Option<Entity> {
+    let (chunk_pos, local) = StaticWorld::to_chunk_local(world_block);
+    let chunk_entity = world.chunk_entity(dimension, chunk_pos)?;
+
+    // Spawn the bare block-entity with only its tag.
+    // Caller will .insert() their actual components right after.
+    let block_entity = commands.spawn(BlockEntityTag { dimension, world_block }).id();
+
+    // Register in the chunk's side-table, creating it if this is the first
+    // interactive block in the chunk.
+    if let Ok(maybe_table) = chunks.get_mut(chunk_entity) {
+        if let Some(mut table) = maybe_table {
+            table.insert(local, block_entity);
+        } else {
+            // Chunk has no side-table yet — add one via commands
+            // (we can't insert components via Query, so we buffer it)
+            let mut new_table = ChunkBlockEntities::default();
+            new_table.insert(local, block_entity);
+            commands.entity(chunk_entity).insert(new_table);
+        }
+    }
+
+    Some(block_entity)
+}
+
+/// Remove a block-entity from the world and despawn it.
+/// Cleans up the chunk side-table; removes `ChunkBlockEntities` entirely
+/// if the chunk becomes empty.
+pub fn despawn_block_entity(
+    commands:    &mut Commands,
+    world:       &StaticWorld,
+    chunks:      &mut Query<(Option<&mut ChunkBlockEntities>, Entity)>,
+    dimension:   DimensionId,
+    world_block: IVec3,
+) {
+    let (chunk_pos, local) = StaticWorld::to_chunk_local(world_block);
+
+    if let Some(chunk_entity) = world.chunk_entity(dimension, chunk_pos) {
+        if let Ok((Some(mut table), _)) = chunks.get_mut(chunk_entity) {
+            if let Some(block_entity) = table.remove(local) {
+                commands.entity(block_entity).despawn();
+            }
+            // Prune the component when the chunk is fully empty again
+            if table.is_empty() {
+                commands.entity(chunk_entity).remove::<ChunkBlockEntities>();
+            }
         }
     }
 }

@@ -44,56 +44,6 @@ fn update_dirty_mesh_sys(
     }
 }
 
-fn face_vertices(face: Direction) -> ([Vec3; 4], Vec3) {
-    let normal = face.as_vec3();
-    let vertices = match face {
-        // Normals follow the CCW winding convention.
-        Direction::Up => 
-            [
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(0.0, 1.0, 1.0),
-                Vec3::new(1.0, 1.0, 1.0),
-                Vec3::new(1.0, 1.0, 0.0),
-            ],
-        Direction::Down =>
-            [
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(1.0, 0.0, 1.0),
-            ],
-        Direction::North =>
-            [
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(1.0, 1.0, 0.0),
-            ],
-        Direction::South =>
-            [
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(1.0, 0.0, 1.0),
-                Vec3::new(1.0, 1.0, 1.0),
-                Vec3::new(0.0, 1.0, 1.0),
-            ],
-        Direction::East =>
-            [
-                Vec3::new(1.0, 0.0, 1.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(1.0, 1.0, 0.0),
-                Vec3::new(1.0, 1.0, 1.0),
-            ],
-        Direction::West =>
-            [
-                Vec3::new(0.0, 0.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-                Vec3::new(0.0, 1.0, 1.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ],
-    };
-    return (vertices, normal)
-}
-
 fn neighbor_pos(pos: UVec3, face: Direction) -> Option<UVec3> {
     let (x, y, z) = (pos.x as i32, pos.y as i32, pos.z as i32);
 
