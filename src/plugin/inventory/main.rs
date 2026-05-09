@@ -286,9 +286,6 @@ impl Plugin for InventoryPlugin {
 
             .add_systems(PostStartup, player_inventory::spawn_player_inventory)
 
-            // Example: a system that flushes belt transfers every tick
-            .add_systems(Update, belt_transfer_sys)
-
             .add_observer(player_inventory::update_hotbar_obs)
         ;
     }
@@ -314,30 +311,5 @@ fn initialize_item_registry_sys(
                 kind: ItemKind::Block { block_id: BlockID(id as u16) },
             }
         );
-    }
-}
-
-/// Marker component for a belt end-point that outputs to a target inventory.
-#[derive(Component)]
-pub struct BeltOutput {
-    pub target:    Entity,   // entity with Inventory
-    pub item:      ItemID,
-    pub rate:      u32,      // items per tick
-}
-
-/// Drives item flow from belt outputs into their target inventories.
-/// Uses `Query::get_many_mut` to mutably borrow two distinct inventories
-/// in one system without unsafe code.
-fn belt_transfer_sys(
-    registry: Res<ItemRegistry>,
-    mut belts: Query<(&BeltOutput, &mut Inventory)>,     // belt source
-    mut targets: Query<&mut Inventory, Without<BeltOutput>>, // destinations
-) {
-    // NOTE: for real cross-entity transfers you'd split this into a
-    // ParamSet or use a staging buffer. Shown here as a design sketch.
-    for (belt, mut src) in belts.iter_mut() {
-        if let Ok(mut dst) = targets.get_mut(belt.target) {
-            transfer_items(&mut src, &mut dst, belt.item, belt.rate, &registry);
-        }
     }
 }

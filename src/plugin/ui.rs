@@ -203,6 +203,46 @@ pub struct HotbarSlot {
     index: usize,
 }
 
+pub fn build_hotbar_item_slot(
+    index: usize,
+) -> impl Bundle {
+    (Node {
+        width: SLOT_SIZE,
+        height: SLOT_SIZE,
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        flex_direction: FlexDirection::Column,
+        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+        border: UiRect::all(UI_BORDER_THICKN),
+        margin: UiRect::all(SLOT_GAP),
+        ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        HotbarSlot { index },
+    )
+}
+
+pub fn build_hotbar_item_slot_highlighted(
+    index: usize,
+) -> impl Bundle {
+    (Node {
+        width: SLOT_SIZE,
+        height: SLOT_SIZE,
+        align_items: AlignItems::Center,
+        justify_content: JustifyContent::Center,
+        flex_direction: FlexDirection::Column,
+        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+        border: UiRect::all(UI_HL_BORDER_THICKN),
+        margin: UiRect::all(SLOT_GAP),
+        ..default()
+        },
+        BorderColor::all(UI_HL_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        HotbarSlot { index },
+    )
+}
+
 pub fn spawn_crosshair_sys(
     mut commands: Commands,
 ) {
@@ -268,10 +308,10 @@ pub fn spawn_gameui_sys(
         .with_children(|parent| {
             parent.spawn(hotbar_panel)
                 .with_children(|hotbar| {
-                    let slot_node = build_ui_item_slot_highlighted(0);
+                    let slot_node = build_hotbar_item_slot_highlighted(0);
                     hotbar.spawn(slot_node);
                     for index in 1..HOTBAR_CAPACITY {
-                        let slot_node = build_ui_item_slot(index);
+                        let slot_node = build_hotbar_item_slot(index);
                         hotbar.spawn(slot_node);
                     }
                 });
@@ -295,42 +335,3 @@ fn sync_hotbar_highlight_obs(
     }
 }
 
-fn build_ui_item_slot(
-    index: usize,
-) -> impl Bundle {
-    (Node {
-        width: SLOT_SIZE,
-        height: SLOT_SIZE,
-        align_items: AlignItems::Center,
-        justify_content: JustifyContent::Center,
-        flex_direction: FlexDirection::Column,
-        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
-        border: UiRect::all(UI_BORDER_THICKN),
-        margin: UiRect::all(SLOT_GAP),
-        ..default()
-        },
-        BorderColor::all(UI_BORDER_COLOR),
-        BackgroundColor(UI_SLOT_COLOR),
-        HotbarSlot { index },
-    )
-}
-
-fn build_ui_item_slot_highlighted(
-    index: usize,
-) -> impl Bundle {
-    (Node {
-        width: SLOT_SIZE,
-        height: SLOT_SIZE,
-        align_items: AlignItems::Center,
-        justify_content: JustifyContent::Center,
-        flex_direction: FlexDirection::Column,
-        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
-        border: UiRect::all(UI_HL_BORDER_THICKN),
-        margin: UiRect::all(SLOT_GAP),
-        ..default()
-        },
-        BorderColor::all(UI_HL_BORDER_COLOR),
-        BackgroundColor(UI_SLOT_COLOR),
-        HotbarSlot { index },
-    )
-}
