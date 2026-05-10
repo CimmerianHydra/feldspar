@@ -1,13 +1,31 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::block_registry::{BlockID, BlockRegistry};
+use crate::plugin::block_registry::{BlockID, BlockRegistry, initialize_registry_sys};
 use crate::plugin::inventory::item_display::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
 use crate::plugin::state::GameUpdateState;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 1 – Item Registry
+// PLUGIN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pub struct ItemRegistryPlugin;
+
+impl Plugin for ItemRegistryPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            // Resources
+            .insert_resource(ItemRegistry::new())
+
+            // Startup Systems
+            .add_systems(Startup, initialize_item_registry_sys.after(initialize_registry_sys))
+        ;
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ITEM DEFINITIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -33,6 +51,10 @@ pub struct ItemDefinition {
     pub kind:         ItemKind,
     pub display:      ItemDisplay,
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ITEM REGISTRY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Mirror of BlockRegistry — same pattern.
 #[derive(Resource)]
@@ -75,6 +97,11 @@ impl ItemRegistry {
 // SECTION 6 – Example Systems
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/// Hardcoded block registry initialization.
+/// In the future we need to have helpers that take this information from JSON files
+/// and use it to build the registry for the actual game, as well as building any custom
+/// object that only exists in a world in the registry.
+
 pub fn initialize_item_registry_sys(
     block_registry: Res<BlockRegistry>,
     mut item_registry: ResMut<ItemRegistry>,
@@ -83,6 +110,7 @@ pub fn initialize_item_registry_sys(
     asset_server: Res<AssetServer>,
 ) {
     // First we register all the blocks as items.
+    // In the future we'll do this by looking through JSON files.
     for id in 0..block_registry.size() {
         let block = block_registry.get(BlockID(id as u16));
         item_registry.register(
@@ -98,6 +126,9 @@ pub fn initialize_item_registry_sys(
     }
 
     bevy::log::info_once!("ItemRegistry successfully initialized.");
+
+
     // After we're done, we're free to play the game
+    // We need to change this into an event and create a "loading checklist" in the future
     next_game_state.set(GameUpdateState::Running);
 }

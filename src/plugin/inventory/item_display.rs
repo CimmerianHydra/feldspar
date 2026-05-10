@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use crate::plugin::inventory::{item_registry::ItemRegistry, main::*};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION

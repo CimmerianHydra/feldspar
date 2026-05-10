@@ -9,6 +9,7 @@ use crate::plugin::voxel::BlockShape;
 // SECTION 1 – Plugin Definition
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 pub struct BlockRegistryPlugin;
 
 impl Plugin for BlockRegistryPlugin {
@@ -133,7 +134,12 @@ pub fn initialize_registry_sys(
     mut registry: ResMut<BlockRegistry>
 ) {
     let dummy_id = BlockID(1);
-    for shape in [BlockShape::Cube, BlockShape::Slab, BlockShape::Stair] {
+    for shape in [
+        BlockShape::Cube,
+        BlockShape::Slab,
+        BlockShape::Stair,
+        BlockShape::Slope,
+        ] {
         let base_name = "test".to_string();
         let base_display_name = "Test".to_string();
 
@@ -141,6 +147,7 @@ pub fn initialize_registry_sys(
             BlockShape::Cube => (format!("{}_{}", base_name, "cube"), format!("{} {}", base_display_name, "Cube")),
             BlockShape::Slab => (format!("{}_{}", base_name, "slab"), format!("{} {}", base_display_name, "Slab")),
             BlockShape::Stair => (format!("{}_{}", base_name, "stair"), format!("{} {}", base_display_name, "Stair")),
+            BlockShape::Slope => (format!("{}_{}", base_name, "slope"), format!("{} {}", base_display_name, "Slope")),
             _ => ("test".to_string(), "Test".to_string())
         };
 

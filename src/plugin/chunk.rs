@@ -29,13 +29,14 @@ impl Plugin for ChunkPlugin {
             // PreUpdate: registry must be ready before game logic runs.
             .add_systems(PreUpdate,register_new_chunks_sys)
             .add_systems(PreUpdate,unregister_removed_chunks_sys)
-            // Startup: spawn a test chunk for development.
-            .add_systems(Startup, spawn_test_chunk)
+
+            // Only run this once
+            .add_systems(Update, spawn_test_chunk.run_if(run_once))
         ;
     }
 }
 
-// Example function to create a test chunk with the specified block ID
+// Example function to create a test chunk with the specified block IDs
 fn spawn_test_chunk(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,

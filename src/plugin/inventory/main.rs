@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::block_registry::{BlockRegistry, BlockID, initialize_registry_sys};
-
 use crate::plugin::inventory::player_inventory::{PlayerHotbar, spawn_player_inventory_sys, populate_player_inventory_once, update_hotbar_obs};
 use crate::plugin::inventory::item_registry::*;
 
@@ -16,12 +14,9 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app
             // Resources
-            .insert_resource(ItemRegistry::new())
             .insert_resource(PlayerHotbar::new())
 
             // Startup Systems
-            .add_systems(Startup, initialize_item_registry_sys.after(initialize_registry_sys))
-
             .add_systems(PostStartup, spawn_player_inventory_sys)
 
             // Update Systems
