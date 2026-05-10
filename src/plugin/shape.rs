@@ -36,7 +36,7 @@ pub fn shape_quads(shape: BlockShape, facing: Direction) -> Vec<ShapeQuad> {
         BlockShape::Slab  => slab_quads(facing),
         BlockShape::Stair => rotate_to(stair_quads_north(), facing),
         BlockShape::StairInv => rotate_to(stair_inv_quads_north(), facing),
-        BlockShape::Slope => rotate_to(slope_quads_north(), facing),
+        BlockShape::Slope => rotate_to(slope_quads_north(), facing.opposite()),
         BlockShape::Custom(handle) => cube_quads(),
     }
 }
@@ -65,7 +65,7 @@ fn slab_quads(facing: Direction) -> Vec<ShapeQuad> {
     match facing {
         Direction::Up   => bottom_slab_quads(),
         Direction::Down => top_slab_quads(),
-        _               => rotate_to(vertical_slab_north(), facing),
+        _               => rotate_to(vertical_slab_north(), facing.opposite()),
     }
 }
 
@@ -73,7 +73,8 @@ fn bottom_slab_quads() -> Vec<ShapeQuad> {
     // Occupies y = [0, 0.5].  Only the bottom face is a full boundary face.
     vec![
         q([v(0.,0.,1.),v(0.,0.,0.),v(1.,0.,0.),v(1.,0.,1.)], Vec3::NEG_Y, Some(Direction::Down),  true),
-        q([v(0.,0.5,0.),v(0.,0.5,1.),v(1.,0.5,1.),v(1.,0.5,0.)], Vec3::Y, Some(Direction::Up),   false),
+        // Inner face (y = 0.5) — always rendered, no neighbor to cull against.
+        q([v(0.,0.5,0.),v(0.,0.5,1.),v(1.,0.5,1.),v(1.,0.5,0.)], Vec3::Y, None,   false),
         q([v(1.,0.,0.),v(0.,0.,0.),v(0.,0.5,0.),v(1.,0.5,0.)],    Vec3::NEG_Z, Some(Direction::North), false),
         q([v(0.,0.,1.),v(1.,0.,1.),v(1.,0.5,1.),v(0.,0.5,1.)],    Vec3::Z,     Some(Direction::South), false),
         q([v(1.,0.,1.),v(1.,0.,0.),v(1.,0.5,0.),v(1.,0.5,1.)],    Vec3::X,     Some(Direction::East),  false),
@@ -84,8 +85,9 @@ fn bottom_slab_quads() -> Vec<ShapeQuad> {
 fn top_slab_quads() -> Vec<ShapeQuad> {
     // Occupies y = [0.5, 1].  Only the top face is a full boundary face.
     vec![
-        q([v(0.,1.,0.),v(0.,1.,1.),v(1.,1.,1.),v(1.,1.,0.)],       Vec3::Y,     Some(Direction::Up),   true),
-        q([v(0.,0.5,1.),v(0.,0.5,0.),v(1.,0.5,0.),v(1.,0.5,1.)],   Vec3::NEG_Y, Some(Direction::Down), false),
+        q([v(0.,1.,0.),v(0.,1.,1.),v(1.,1.,1.),v(1.,1.,0.)],       Vec3::Y,      Some(Direction::Up),   true),
+        // Inner face (y = 0.5) — always rendered, no neighbor to cull against.
+        q([v(0.,0.5,1.),v(0.,0.5,0.),v(1.,0.5,0.),v(1.,0.5,1.)],   Vec3::NEG_Y,  None, false),
         q([v(1.,0.5,0.),v(0.,0.5,0.),v(0.,1.,0.),v(1.,1.,0.)],      Vec3::NEG_Z, Some(Direction::North), false),
         q([v(0.,0.5,1.),v(1.,0.5,1.),v(1.,1.,1.),v(0.,1.,1.)],      Vec3::Z,     Some(Direction::South), false),
         q([v(1.,0.5,1.),v(1.,0.5,0.),v(1.,1.,0.),v(1.,1.,1.)],      Vec3::X,     Some(Direction::East),  false),
@@ -97,9 +99,9 @@ fn vertical_slab_north() -> Vec<ShapeQuad> {
     // Canonical vertical slab: flush against the North wall, z = [0, 0.5].
     // Covers only the North boundary face.  Rotated for S/E/W variants.
     vec![
-        q([v(1.,0.,0.),v(0.,0.,0.),v(0.,1.,0.),v(1.,1.,0.)],    Vec3::NEG_Z, Some(Direction::North), true),
+        q([v(1.,0.,0.),v(0.,0.,0.),v(0.,1.,0.),v(1.,1.,0.)],    Vec3::NEG_Z,  Some(Direction::North), true),
         // Inner face (z = 0.5) — always rendered, no neighbor to cull against.
-        q([v(0.,0.,0.5),v(1.,0.,0.5),v(1.,1.,0.5),v(0.,1.,0.5)], Vec3::Z,    None,                   false),
+        q([v(0.,0.,0.5),v(1.,0.,0.5),v(1.,1.,0.5),v(0.,1.,0.5)], Vec3::Z,     None,                   false),
         q([v(0.,1.,0.),v(0.,1.,0.5),v(1.,1.,0.5),v(1.,1.,0.)],   Vec3::Y,     Some(Direction::Up),    false),
         q([v(0.,0.,0.5),v(0.,0.,0.),v(1.,0.,0.),v(1.,0.,0.5)],   Vec3::NEG_Y, Some(Direction::Down),  false),
         q([v(1.,0.,0.5),v(1.,0.,0.),v(1.,1.,0.),v(1.,1.,0.5)],   Vec3::X,     Some(Direction::East),  false),
@@ -144,7 +146,7 @@ fn stair_quads_north() -> Vec<ShapeQuad> {
         // Front (z=0) — half height, faces North
         q([v(1.,0.,0.),v(0.,0.,0.),v(0.,0.5,0.),v(1.,0.5,0.)],     Vec3::NEG_Z, Some(Direction::North), false),
         // Step tread (y=0.5, z=[0,0.5])
-        q([v(0.,0.5,0.),v(0.,0.5,0.5),v(1.,0.5,0.5),v(1.,0.5,0.)], Vec3::Y,     Some(Direction::Up),  false),
+        q([v(0.,0.5,0.),v(0.,0.5,0.5),v(1.,0.5,0.5),v(1.,0.5,0.)], Vec3::Y,     None,                   false),
         // Riser (z=0.5, y=[0.5,1]) — interior face, always rendered
         q([v(1.,0.5,0.5),v(0.,0.5,0.5),v(0.,1.,0.5),v(1.,1.,0.5)], Vec3::NEG_Z, None,                   false),
         // Upper top (y=1, z=[0.5,1])
@@ -165,15 +167,15 @@ fn stair_quads_north() -> Vec<ShapeQuad> {
 fn stair_inv_quads_north() -> Vec<ShapeQuad> {
     vec![
         // Top — full face
-        q([v(0.,1.,1.),v(0.,1.,0.),v(1.,1.,0.),v(1.,1.,1.)],       Vec3::Y, Some(Direction::Up),  true),
+        q([v(0.,1.,1.),v(0.,1.,0.),v(1.,1.,0.),v(1.,1.,1.)],       Vec3::Y,     Some(Direction::Up),    true),
         // Front (z=0) — half height, faces North
         q([v(1.,0.5,0.),v(0.,0.5,0.),v(0.,1.,0.),v(1.,1.,0.)],     Vec3::NEG_Z, Some(Direction::North), false),
         // Step tread (y=0.5, z=[0,0.5])
-        q([v(0.,0.5,0.),v(0.,0.5,0.5),v(1.,0.5,0.5),v(1.,0.5,0.)], Vec3::NEG_Y, Some(Direction::Down),  false),
+        q([v(0.,0.5,0.),v(0.,0.5,0.5),v(1.,0.5,0.5),v(1.,0.5,0.)], Vec3::NEG_Y, None,                   false),
         // Riser (z=0.5, y=[0,0.5]) — interior face, always rendered
         q([v(1.,0.,0.5),v(0.,0.,0.5),v(0.,0.5,0.5),v(1.,0.5,0.5)], Vec3::NEG_Z, None,                   false),
         // Lower bottom (y=0, z=[0.5,1])
-        q([v(0.,0.,0.5),v(0.,0.,1.),v(1.,0.,1.),v(1.,0.,0.5)],     Vec3::NEG_Y, Some(Direction::Down),    false),
+        q([v(0.,0.,0.5),v(0.,0.,1.),v(1.,0.,1.),v(1.,0.,0.5)],     Vec3::NEG_Y, Some(Direction::Down),  false),
         // Back (z=1) — full height, covers South neighbor
         q([v(0.,0.,1.),v(1.,0.,1.),v(1.,1.,1.),v(0.,1.,1.)],       Vec3::Z,     Some(Direction::South), true),
         // East — upper quad (z=[0,1], y=[0.5,1])

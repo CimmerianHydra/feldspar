@@ -308,7 +308,7 @@ fn handle_mouse_interaction_obs(
                             let event = StaticVoxelWriteRequest {
                                 block_coord: neighbor_pos,
                                 dimension: DimensionId::OVERWORLD,
-                                voxel: Voxel::new(block_id.0, shape, Direction::North),
+                                voxel: Voxel::new(block_id.0, shape, face),
                             };
 
                             commands.trigger(event)
