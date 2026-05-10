@@ -1,8 +1,0 @@
-{
-    "name": "dirt",
-    "display_name": "Dirt",
-    "shape": "cube",
-    "texture": "textures/blocks/dirt.png",
-    "collision": true,
-    "visible": true
-}

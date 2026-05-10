@@ -153,4 +153,6 @@ pub fn initialize_registry_sys(
         };
         registry.register_block(definition);
     }
+
+    bevy::log::info_once!("BlockRegistry successfully initialized.");
 }

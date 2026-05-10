@@ -2,7 +2,7 @@
 use bevy::prelude::*;
 use bevy::input::mouse::{MouseWheel, MouseScrollUnit};
 
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::state::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin Definition
@@ -18,7 +18,7 @@ impl Plugin for ControlsPlugin {
         .add_systems(Update, (
             mouse_click_handling_sys,
             mouse_scroll_handling_sys,
-        ).run_if(in_state(GameUpdateState::Running)))
+        ).run_if(in_state(UIState::Game)))
         ;
     }
 }

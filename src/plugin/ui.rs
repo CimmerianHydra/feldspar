@@ -1,7 +1,10 @@
 use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::inventory::item_display::{build_ui_item_display};
+use crate::plugin::inventory::item_registry::ItemRegistry;
+use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
+use crate::plugin::state::*;
 use crate::plugin::inventory::player_inventory::*;
 
 // Contains UI plugins and systems, such as block highlighting when looking at a block, and interaction prompts.
@@ -24,6 +27,7 @@ impl Plugin for UIPlugin {
 
         .add_observer(pause_menu_actions_obs)
         .add_observer(sync_hotbar_highlight_obs)
+        .add_observer(sync_hotbar_item_display_obs)
         ;
     }
 }
@@ -182,14 +186,18 @@ fn spawn_pause_menu_sys(
 fn pause_menu_actions_obs(
     button_press: On<ButtonPressedEvent>,
     interaction_query: Query<&PauseMenuButton, With<Button>>,
-    mut next_state: ResMut<NextState<GameUpdateState>>,
+    mut game_next_state: ResMut<NextState<GameUpdateState>>,
+    mut ui_next_state: ResMut<NextState<UIState>>,
     mut app_exit_writer: MessageWriter<AppExit>,
 ) {
     let pressed_button_entity = button_press.entity;
     if let Ok(a) = interaction_query.get(pressed_button_entity) {
         match a.action {
             MenuActions::QUIT => { app_exit_writer.write(AppExit::Success); },
-            MenuActions::RESUME => { next_state.set(GameUpdateState::Running);}
+            MenuActions::RESUME => {
+                game_next_state.set(GameUpdateState::Running);
+                ui_next_state.set(UIState::Game);
+            }
         }
     }
 }
@@ -308,8 +316,11 @@ pub fn spawn_gameui_sys(
         .with_children(|parent| {
             parent.spawn(hotbar_panel)
                 .with_children(|hotbar| {
+                    // Spawn first hotbar slot already highlighted
                     let slot_node = build_hotbar_item_slot_highlighted(0);
                     hotbar.spawn(slot_node);
+
+                    // Spawn the other hotbar slots not highlighted
                     for index in 1..HOTBAR_CAPACITY {
                         let slot_node = build_hotbar_item_slot(index);
                         hotbar.spawn(slot_node);
@@ -335,3 +346,40 @@ fn sync_hotbar_highlight_obs(
     }
 }
 
+
+/// Redraws the hotbar when the player inventory changes, if the affected slots are in the hotbar
+/// This is a temporary function. We need to have a much better system in place for updating
+/// inventory UI later on.
+
+fn sync_hotbar_item_display_obs(
+    event: On<InventoryChangedEvent>,
+    mut commands: Commands,
+    mut hotbar_query: Query<(Entity, &HotbarSlot)>,
+    player_inventory_query: Query<&Inventory, With<PlayerInventory>>,
+    item_registry: Res<ItemRegistry>,
+) {
+    if let Ok(player_inventory) = player_inventory_query.get(event.entity) {
+        let affected_index = event.index;
+
+        // If the affected index is in the hotbar, we update the hotbar
+        if affected_index < HOTBAR_CAPACITY {
+
+            let slots = player_inventory.slots();
+
+            // Update the hotbar slot by refreshing it entirely. It's fine for now
+            for (slot_entity, slot_data) in hotbar_query.iter() {
+
+                if slot_data.index == affected_index {
+                    // Remove everything
+                    commands.entity(slot_entity).despawn_children();
+
+                    if let Some(stack) = slots[affected_index] {
+                        // Add the image of the stack if there's something there
+                        let slot_image = commands.spawn(build_ui_item_display(&item_registry.get(stack.id).display, stack.count)).id();
+                        commands.entity(slot_entity).add_child(slot_image);
+                    }
+                }
+            }
+        }
+    }
+}

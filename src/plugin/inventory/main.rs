@@ -3,88 +3,58 @@ use std::collections::HashMap;
 
 use crate::plugin::block_registry::{BlockRegistry, BlockID, initialize_registry_sys};
 
-use crate::plugin::inventory::*;
-
+use crate::plugin::inventory::player_inventory::{PlayerHotbar, spawn_player_inventory_sys, populate_player_inventory_once, update_hotbar_obs};
+use crate::plugin::inventory::item_registry::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 1 – Item Registry
+// PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct ItemID(pub u16);
+pub struct InventoryPlugin;
 
-/// What kind of thing this item is.
-#[derive(Clone, Debug)]
-pub enum ItemKind {
-    /// Can be placed into the world as a block.
-    Block { block_id: BlockID },
-    /// Pure resource — ore, wire, circuit board, etc.
-    Resource,
-    /// A tool with optional durability cap.
-    Tool { max_durability: Option<u32> },
-}
+impl Plugin for InventoryPlugin {
+    fn build(&self, app: &mut App) {
+        app
+            // Resources
+            .insert_resource(ItemRegistry::new())
+            .insert_resource(PlayerHotbar::new())
 
-pub struct ItemDefinition {
-    pub id:           ItemID,
-    pub name:         String,
-    pub display_name: String,
-    pub max_stack:    u32,       // e.g. 100 for ore, 1 for unique tools
-    pub kind:         ItemKind,
-}
+            // Startup Systems
+            .add_systems(Startup, initialize_item_registry_sys.after(initialize_registry_sys))
 
-/// Mirror of BlockRegistry — same pattern so both feel uniform.
-#[derive(Resource)]
-pub struct ItemRegistry {
-    items: Vec<ItemDefinition>,
-    /// Fast reverse lookup: BlockID → the item that places it
-    block_to_item: HashMap<BlockID, ItemID>,
-}
+            .add_systems(PostStartup, spawn_player_inventory_sys)
 
-impl ItemRegistry {
-    pub fn new() -> Self {
-        Self { items: Vec::new(), block_to_item: HashMap::new() }
-    }
+            // Update Systems
+            .add_systems(Update, populate_player_inventory_once.run_if(run_once))
 
-    pub fn get(&self, id: ItemID) -> &ItemDefinition {
-        &self.items[id.0 as usize]
-    }
-
-    pub fn item_for_block(&self, block: BlockID) -> Option<ItemID> {
-        self.block_to_item.get(&block).copied()
-    }
-
-    pub fn register(&mut self, def: ItemDefinition) -> ItemID {
-        let id = ItemID(self.items.len() as u16);
-
-        // If this item places a block, record the reverse link
-        if let ItemKind::Block { block_id } = def.kind {
-            self.block_to_item.insert(block_id, id);
-        }
-
-        self.items.push(ItemDefinition { id, ..def });
-        id
+            // Event Observers
+            .add_observer(update_hotbar_obs)
+        ;
     }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 2 – ItemStack and Inventory Storage
+// SECTION 1 – ItemStack and Inventory Storage
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub const MAX_STACK: u32 = 999;
+pub const MAX_STACK: u16 = 99;
 
+/// Represents a stack of items only by id and number. Needs to be used by
+/// inventories as a lightweight way of keeping tabs on the number of items
+/// and their location.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ItemStack {
-    pub item:  ItemID,
-    pub count: u32,
+    pub id:  ItemID,
+    pub count: u16,
 }
 
 /// Returned by insert/extract to tell the caller what actually happened.
 #[derive(Debug)]
 pub struct TransferResult {
     /// How many items were actually moved.
-    pub transferred: u32,
+    pub transferred: u16,
     /// How many were left over (couldn't fit / weren't available).
-    pub remainder:   u32,
+    pub remainder:   u16,
 }
 
 /// A fixed-size inventory.
@@ -98,7 +68,7 @@ pub struct TransferResult {
 #[derive(Component)]
 pub struct Inventory {
     slots:     Vec<Option<ItemStack>>,
-    totals:    HashMap<ItemID, u32>,
+    totals:    HashMap<ItemID, u16>,
     capacity:  usize,
 }
 
@@ -114,12 +84,12 @@ impl Inventory {
     // ── Read-only queries (hot path for automation) ──────────────────────
 
     #[inline]
-    pub fn count(&self, item: ItemID) -> u32 {
+    pub fn count(&self, item: ItemID) -> u16 {
         self.totals.get(&item).copied().unwrap_or(0)
     }
 
     #[inline]
-    pub fn has_at_least(&self, item: ItemID, n: u32) -> bool {
+    pub fn has_at_least(&self, item: ItemID, n: u16) -> bool {
         self.count(item) >= n
     }
 
@@ -134,13 +104,13 @@ impl Inventory {
     }
 
     /// How many more of `item` could fit, respecting max_stack from the registry.
-    pub fn free_capacity_for(&self, item: ItemID, registry: &ItemRegistry) -> u32 {
+    pub fn free_capacity_for(&self, item: ItemID, registry: &ItemRegistry) -> u16 {
         let max_stack = registry.get(item).max_stack;
-        let mut space = 0u32;
+        let mut space = 0u16;
         for slot in &self.slots {
             match slot {
                 None => space += max_stack,
-                Some(s) if s.item == item => space += max_stack.saturating_sub(s.count),
+                Some(s) if s.id == item => space += max_stack.saturating_sub(s.count),
                 _ => {}
             }
         }
@@ -154,7 +124,7 @@ impl Inventory {
     pub fn insert(
         &mut self,
         item:     ItemID,
-        count:    u32,
+        count:    u16,
         registry: &ItemRegistry,
     ) -> TransferResult {
         let max_stack = registry.get(item).max_stack;
@@ -164,7 +134,7 @@ impl Inventory {
         for slot in self.slots.iter_mut() {
             if remaining == 0 { break; }
             if let Some(s) = slot {
-                if s.item == item && s.count < max_stack {
+                if s.id == item && s.count < max_stack {
                     let space = max_stack - s.count;
                     let added = remaining.min(space);
                     s.count  += added;
@@ -179,7 +149,7 @@ impl Inventory {
             if remaining == 0 { break; }
             if slot.is_none() {
                 let added = remaining.min(max_stack);
-                *slot = Some(ItemStack { item, count: added });
+                *slot = Some(ItemStack { id: item, count: added });
                 remaining -= added;
                 *self.totals.entry(item).or_insert(0) += added;
             }
@@ -191,13 +161,13 @@ impl Inventory {
 
     /// Extract up to `count` of `item`. Returns how many were actually taken.
     /// Drains from the last matching slot first (avoids sliding elements).
-    pub fn extract(&mut self, item: ItemID, count: u32) -> TransferResult {
+    pub fn extract(&mut self, item: ItemID, count: u16) -> TransferResult {
         let mut remaining = count;
 
         for slot in self.slots.iter_mut().rev() {
             if remaining == 0 { break; }
             if let Some(s) = slot {
-                if s.item == item {
+                if s.id == item {
                     let taken = remaining.min(s.count);
                     s.count  -= taken;
                     remaining -= taken;
@@ -241,9 +211,9 @@ pub fn transfer_items(
     from:     &mut Inventory,
     to:       &mut Inventory,
     item:     ItemID,
-    count:    u32,
+    count:    u16,
     registry: &ItemRegistry,
-) -> u32 {
+) -> u16 {
     // Fast-reject: source doesn't have enough, or destination is full
     let available = from.count(item);
     if available == 0 { return 0; }
@@ -266,50 +236,10 @@ pub fn transfer_items(
 /// Fired whenever an Inventory's contents change. Lets UI diff and redraw.
 #[derive(Event)]
 pub struct InventoryChangedEvent {
-    pub entity: Entity,
+    pub entity:     Entity,         // The entity that was changed
+    pub index:      usize,          // Which slot of the inventory was affected by this change
+    pub result:     TransferResult, // The result of the transfer operation
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 5 – Plugin
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub struct InventoryPlugin;
 
-impl Plugin for InventoryPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .insert_resource(ItemRegistry::new())
-            
-            .insert_resource(player_inventory::PlayerHotbar::new())
-
-            .add_systems(Startup, initialize_item_registry_sys.after(initialize_registry_sys))
-
-            .add_systems(PostStartup, player_inventory::spawn_player_inventory)
-
-            .add_observer(player_inventory::update_hotbar_obs)
-        ;
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 6 – Example Systems
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-fn initialize_item_registry_sys(
-    block_registry: Res<BlockRegistry>,
-    mut item_registry: ResMut<ItemRegistry>,
-) {
-    // First we register all the blocks as items.
-    for id in 0..block_registry.size() {
-        let block = block_registry.get(BlockID(id as u16));
-        item_registry.register(
-            ItemDefinition {
-                id: ItemID(0 as u16),
-                name: block.name.clone(),
-                display_name: block.display_name.clone(),
-                max_stack: MAX_STACK,
-                kind: ItemKind::Block { block_id: BlockID(id as u16) },
-            }
-        );
-    }
-}

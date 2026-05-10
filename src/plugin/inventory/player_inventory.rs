@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::plugin::inventory::main::*;
+use crate::plugin::inventory::item_registry::*;
 use crate::plugin::controls::{MouseEvent, MouseAction};
 
 pub const HOTBAR_CAPACITY: usize = 9;
@@ -13,12 +14,11 @@ pub struct PlayerInventory;
 #[derive(Resource, Default)]
 pub struct PlayerHotbar {
     selected_slot_index: usize,
-    capacity: usize,
 }
 
 impl PlayerHotbar {
     pub fn new() -> Self {
-        PlayerHotbar { selected_slot_index: 0, capacity: HOTBAR_CAPACITY }
+        PlayerHotbar { selected_slot_index: 0 }
     }
 }
 
@@ -28,20 +28,44 @@ pub struct PlayerHotbarSelectedChange {
     pub new_index: usize,
 }
 
-pub fn spawn_player_inventory(
+/// Simple spawning of the player's inventory. For now, we spawn it empty and then add
+/// items to it using the populate_player_inventory function.
+pub fn spawn_player_inventory_sys(
     mut commands: Commands,
-    item_registry: Res<ItemRegistry>,
 ) {
     let mut new_inventory = Inventory::new(9);
 
-    for id in 0..3 {
-        new_inventory.insert(ItemID(id as u16), 1, &item_registry);
-    };
-
     commands.spawn((
-        new_inventory,
         PlayerInventory,
+        new_inventory,
     ));
+
+    commands.trigger(PlayerHotbarSelectedChange {
+        old_index: 0,
+        new_index: 0,
+    });
+}
+
+/// Hardcoded function to spawn some items into the player's inventory.
+/// Since I hardcoded a few blocks in the block registry, I'll add them here.
+pub fn populate_player_inventory_once(
+    mut commands: Commands,
+    mut player_inventory_query: Query<(Entity, &mut Inventory), With<PlayerInventory>>, 
+    item_registry: Res<ItemRegistry>,
+) {
+    if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
+        for id in 1..4 {
+            let item_id = ItemID(id as u16);
+            let result = inventory.insert(item_id, 1, &item_registry);
+
+            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, 1);
+            commands.trigger(InventoryChangedEvent {
+                entity,
+                index: id - 1,
+                result,
+            });
+        };
+    }
 }
 
 

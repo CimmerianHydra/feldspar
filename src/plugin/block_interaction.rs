@@ -4,11 +4,13 @@ use bevy::{
 use bevy::render::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
+use crate::plugin::block_registry::BlockRegistry;
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::player_inventory::*;
+use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameUpdateState;
-use crate::plugin::voxel::{Voxel, Direction, BlockShape};
+use crate::plugin::voxel::{Voxel, Direction};
 use crate::plugin::meshing::{BLOCK_SIZE};
 use crate::plugin::dimension::DimensionId;
 use crate::plugin::controls::{MouseEvent, MouseAction};
@@ -48,7 +50,8 @@ impl Plugin for BlockInteractionPlugin {
 
 /// Current situation:
 /// A FreeCamera has a DDARay component attached to it. Every frame we send out a DDARayResult event.
-/// This event is used to update the position and visibility of the BlockHighlight entity.
+/// This event is used to update the position and visibility of the BlockHighlight entity as well as
+/// establish which block is gong to be affected by right clicks or left clicks.
 /// 
 /// In the future, we need to have multiple different types of raycasting:
 ///  - To check if the player is looking at a mob
@@ -267,13 +270,16 @@ pub fn update_block_highlight_sys(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 – Block Selection Events
+// SECTION 4 – Remove/Place Block TEMPORARY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn handle_mouse_interaction_obs(
     mouse_event: On<MouseEvent>,
     mut commands: Commands,
     look_target: Res<PlayerLookTarget>,
+    held_item: Res<PlayerHeldItems>,
+    block_registry: Res<BlockRegistry>,
+    item_registry: Res<ItemRegistry>,
 ) {
     if mouse_event.action == MouseAction::Primary {
         match look_target.target {
@@ -291,12 +297,27 @@ fn handle_mouse_interaction_obs(
             match look_target.target {
             Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
                 let neighbor_pos = pos + face.as_ivec3();
-                let event = StaticVoxelWriteRequest {
-                    block_coord: neighbor_pos,
-                    dimension: DimensionId::OVERWORLD,
-                    voxel: Voxel::new(1, BlockShape::Cube, Direction::North),
-                };
-                commands.trigger(event)
+
+                if let Some(held_item_right) = held_item.right_hand {
+                    let kind = item_registry.get(held_item_right.id).kind.clone();
+                    match kind {
+                        ItemKind::Block { block_id } => {
+                            let block_data = block_registry.get(block_id);
+                            let shape = block_data.shape.clone();
+
+                            let event = StaticVoxelWriteRequest {
+                                block_coord: neighbor_pos,
+                                dimension: DimensionId::OVERWORLD,
+                                voxel: Voxel::new(block_id.0, shape, Direction::North),
+                            };
+
+                            commands.trigger(event)
+                        }
+                        _ => { return }
+                    }
+                }
+
+
             },
             _ => { return }
         }
@@ -398,9 +419,5 @@ fn update_held_items_obs(
     if let Ok(inventory) = inv_query.single() {
         let next_slot = event.new_index;
         held_items.right_hand = inventory.slots()[next_slot];
-    }
-
-    if let Some(stack) = held_items.right_hand {
-        bevy::log::info!("Currently held item: {:?}", stack.item)
     }
 }
