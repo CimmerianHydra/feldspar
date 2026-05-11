@@ -3,7 +3,6 @@ use bevy::render::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, StaticChunk, NeedsRemeshing};
-use crate::plugin::graphics::block_material::VoxelBaseMaterial;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{BlockShape, Direction};

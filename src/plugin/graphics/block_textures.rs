@@ -2,8 +2,6 @@ use bevy::asset::RenderAssetUsages;
 use bevy::prelude::*;
 use bevy::render::render_resource::*;
 
-use crate::plugin::graphics::block_material::VoxelBaseMaterial;
-
 pub fn create_texture_array(
     paths: &[&str],
     images: &mut Assets<Image>,
@@ -93,6 +91,55 @@ pub fn create_texture_array(
 
     images.add(image)
 }
+
+/// Procedurally builds a 4-layer 2D-array texture. Each layer is a flat colour
+/// with a contrasting square in one corner, so it's obvious which layer is
+/// being sampled and that the UVs are oriented correctly.
+pub fn create_dummy_textures(
+    images: &mut Assets<Image>
+) -> Handle<Image> {
+    const SIZE: u32 = 64;
+    const TEXTURE_LAYERS: u32 = 4;
+    let layer_colors: [[u8; 4]; TEXTURE_LAYERS as usize] = [
+        [220, 80, 80, 255],   // 0: red
+        [80, 200, 80, 255],   // 1: green
+        [80, 120, 220, 255],  // 2: blue
+        [230, 200, 80, 255],  // 3: yellow
+    ];
+    let corner_color: [u8; 4] = [240, 240, 240, 255];
+
+    let mut data: Vec<u8> =
+        Vec::with_capacity((SIZE * SIZE * TEXTURE_LAYERS * 4) as usize);
+    for layer in 0..TEXTURE_LAYERS as usize {
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                // Small light square in the top-left of each layer for
+                // UV-orientation sanity-checking.
+                let in_corner = x < SIZE / 4 && y < SIZE / 4;
+                let c = if in_corner {
+                    corner_color
+                } else {
+                    layer_colors[layer]
+                };
+                data.extend_from_slice(&c);
+            }
+        }
+    }
+
+    let image = Image::new(
+        Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: TEXTURE_LAYERS,
+        },
+        TextureDimension::D2,
+        data,
+        TextureFormat::Rgba8UnormSrgb,
+        RenderAssetUsages::default(),
+    );
+    images.add(image)
+}
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BLOCK TEXTURES

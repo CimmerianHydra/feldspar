@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use std::collections::HashMap;
 
-use crate::plugin::graphics::block_material::{CustomMaterial, VoxelBaseMaterial};
-use crate::plugin::graphics::block_textures::create_texture_array;
+use crate::plugin::graphics::block_material::{VoxelMaterial, VoxelMaterialExtension};
+use crate::plugin::graphics::block_textures::{create_texture_array};
 use crate::plugin::voxel::Voxel;
 use crate::plugin::dimension::DimensionId;
 
@@ -42,9 +42,7 @@ impl Plugin for ChunkPlugin {
 fn spawn_test_chunk(
     mut commands: Commands,
     mut images:    ResMut<Assets<Image>>,
-    mut vox_material: ResMut<Assets<CustomMaterial>>,
-    mut std_material: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
+    mut vox_material: ResMut<Assets<VoxelMaterial>>,
 ) {
     // ── base texture array ────────────────────────────────────────────────
     // Layer 0: purple-black  (used by FaceTextures::Default when base=0)
@@ -73,13 +71,22 @@ fn spawn_test_chunk(
     );
 
 
-    let material_handle = vox_material.add(CustomMaterial {
-        texture_array,
-        //overlay_array,
+    let material_handle = vox_material.add(VoxelMaterial {
+        base: StandardMaterial {
+            // Keep all other StandardMaterial properties at their defaults.
+            // The `base_color_texture` is intentionally left as `None`: our
+            // shader will overwrite `base_color` from the array texture
+            // sample anyway. PBR properties (metallic, roughness, …) still
+            // apply.
+            metallic: 0.0,
+            perceptual_roughness: 0.8,
+            ..default()
+        },
+        extension: VoxelMaterialExtension {
+            array_texture: texture_array,
+            //overlay_array,
+        },
     });
-
-    // Will comment this away when I finally get the custom material working
-    let material_handle = std_material.add(StandardMaterial::default());
 
     let mut chunk_data = VoxelChunk::empty();
     // Fill the bottom layer with stone (id = 1).
