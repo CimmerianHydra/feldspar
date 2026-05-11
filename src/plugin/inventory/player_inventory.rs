@@ -11,6 +11,8 @@ pub const HOTBAR_CAPACITY: usize = 9;
 #[derive(Component)]
 pub struct PlayerInventory;
 
+/// Marker that identifies the player's hotbar. This is a shared resource
+/// so that multiple systems (i.e. the UI) can poll from it.
 #[derive(Resource, Default)]
 pub struct PlayerHotbar {
     selected_slot_index: usize,
@@ -56,9 +58,9 @@ pub fn populate_player_inventory_once(
     if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
         for id in 1..5 {
             let item_id = ItemID(id as u16);
-            let result = inventory.insert(item_id, 1, &item_registry);
+            let result = inventory.insert(item_id, 5, &item_registry);
 
-            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, 1);
+            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, 5);
             commands.trigger(InventoryChangedEvent {
                 entity,
                 index: id - 1,

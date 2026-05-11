@@ -2,6 +2,8 @@ use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use std::collections::HashMap;
 
+use crate::plugin::graphics::block_material::{CustomMaterial, VoxelBaseMaterial};
+use crate::plugin::graphics::block_textures::create_texture_array;
 use crate::plugin::voxel::Voxel;
 use crate::plugin::dimension::DimensionId;
 
@@ -26,7 +28,7 @@ impl Plugin for ChunkPlugin {
             .register_type::<MovingGrid>()
 
             // ---- systems ---------------------------------------------------
-            // PreUpdate: registry must be ready before game logic runs.
+            // PreUpdate: chunks must be ready before game logic runs.
             .add_systems(PreUpdate,register_new_chunks_sys)
             .add_systems(PreUpdate,unregister_removed_chunks_sys)
 
@@ -39,11 +41,47 @@ impl Plugin for ChunkPlugin {
 // Example function to create a test chunk with the specified block IDs
 fn spawn_test_chunk(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images:    ResMut<Assets<Image>>,
+    mut vox_material: ResMut<Assets<CustomMaterial>>,
+    mut std_material: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    let mut chunk_data = VoxelChunk::empty();
-    let material_handle = materials.add(StandardMaterial::default());
+    // ── base texture array ────────────────────────────────────────────────
+    // Layer 0: purple-black  (used by FaceTextures::Default when base=0)
+    // Layer 1: slate
+    // Layer 2: limestone
+    // to add more as registry grows
+    let texture_array = create_texture_array(
+        &[
+            "assets\\textures\\overlay\\missing_tex.png",
+            "assets\\textures\\terrain\\slate.png",
+            "assets\\textures\\terrain\\limestone.png",
+            "assets\\textures\\terrain\\basalt.png",
+        ],
+        &mut images,
+    );
 
+    // ── overlay texture array ─────────────────────────────────────────────
+    // Layer 0: transparent (NO_OVERLAY = 0)
+    // Layer 1: grass overlay (tinted green via FaceTextures::Tinted)
+    let overlay_array = create_texture_array(
+        &[
+            "assets\\textures\\overlay\\no_overlay.png",
+            "assets\\textures\\tinted\\grass_top.png",
+        ],
+        &mut images,
+    );
+
+
+    let material_handle = vox_material.add(CustomMaterial {
+        texture_array,
+        //overlay_array,
+    });
+
+    // Will comment this away when I finally get the custom material working
+    let material_handle = std_material.add(StandardMaterial::default());
+
+    let mut chunk_data = VoxelChunk::empty();
     // Fill the bottom layer with stone (id = 1).
     for x in 0..CHUNK_SIZE {
         for z in 0..CHUNK_SIZE {

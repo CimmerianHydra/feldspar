@@ -9,6 +9,7 @@ bevy_common_assets = { version = "0.16", features = ["json"]}
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.18.0" }
 rand = "0.10.1"
+image = "0.24"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

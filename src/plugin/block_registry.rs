@@ -1,9 +1,7 @@
 use bevy::prelude::*;
-use std::collections::{HashMap, HashSet};
-use std::default;
-use std::sync::Arc;
+use std::collections::HashMap;
 
-use crate::plugin::voxel::BlockShape;
+use crate::plugin::{graphics::block_textures::BlockAppearance, voxel::BlockShape};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin Definition
@@ -41,18 +39,28 @@ pub struct BlockDefinition {
     pub id:           BlockID,
     pub name:         String,          // e.g. "oreIronAndesite"
     pub display_name: String,          // e.g. "Andesite Iron Ore"
-    pub static_tooltip: Option<String>,
     pub shape:        BlockShape,
+    pub appearance:   BlockAppearance,
 }
 
 impl BlockDefinition {
-    pub fn AIR() -> BlockDefinition {
+    pub fn air() -> BlockDefinition {
         BlockDefinition {
-            id: BlockID(0),
             name: "air".to_string(),
             display_name: "Air".to_string(),
-            static_tooltip: None,
-            shape: BlockShape::Cube,
+            ..default()
+        }
+    }
+}
+
+impl Default for BlockDefinition {
+    fn default() -> Self {
+        BlockDefinition {
+            id: BlockID(0),
+            name: "default_cube".to_string(),
+            display_name: "Default Cube".to_string(),
+            shape: BlockShape::default(),
+            appearance: BlockAppearance::default(),
         }
     }
 }
@@ -61,7 +69,7 @@ impl BlockDefinition {
 /// Global resource that keeps in memory all the blocks in the game
 #[derive(Resource)]
 pub struct BlockRegistry {
-    blocks:       Vec<BlockDefinition>,      // indexed by BlockId
+    blocks:       Vec<BlockDefinition>,      // indexed by BlockID
 }
 
 impl BlockRegistry {
@@ -77,7 +85,7 @@ impl BlockRegistry {
 
     pub fn new() -> Self {
         let mut new_registry = Self { blocks: Vec::new() };
-        new_registry.register_block(BlockDefinition::AIR());
+        new_registry.register_block(BlockDefinition::air());
         new_registry
     }
 
@@ -90,9 +98,11 @@ impl BlockRegistry {
 // SECTION 4 – Chunk Palette
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Each chunk comes with a Palette that maps "local" ids to the global register
-/// This way we can store potentially unlimited blocks and compress the information
-/// in the 16 bits of the Voxel data structure.
+/// Each chunk comes with a Palette that maps "local" ids to the global registry
+/// This way we can store potentially unlimited blocks in the registry and compress
+/// the information in the 16 bits of the Voxel data structure.
+/// 
+/// Not yet implemented
 
 pub struct ChunkPalette {
     /// palette[local_index] = global BlockId
@@ -133,7 +143,9 @@ impl ChunkPalette {
 pub fn initialize_registry_sys(
     mut registry: ResMut<BlockRegistry>
 ) {
-    let dummy_id = BlockID(1);
+    // We're just going to add some blocks manually
+
+    // In the future we'll generate blocks from JSON files with their whole definition
     for shape in [
         BlockShape::Cube,
         BlockShape::Slab,
@@ -152,11 +164,10 @@ pub fn initialize_registry_sys(
         };
 
         let definition = BlockDefinition {
-            id: dummy_id,
             name,
             display_name,
-            static_tooltip: None,
             shape,
+            ..default()
         };
         registry.register_block(definition);
     }

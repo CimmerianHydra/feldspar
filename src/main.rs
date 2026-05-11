@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy::light::CascadeShadowConfigBuilder;
+use bevy::pbr
 
 mod plugin;
 use plugin::camera::{FreeCameraPlugin, FreeCamera};
@@ -13,14 +14,17 @@ use plugin::state::StatePlugin;
 use plugin::controls::ControlsPlugin;
 use plugin::inventory::main::InventoryPlugin;
 use plugin::inventory::item_registry::ItemRegistryPlugin;
+use plugin::graphics::block_material::VoxelMaterialPlugin;
 
 fn main() {
     App::new()
         // Plugins
         .add_plugins(DefaultPlugins)
+        .add_plugins(ShaderUtilsPlugin)
         .add_plugins(StatePlugin)
         .add_plugins(FreeCameraPlugin)
         .add_plugins(ControlsPlugin)
+        .add_plugins(VoxelMaterialPlugin)
         .add_plugins(MeshingPlugin)
         .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)

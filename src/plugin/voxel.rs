@@ -47,7 +47,7 @@ impl Voxel {
     // ---- accessors ----------------------------------------------------------
 
     #[inline] pub fn is_air(self)    -> bool       { self.0 == 0 }
-    #[inline] pub fn block_id(self)  -> u16        { (self.0 & 0x0000_FFFF) as u16 }
+    #[inline] pub fn id(self)  -> u16        { (self.0 & 0x0000_FFFF) as u16 }
 
     #[inline]
     pub fn shape(self) -> BlockShape {
@@ -176,6 +176,12 @@ impl BlockShape {
             4 => BlockShape::Slope,
             _ => BlockShape::Cube,
         }
+    }
+}
+
+impl Default for BlockShape {
+    fn default() -> Self {
+        BlockShape::Cube
     }
 }
 

@@ -35,10 +35,10 @@ impl Material for SkyMaterial {
     }
 
     fn specialize(
-            pipeline: &bevy::pbr::MaterialPipeline,
+            _pipeline: &bevy::pbr::MaterialPipeline,
             descriptor: &mut bevy::material::descriptor::RenderPipelineDescriptor,
-            layout: &bevy::mesh::MeshVertexBufferLayoutRef,
-            key: bevy::pbr::MaterialPipelineKey<Self>,
+            _layout: &bevy::mesh::MeshVertexBufferLayoutRef,
+            _key: bevy::pbr::MaterialPipelineKey<Self>,
         ) -> Result<(), bevy::material::specialize::SpecializedMeshPipelineError> {
         descriptor.primitive.cull_mode = None; // render inside
         descriptor.depth_stencil.as_mut().map(|depth| {

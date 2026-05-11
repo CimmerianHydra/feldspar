@@ -37,7 +37,7 @@ pub fn shape_quads(shape: BlockShape, facing: Direction) -> Vec<ShapeQuad> {
         BlockShape::Stair => rotate_to(stair_quads_north(), facing),
         BlockShape::StairInv => rotate_to(stair_inv_quads_north(), facing),
         BlockShape::Slope => rotate_to(slope_quads_north(), facing.opposite()),
-        BlockShape::Custom(handle) => cube_quads(),
+        BlockShape::Custom(_handle) => cube_quads(),
     }
 }
 

@@ -7,7 +7,6 @@ use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
 use crate::plugin::state::*;
 use crate::plugin::inventory::player_inventory::*;
 
-// Contains UI plugins and systems, such as block highlighting when looking at a block, and interaction prompts.
 pub struct UIPlugin;
 
 impl Plugin for UIPlugin {
@@ -256,6 +255,16 @@ pub fn spawn_crosshair_sys(
 ) {
     // Spawn a simple crosshair in the center of the screen using a UI node.
 
+    // For now, just spawn a small square as a placeholder for a crosshair.
+    let crosshair_bundle = (
+        Node {
+            width: px(10),
+            height: px(10),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+    );
+
     // Large node to center the crosshair
     let crosshair_parent = (Node {
             width: percent(100),
@@ -265,23 +274,12 @@ pub fn spawn_crosshair_sys(
             flex_direction: FlexDirection::Column,
             ..default()
         },
-    DespawnOnExit(GameUpdateState::Running));
-
-    // For now, just spawn a small square as a placeholder for a crosshair.
-    let crosshair_entity = (
-        Node {
-            width: px(10),
-            height: px(10),
-            ..default()
-        },
-        BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+        DespawnOnExit(GameUpdateState::Running),
+        children![crosshair_bundle]
     );
 
     // Spawn the parent node and then the crosshair as its child.
-    commands.spawn(crosshair_parent)
-        .with_children(|parent| {
-            parent.spawn(crosshair_entity);
-    });
+    commands.spawn(crosshair_parent);
 }
 
 pub fn spawn_gameui_sys(
@@ -354,7 +352,7 @@ fn sync_hotbar_highlight_obs(
 fn sync_hotbar_item_display_obs(
     event: On<InventoryChangedEvent>,
     mut commands: Commands,
-    mut hotbar_query: Query<(Entity, &HotbarSlot)>,
+    hotbar_query: Query<(Entity, &HotbarSlot)>,
     player_inventory_query: Query<&Inventory, With<PlayerInventory>>,
     item_registry: Res<ItemRegistry>,
 ) {

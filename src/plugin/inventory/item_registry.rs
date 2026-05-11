@@ -44,6 +44,13 @@ pub enum ItemKind {
     Tool { max_durability: Option<u32> },
 }
 
+impl Default for ItemKind {
+    /// The default kind of item is just a resource.
+    fn default() -> Self {
+        ItemKind::Resource
+    }
+}
+
 pub struct ItemDefinition {
     pub id:           ItemID,
     pub name:         String,
