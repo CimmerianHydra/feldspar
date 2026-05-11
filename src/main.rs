@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::light::CascadeShadowConfigBuilder;
-use bevy::pbr
 
 mod plugin;
 use plugin::camera::{FreeCameraPlugin, FreeCamera};
@@ -20,7 +19,6 @@ fn main() {
     App::new()
         // Plugins
         .add_plugins(DefaultPlugins)
-        .add_plugins(ShaderUtilsPlugin)
         .add_plugins(StatePlugin)
         .add_plugins(FreeCameraPlugin)
         .add_plugins(ControlsPlugin)
