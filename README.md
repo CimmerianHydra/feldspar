@@ -94,4 +94,4 @@ Please understand that the project is very far in development, and issues are ex
 ## Licensing & Disclaimers
 - The project makes use of AI generated code to prototype ideas and write boilerplate code, or perform automated name changes. The developer(s) don't support generating code wholesale, instead encouraging deeply understanding their own code and type most of it out by hand before it's sent into production.
 - The project is under MIT license. The code can be freely distributed, but profiting from it in terms of monetary gain is not permitted.
-- Some temporary assets are taken from 
+- Some temporary assets are taken from the ![Unity Resource Pack](https://github.com/Unity-Resource-Pack/Unity).
