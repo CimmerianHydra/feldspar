@@ -1,7 +1,8 @@
-# Feldspar
-
-![Feldspar](assets/logo_transparent.png)
-!(https://img.shields.io/badge/latest release:-not yet ready for release-red)
+<p align="center"><img src="assets/title/logo_transparent.png"></img>
+<img src="https://img.shields.io/badge/latest_release:-not_yet_ready_for_release-red"></img>
+<img src="https://img.shields.io/badge/license-MIT-blue"></img>
+<img src="https://img.shields.io/badge/Bevy%20tracking-main-lightblue"></img>
+</p>
 
 A voxel game written in Rust with the [Bevy](https://bevyengine.org/) engine.
 
