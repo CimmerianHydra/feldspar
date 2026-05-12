@@ -51,6 +51,10 @@ pub struct VoxelMaterialExtension {
     #[texture(100, dimension = "2d_array")]
     #[sampler(101)]
     pub array_texture: Handle<Image>,
+
+    #[texture(102, dimension = "2d_array")]
+    #[sampler(103)]
+    pub array_overlay: Handle<Image>,
 }
 
 impl MaterialExtension for VoxelMaterialExtension {
@@ -62,21 +66,16 @@ impl MaterialExtension for VoxelMaterialExtension {
         "shaders/voxel_material.wgsl".into()
     }
 
-    /// Tell the pipeline what vertex attributes our vertex shader needs, and
-    /// at which shader locations they should be bound. The cube mesh already
-    /// has position / normal / uv; we add our custom layer attribute at
-    /// location 8 (which is outside the range used by the standard PBR
-    /// pipeline, so there is no conflict).
+    /// Wire the three custom attributes into the forward pipeline's vertex
+    /// buffer layout. The prepass / shadow pipelines fall back to
+    /// `StandardMaterial`'s built-in layout, which only needs position /
+    /// normal / uv — our extra attributes are just along for the ride there.
     fn specialize(
         _pipeline: &MaterialExtensionPipeline,
         descriptor: &mut RenderPipelineDescriptor,
         layout: &MeshVertexBufferLayoutRef,
         _key: MaterialExtensionKey<Self>,
     ) -> Result<(), SpecializedMeshPipelineError> {
-        // We only override the vertex layout for the *main* (forward / deferred)
-        // pipeline. The prepass and shadow-pass pipelines use the base
-        // `StandardMaterial` vertex shader, which does not know about our
-        // custom attribute, so we leave their layouts untouched.
         let is_prepass_or_shadow = descriptor
             .label
             .as_ref()
@@ -90,6 +89,8 @@ impl MaterialExtension for VoxelMaterialExtension {
             Mesh::ATTRIBUTE_NORMAL.at_shader_location(1),
             Mesh::ATTRIBUTE_UV_0.at_shader_location(2),
             ATTRIBUTE_TEXTURE_LAYER.at_shader_location(8),
+            ATTRIBUTE_OVERLAY_LAYER.at_shader_location(9),
+            ATTRIBUTE_OVERLAY_TINT.at_shader_location(10),
         ])?;
         descriptor.vertex.buffers = vec![vertex_layout];
         Ok(())

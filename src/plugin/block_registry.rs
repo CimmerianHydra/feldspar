@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::{graphics::block_textures::BlockAppearance, voxel::BlockShape};
+use crate::plugin::{graphics::block_textures::{BlockAppearance, FaceTextures}, voxel::BlockShape};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin Definition
@@ -171,6 +171,28 @@ pub fn initialize_registry_sys(
         };
         registry.register_block(definition);
     }
+
+    registry.register_block(
+        BlockDefinition {
+            name: "limestone".to_string(),
+            display_name: "Limestone".to_string(),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(3, 0)),
+            ..default()
+        }
+    );
+
+    registry.register_block(
+        BlockDefinition {
+            name: "slate_with_grass".to_string(),
+            display_name: "Grassy Slate".to_string(),
+            appearance: BlockAppearance::TopBottomSides {
+                up: FaceTextures::Tinted(1, 1, Color::from(bevy::color::palettes::basic::GREEN)),
+                down: FaceTextures::Simple(1, 0),
+                side: FaceTextures::Simple(1, 0),
+            },
+            ..default()
+        }
+    );
 
     bevy::log::info_once!("BlockRegistry successfully initialized.");
 }

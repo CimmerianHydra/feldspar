@@ -171,7 +171,7 @@ fn build_chunk_mesh(chunk: &VoxelChunk, registry: &BlockRegistry) -> Mesh {
             // ── resolve texture data for this quad ────────────────────────
             let face_tex = resolve_face_texture(appearance, quad.face_dir);
             let (base_layer, ov_layer, tint): (u32, u32, [f32; 4]) = match face_tex {
-                FaceTextures::Default(b, o) => (
+                FaceTextures::Simple(b, o) => (
                     *b, *o,
                     [1.0, 1.0, 1.0, 1.0],
                 ),

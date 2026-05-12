@@ -56,7 +56,7 @@ pub fn populate_player_inventory_once(
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
-        for id in 1..5 {
+        for id in 1..7 {
             let item_id = ItemID(id as u16);
             let result = inventory.insert(item_id, 5, &item_registry);
 

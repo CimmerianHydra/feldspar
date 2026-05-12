@@ -150,7 +150,7 @@ pub const NO_OVERLAY: u32 = 0;
 #[derive(Clone, Debug)]
 pub enum FaceTextures {
     /// First index is into base texture array, second into overlay array.
-    Default(u32, u32),
+    Simple(u32, u32),
     /// First index is into base texture array, second into overlay array.
     /// Color is used to tint the overlay texture.
     Tinted(u32, u32, Color),
@@ -179,6 +179,6 @@ pub enum BlockAppearance {
 
 impl Default for BlockAppearance {
     fn default() -> Self {
-        BlockAppearance::Uniform(FaceTextures::Default(1, NO_OVERLAY))
+        BlockAppearance::Uniform(FaceTextures::Simple(1, NO_OVERLAY))
     }
 }

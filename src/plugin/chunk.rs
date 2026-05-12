@@ -49,7 +49,7 @@ fn spawn_test_chunk(
     // Layer 1: slate
     // Layer 2: limestone
     // to add more as registry grows
-    let texture_array = create_texture_array(
+    let array_texture = create_texture_array(
         &[
             "assets\\textures\\overlay\\missing_tex.png",
             "assets\\textures\\terrain\\slate.png",
@@ -62,9 +62,9 @@ fn spawn_test_chunk(
     // ── overlay texture array ─────────────────────────────────────────────
     // Layer 0: transparent (NO_OVERLAY = 0)
     // Layer 1: grass overlay (tinted green via FaceTextures::Tinted)
-    let overlay_array = create_texture_array(
+    let array_overlay = create_texture_array(
         &[
-            "assets\\textures\\overlay\\no_overlay.png",
+            "assets\\textures\\overlay\\missing_tex.png",
             "assets\\textures\\tinted\\grass_top.png",
         ],
         &mut images,
@@ -78,13 +78,14 @@ fn spawn_test_chunk(
             // shader will overwrite `base_color` from the array texture
             // sample anyway. PBR properties (metallic, roughness, …) still
             // apply.
+            base_color: Color::from(bevy::color::palettes::basic::WHITE),
             metallic: 0.0,
             perceptual_roughness: 0.8,
             ..default()
         },
         extension: VoxelMaterialExtension {
-            array_texture: texture_array,
-            //overlay_array,
+            array_texture,
+            array_overlay,
         },
     });
 
