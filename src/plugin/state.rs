@@ -9,6 +9,7 @@ impl Plugin for StatePlugin {
 
         .init_state::<GameUpdateState>()
         .init_state::<UIState>()
+        .init_state::<GameMode>()
         
         .add_systems(Update, toggle_pause_sys)
 
@@ -50,4 +51,11 @@ pub enum UIState {
     #[default]
     Game,
     Menu,
+}
+
+#[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub enum GameMode {
+    #[default]
+    Creative,
+    Survival,
 }

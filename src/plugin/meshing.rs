@@ -72,8 +72,10 @@ fn update_dirty_mesh_sys(
     for (entity, voxel_chunk, existing_mesh) in chunk_query.iter() {
         let mut e = commands.entity(entity);
 
-        // Quirk of Bevy: an empty mesh kinda breaks the whole system.
+        // Quirk of Bevy: an empty mesh kinda breaks the system.
         // So if the chunk is all air, we just remove the mesh entirely.
+        // is_all_air is short circuiting, so we shouldn't be afraid to use it: we won't be
+        // looping over every chunk. Especially the chunks that are completely full only add one operation.
         if voxel_chunk.is_all_air() {
             // No geometry; drop any stale mesh handle.
             if existing_mesh.is_some() {
