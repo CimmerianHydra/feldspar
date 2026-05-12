@@ -14,3 +14,4 @@ pub mod controls;
 
 pub mod inventory;
 pub mod graphics;
+pub mod worldgen;

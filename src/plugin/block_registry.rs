@@ -145,6 +145,39 @@ pub fn initialize_registry_sys(
 ) {
     // We're just going to add some blocks manually
 
+    registry.register_block(
+        BlockDefinition {
+            name: "dirt".to_string(),
+            display_name: "Dirt".to_string(),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(1, 0)),
+            ..default()
+        }
+    );
+
+    registry.register_block(
+        BlockDefinition {
+            name: "slate".to_string(),
+            display_name: "Slate".to_string(),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(2, 0)),
+            ..default()
+        }
+    );
+
+    let green_color = Color::srgb_u8(108, 185, 71);
+
+    registry.register_block(
+        BlockDefinition {
+            name: "grass".to_string(),
+            display_name: "Grass".to_string(),
+            appearance: BlockAppearance::TopBotSide {
+                up: FaceTextures::Tinted(1, 1, green_color),
+                down: FaceTextures::Simple(1, 0),
+                side: FaceTextures::Tinted(1, 2, green_color),
+            },
+            ..default()
+        }
+    );
+
     // In the future we'll generate blocks from JSON files with their whole definition
     for shape in [
         BlockShape::Cube,
@@ -171,28 +204,6 @@ pub fn initialize_registry_sys(
         };
         registry.register_block(definition);
     }
-
-    registry.register_block(
-        BlockDefinition {
-            name: "limestone".to_string(),
-            display_name: "Limestone".to_string(),
-            appearance: BlockAppearance::Uniform(FaceTextures::Simple(3, 0)),
-            ..default()
-        }
-    );
-
-    registry.register_block(
-        BlockDefinition {
-            name: "slate_with_grass".to_string(),
-            display_name: "Grassy Slate".to_string(),
-            appearance: BlockAppearance::TopBottomSides {
-                up: FaceTextures::Tinted(1, 1, Color::from(bevy::color::palettes::basic::GREEN)),
-                down: FaceTextures::Simple(1, 0),
-                side: FaceTextures::Simple(1, 0),
-            },
-            ..default()
-        }
-    );
 
     bevy::log::info_once!("BlockRegistry successfully initialized.");
 }

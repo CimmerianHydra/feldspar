@@ -108,7 +108,7 @@ impl ItemRegistry {
 /// Hardcoded block registry initialization.
 /// In the future we need to have helpers that take this information from JSON files
 /// and use it to build the registry for the actual game, as well as building any custom
-/// object that only exists in a world in the registry.
+/// object that only exists in a world in the registry (such as custom tools).
 
 pub fn initialize_item_registry_sys(
     block_registry: Res<BlockRegistry>,

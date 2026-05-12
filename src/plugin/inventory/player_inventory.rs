@@ -35,7 +35,7 @@ pub struct PlayerHotbarSelectedChange {
 pub fn spawn_player_inventory_sys(
     mut commands: Commands,
 ) {
-    let mut new_inventory = Inventory::new(9);
+    let new_inventory = Inventory::new(9);
 
     commands.spawn((
         PlayerInventory,
@@ -50,13 +50,13 @@ pub fn spawn_player_inventory_sys(
 
 /// Hardcoded function to spawn some items into the player's inventory.
 /// Since I hardcoded a few blocks in the block registry, I'll add them here.
-pub fn populate_player_inventory_once(
+pub fn dev_populate_player_inventory(
     mut commands: Commands,
     mut player_inventory_query: Query<(Entity, &mut Inventory), With<PlayerInventory>>, 
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
-        for id in 1..7 {
+        for id in 1..5 {
             let item_id = ItemID(id as u16);
             let result = inventory.insert(item_id, 5, &item_registry);
 

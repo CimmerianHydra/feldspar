@@ -162,7 +162,7 @@ pub enum BlockAppearance {
     Uniform(FaceTextures),
     /// Top/bottom differ from sides.  Interior faces (slab inner wall, stair
     /// riser) are treated as sides since they face no chunk boundary.
-    TopBottomSides {
+    TopBotSide {
         up:    FaceTextures,
         down:  FaceTextures,
         side:  FaceTextures,

@@ -14,6 +14,7 @@ use plugin::controls::ControlsPlugin;
 use plugin::inventory::main::InventoryPlugin;
 use plugin::inventory::item_registry::ItemRegistryPlugin;
 use plugin::graphics::block_material::VoxelMaterialPlugin;
+use plugin::worldgen::main::WorldgenPlugin;
 
 fn main() {
     App::new()
@@ -30,6 +31,7 @@ fn main() {
         .add_plugins(ItemRegistryPlugin)
         .add_plugins(InventoryPlugin)
         .add_plugins(BlockInteractionPlugin)
+        .add_plugins(WorldgenPlugin)
         .add_plugins(WeatherPlugin)
 
         // Game systems (that can't fit into any one previous plugin neatly)

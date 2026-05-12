@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::inventory::player_inventory::{PlayerHotbar, spawn_player_inventory_sys, populate_player_inventory_once, update_hotbar_obs};
+use crate::plugin::inventory::player_inventory::{PlayerHotbar, spawn_player_inventory_sys, dev_populate_player_inventory, update_hotbar_obs};
 use crate::plugin::inventory::item_registry::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -20,7 +20,7 @@ impl Plugin for InventoryPlugin {
             .add_systems(PostStartup, spawn_player_inventory_sys)
 
             // Update Systems
-            .add_systems(Update, populate_player_inventory_once.run_if(run_once))
+            .add_systems(Update, dev_populate_player_inventory.run_if(run_once))
 
             // Event Observers
             .add_observer(update_hotbar_obs)

@@ -2,12 +2,8 @@ use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use std::collections::HashMap;
 
-use crate::plugin::graphics::block_material::{VoxelMaterial, VoxelMaterialExtension};
-use crate::plugin::graphics::block_textures::{create_texture_array};
 use crate::plugin::voxel::Voxel;
 use crate::plugin::dimension::DimensionId;
-
-use crate::plugin::voxel::{BlockShape, Direction};
 
 // Contains chunk logic and plugins.
 
@@ -33,112 +29,9 @@ impl Plugin for ChunkPlugin {
             .add_systems(PreUpdate,unregister_removed_chunks_sys)
 
             // Only run this once
-            .add_systems(Update, spawn_test_chunk.run_if(run_once))
+            .add_systems(Update, crate::plugin::worldgen::flat::setup_dev_chunks.run_if(run_once))
         ;
     }
-}
-
-// Example function to create a test chunk with the specified block IDs
-fn spawn_test_chunk(
-    mut commands: Commands,
-    mut images:    ResMut<Assets<Image>>,
-    mut vox_material: ResMut<Assets<VoxelMaterial>>,
-) {
-    // ── base texture array ────────────────────────────────────────────────
-    // Layer 0: purple-black  (used by FaceTextures::Default when base=0)
-    // Layer 1: slate
-    // Layer 2: limestone
-    // to add more as registry grows
-    let array_texture = create_texture_array(
-        &[
-            "assets\\textures\\overlay\\missing_tex.png",
-            "assets\\textures\\terrain\\slate.png",
-            "assets\\textures\\terrain\\limestone.png",
-            "assets\\textures\\terrain\\basalt.png",
-        ],
-        &mut images,
-    );
-
-    // ── overlay texture array ─────────────────────────────────────────────
-    // Layer 0: transparent (NO_OVERLAY = 0)
-    // Layer 1: grass overlay (tinted green via FaceTextures::Tinted)
-    let array_overlay = create_texture_array(
-        &[
-            "assets\\textures\\overlay\\missing_tex.png",
-            "assets\\textures\\tinted\\grass_top.png",
-        ],
-        &mut images,
-    );
-
-
-    let material_handle = vox_material.add(VoxelMaterial {
-        base: StandardMaterial {
-            // Keep all other StandardMaterial properties at their defaults.
-            // The `base_color_texture` is intentionally left as `None`: our
-            // shader will overwrite `base_color` from the array texture
-            // sample anyway. PBR properties (metallic, roughness, …) still
-            // apply.
-            base_color: Color::from(bevy::color::palettes::basic::WHITE),
-            metallic: 0.0,
-            perceptual_roughness: 0.8,
-            ..default()
-        },
-        extension: VoxelMaterialExtension {
-            array_texture,
-            array_overlay,
-        },
-    });
-
-    let mut chunk_data = VoxelChunk::empty();
-    // Fill the bottom layer with stone (id = 1).
-    for x in 0..CHUNK_SIZE {
-        for z in 0..CHUNK_SIZE {
-            chunk_data.set(x, 0, z, Voxel::full(1));
-        }
-    }
-
-    // Add a slab on top
-    let slab = Voxel::new(1, BlockShape::Slope, Direction::North);
-    chunk_data.set(8, 1, 8, slab);
-
-    let dim_id = DimensionId::OVERWORLD;
-    
-    commands.spawn((
-        StaticChunk {
-            dimension: dim_id,
-            position:  IVec3::new(0, 0, 0),
-        },
-        chunk_data.clone(),
-        MeshMaterial3d(material_handle.clone()),
-        NeedsRemeshing,
-    ));
-    commands.spawn((
-        StaticChunk {
-            dimension: dim_id,
-            position:  IVec3::new(0, 0, 1),
-        },
-        chunk_data.clone(),
-        MeshMaterial3d(material_handle.clone()),
-        NeedsRemeshing,
-    ));
-    commands.spawn((
-        StaticChunk {
-            dimension: dim_id,
-            position:  IVec3::new(1, 0, 0),
-        },
-        chunk_data.clone(),
-        MeshMaterial3d(material_handle.clone()),
-        NeedsRemeshing,
-    ));
-    commands.spawn((
-        StaticChunk {
-            dimension: dim_id,
-            position:  IVec3::new(1, 0, 1),
-        },
-        chunk_data.clone(),
-        MeshMaterial3d(material_handle.clone()),
-        NeedsRemeshing,
-    ));
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -227,6 +120,10 @@ impl VoxelChunk {
             let z = ((i >> 8) & 0xF) as u32;
             Some((UVec3::new(x, y, z), v))
         })
+    }
+
+    pub fn is_all_air(&self) -> bool {
+        !self.raw().iter().any(|v| !v.is_air())
     }
 
     /// Raw slice access (e.g. for bulk copy into a mesh buffer).

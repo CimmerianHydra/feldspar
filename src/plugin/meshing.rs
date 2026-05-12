@@ -63,22 +63,28 @@ pub const ATTRIBUTE_OVERLAY_TINT: MeshVertexAttribute =
 // UPDATE SCHEDULE SYSTEMS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Systems related to block meshing can be defined here
 fn update_dirty_mesh_sys(
     mut commands: Commands,
-    chunk_query: Query<(Entity, &VoxelChunk), With<NeedsRemeshing>>,
+    chunk_query: Query<(Entity, &VoxelChunk, Option<&Mesh3d>), With<NeedsRemeshing>>,
     mut meshes: ResMut<Assets<Mesh>>,
     block_registry: Res<BlockRegistry>,
-    )  {
-    // Block mesh generation logic from chunk/grid data.
+) {
+    for (entity, voxel_chunk, existing_mesh) in chunk_query.iter() {
+        let mut e = commands.entity(entity);
 
-    // For every chunk that has changed, we will generate a mesh based on the block data.
-    for (entity, voxel_chunk) in chunk_query.iter() {
+        // Quirk of Bevy: an empty mesh kinda breaks the whole system.
+        // So if the chunk is all air, we just remove the mesh entirely.
+        if voxel_chunk.is_all_air() {
+            // No geometry; drop any stale mesh handle.
+            if existing_mesh.is_some() {
+                e.remove::<Mesh3d>();
+            }
+        } else {
+            let new_mesh = build_chunk_mesh(voxel_chunk, &block_registry);
+            e.insert(Mesh3d(meshes.add(new_mesh)));
+        }
 
-        let new_handle = meshes.add(build_chunk_mesh(voxel_chunk, &block_registry));
-        commands.entity(entity).insert(Mesh3d(new_handle));
-        commands.entity(entity).remove::<NeedsRemeshing>();
-
+        e.remove::<NeedsRemeshing>();
     }
 }
 
@@ -96,7 +102,7 @@ fn resolve_face_texture<'a>(
     match appearance {
         BlockAppearance::Uniform(ft) => ft,
 
-        BlockAppearance::TopBottomSides { up, down, side } => match face_dir {
+        BlockAppearance::TopBotSide { up, down, side } => match face_dir {
             Some(Direction::Up)   => up,
             Some(Direction::Down) => down,
             _                     => side, // sides AND interior (None) faces
@@ -148,7 +154,7 @@ fn build_chunk_mesh(chunk: &VoxelChunk, registry: &BlockRegistry) -> Mesh {
     let mut overlay_tints  = Vec::<[f32; 4]>::new();
     let mut index_offset   = 0u32;
 
-    let face_uvs = [[0.,0.],[1.,0.],[1.,1.],[0.,1.]];
+    let face_uvs = [[1.,1.],[0.,1.],[0.,0.],[1.,0.]];
 
     for (pos, voxel) in chunk.iter_non_air() {
         let block_def  = registry.get(BlockID(voxel.id()));
