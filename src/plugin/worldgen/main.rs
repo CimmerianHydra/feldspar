@@ -74,7 +74,7 @@ use crate::plugin::dimension::DimensionId;
 /// How many chunks out from origin to pre-spawn on each axis.
 /// Total chunk count = (2*R + 1)^3 — with R=8 that's 4913 chunks.
 /// Drop this to 2 or 3 if startup feels heavy while testing.
-const DEV_CHUNK_RADIUS: i32 = 16;
+const DEV_CHUNK_RADIUS: i32 = 4;
 const DEV_CHUNK_HEIGHT: i32 = 4;
 
 pub fn setup_dev_chunks(

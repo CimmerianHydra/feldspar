@@ -6,11 +6,35 @@
 
 A voxel game written in Rust with the [Bevy](https://bevyengine.org/) engine.
 
-Feldspar is an in-far-development voxel game focused on exploration and automation, in the style of modded Minecraft. The major inspiration for the project include the GregTech: New Horizons modpack, Factorio, Satisfactory, Terraria, and Hytale.
+Feldspar is an in-far-development voxel game focused on exploration and automation, in the style of modded Minecraft. The major inspirations for the project include the GregTech: New Horizons modpack, Factorio, Satisfactory, Terraria, and Hytale.
 
 The full game will feature complex automation chains, train/vehicle design, spaceship design, space exploration, all dressed up in a unique art style including sci-fi and cosmic horror themes.
 
 The project is currently deep in the development stage, and is barely playable. Still, anyone who is interested in trying out the game as it currently exists is welcome to do so. If you want to contribute to the project, please contact the repository owner SeiryuSolVT.
+
+---
+
+## How to Contribute
+
+### As a feature developer
+Before sending a pull request, please contact the owner of the repository SeiryuSolVT (CimmerianHydra). As this is a passion project and mostly solo, any help is appreciated. Rust developers and game artists of all backgrounds are welcome to discuss becoming part of the development team.
+
+### Reporting Issues
+Please understand that the project is very far in development, and issues are expected. However, until the project reaches a stable state, the developer(s) reserve the right to only resolve issues that seem relevant for the active development topic.
+
+---
+
+## Roadmap
+
+- More complex meshing and texturing systems, including greedy meshing, mipmap, and LOD.
+- Integration with BlockBench file formats.
+- More material definitions for a larger variety of materials (water, glass, etc).
+- Chunk palette compression for potentially unlimited block variations (the scaffolding is already present).
+- JSON-driven block and item definitions.
+- Physics integration and player controller.
+- Integration of moving chunk grids for vehicle design.
+- Multiple raycast targets (mobs → moving grids → static world).
+
 
 ---
 
@@ -66,28 +90,6 @@ cargo run --release
 
 The dev profile is configured with `opt-level = 1` (and `opt-level = 3` for dependencies) so debug builds stay playable without the full release wait.
 
----
-
-## Roadmap
-
-- More complex meshing systems, including greedy meshing, mipmap, and LOD.
-- More material definitions for a larger variety of materials (water, glass, etc).
-- Chunk palette compression for potentially unlimited block variations (the scaffolding is already present).
-- JSON-driven block and item definitions.
-- Physics integration and a player controller.
-- Integration of moving chunk grids for vehicle design.
-- Multiple raycast targets (mobs → moving grids → static world).
-
-
----
-
-## How to Contribute
-
-### As a feature developer
-Before sending a pull request, please contact the owner of the repository SeiryuSolVT. As this is a passion project and mostly solo, any help is appreciated. Rust developers and game artists of all backgrounds are welcome to discuss becoming part of the development team.
-
-### Reporting Issues
-Please understand that the project is very far in development, and issues are expected. However, until the project reaches a stable state, the developer(s) reserve the right to only resolve issues that seem relevant for the active development topic.
 
 ---
 
