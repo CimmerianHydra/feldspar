@@ -6,17 +6,17 @@
 
 A voxel game written in Rust with the [Bevy](https://bevyengine.org/) engine.
 
-Feldspar is an in-far-development voxel game focused on exploration and automation, in the style of modded Minecraft. The major inspirations for the project include the GregTech: New Horizons modpack, Factorio, Satisfactory, Terraria, and Hytale.
+Feldspar is an in-far-development voxel game focused on exploration and automation, in the style of modded Minecraft. Major inspirations for the project include GregTech: New Horizons, Factorio, Satisfactory, Terraria, and Hytale.
 
 The full game will feature complex automation chains, train/vehicle design, spaceship design, space exploration, all dressed up in a unique art style including sci-fi and cosmic horror themes.
 
-The project is currently deep in the development stage, and is barely playable. Still, anyone who is interested in trying out the game as it currently exists is welcome to do so. If you want to contribute to the project, please contact the repository owner SeiryuSolVT.
+The project is currently deep in the development stage. Still, anyone who is interested in trying out the game as it currently exists is welcome to do so. If you want to contribute to the project, please contact the repository owner SeiryuSolVT.
 
 ---
 
 ## How to Contribute
 
-### As a feature developer
+### As a developer
 Before sending a pull request, please contact the owner of the repository SeiryuSolVT (CimmerianHydra). As this is a passion project and mostly solo, any help is appreciated. Rust developers and game artists of all backgrounds are welcome to discuss becoming part of the development team.
 
 ### Reporting Issues
