@@ -108,13 +108,6 @@ impl Voxel {
         }
     }
 
-    /// Calculates whether the specified face occludes the given coverage.
-    /// Uses the voxel's own direction and shape where needed.
-    pub fn occludes(self, face: Direction, coverage: FaceCoverage) -> bool {
-        let coverage_of_this_voxel = self.shape().default_coverage()[0];
-        return coverage_of_this_voxel.is_covered(coverage)
-    }
-
     /// Extra state bits (bits 23-31).
     #[inline] pub fn state(self) -> u16 { ((self.0 >> 23) & 0x1FF) as u16 }
 
@@ -130,45 +123,6 @@ impl Voxel {
 
     pub fn with_state(self, state: u16) -> Self {
         Self((self.0 & !(0x1FF << 23)) | (((state as u32) & 0x1FF) << 23))
-    }
-}
-
-/// FaceCoverage is a bitmask. It represents how a face covers the space for culling
-/// purposes; half slabs cover only half the space for example, while full faces cover
-/// the entire space.
-/// 
-/// It enables slicing the face of blocks into 16 pieces which allows for great
-/// flexibility in how faces are culled. In the future this may be extended to 64 slices.
-/// The slices are ordered so that 0b00000001 means coverage happens on the top left
-/// slice, while 0b10000000 on the bottom right slice. This is assuming one sees the face
-/// head-on.
-
-#[derive(Copy, Clone, Debug)]
-pub struct FaceCoverage(u16);
-
-impl FaceCoverage {
-    pub const FULL: Self = FaceCoverage(0b11111111);
-    pub const NONE: Self = FaceCoverage(0b00000000);
-    pub const HALF_BOT: Self = FaceCoverage(0b11110000);
-    pub const HALF_TOP: Self = FaceCoverage(0b00001111);
-    pub const HALF_LFT: Self = FaceCoverage(0b00110011);
-    pub const HALF_RGT: Self = FaceCoverage(0b11001100);
-
-    pub fn from_shape(shape: BlockShape, facing: Direction, face_dir: Direction) -> Self {
-        match shape {
-            BlockShape::Cube        =>      FaceCoverage::FULL,
-            _                       =>      FaceCoverage::FULL,
-        }
-    }
-
-    /// Calculates coverage: true when the first quad covers the second.
-    pub fn covers(self, coverage: Self) -> bool {
-        return (self.0 | coverage.0) == self.0;
-    }
-
-    /// Calculates coverage: true when the second quad covers the first.
-    pub fn is_covered(self, coverage: Self) -> bool {
-        return (self.0 | coverage.0) == coverage.0;
     }
 }
 
@@ -221,20 +175,6 @@ impl BlockShape {
             3 => BlockShape::StairInv,
             4 => BlockShape::Slope,
             _ => BlockShape::Cube,
-        }
-    }
-
-    /// Returns the default (facing North) coverage of each shape.
-    fn default_coverage(self) -> [FaceCoverage; 6] {
-        match self {
-            BlockShape::Cube        =>      [FaceCoverage::FULL; 6],
-            BlockShape::Slab        =>      [FaceCoverage::NONE,
-                                             FaceCoverage::FULL,
-                                             FaceCoverage::HALF_RGT,
-                                             FaceCoverage::HALF_LFT,
-                                             FaceCoverage::HALF_TOP,
-                                             FaceCoverage::HALF_TOP,],
-            _                       =>      [FaceCoverage::NONE; 6],
         }
     }
 }

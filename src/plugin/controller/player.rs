@@ -64,6 +64,7 @@ fn spawn_player(mut commands: Commands) {
         .spawn((
             Player,
             PlayerMovement::default(),
+            InheritedVisibility::default(),
 
             RigidBody::Kinematic,
             Collider::cylinder(PLAYER_RADIUS, CAPSULE_LENGTH),
@@ -207,7 +208,10 @@ fn step(
                 tf.rotation,
                 vel.0,
                 dt,
-                &MoveAndSlideConfig::default(),
+                &MoveAndSlideConfig {
+                    skin_width: GROUND_SKIN,
+                    ..default()
+                },
                 &SpatialQueryFilter::from_excluded_entities([entity]),
                 |hit| {
                     // Surface classification: floor if its normal points

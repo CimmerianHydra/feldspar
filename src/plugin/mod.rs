@@ -2,7 +2,6 @@
 pub mod voxel;
 pub mod dimension;
 pub mod chunk;
-pub mod meshing_old;
 pub mod block_registry;
 pub mod block_interaction;
 pub mod ui;
