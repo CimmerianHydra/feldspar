@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::light::CascadeShadowConfigBuilder;
 
 mod plugin;
-use plugin::camera::{FreeCameraPlugin, FreeCamera};
+use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
 use plugin::block_registry::BlockRegistryPlugin;
 use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
@@ -43,7 +43,7 @@ fn main() {
 
         .add_plugins(EguiPlugin::default())
         .add_plugins(
-            WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::F3)),
+            WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
         )
 
         // Game systems (that can't fit into any one previous plugin neatly)

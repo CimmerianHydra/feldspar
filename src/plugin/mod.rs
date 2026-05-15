@@ -6,7 +6,6 @@ pub mod block_registry;
 pub mod block_interaction;
 pub mod ui;
 pub mod weather;
-pub mod camera;
 pub mod state;
 pub mod shape;
 
