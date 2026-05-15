@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy::render::mesh::{Mesh, Indices, PrimitiveTopology};
+use bevy::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, StaticChunk, NeedsRemeshing};
@@ -121,6 +121,7 @@ fn resolve_face_texture<'a>(
                 None => up, // interior face fallback — pick any side
             }
         }
+        BlockAppearance::UniformWithInternal {ext, int} => ext,
     }
 }
 
@@ -179,7 +180,11 @@ fn build_chunk_mesh(chunk: &VoxelChunk, registry: &BlockRegistry) -> Mesh {
             // ── resolve texture data for this quad ────────────────────────
             let face_tex = resolve_face_texture(appearance, quad.face_dir);
             let (base_layer, ov_layer, tint): (u32, u32, [f32; 4]) = match face_tex {
-                FaceTextures::Simple(b, o) => (
+                FaceTextures::Simple(b) => (
+                    *b, 0,
+                    [1.0, 1.0, 1.0, 1.0],
+                ),
+                FaceTextures::Bilayer(b, o) => (
                     *b, *o,
                     [1.0, 1.0, 1.0, 1.0],
                 ),

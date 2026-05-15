@@ -96,7 +96,7 @@ fn spawn_button(
             button.spawn((
                 Text::new(text),
                 TextFont {
-                    font_size: FontSize::Px(24.0),
+                    font_size: 40.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -167,7 +167,7 @@ fn spawn_pause_menu_sys(
     let pause_text_bundle = (
         Text::new("Game Paused"),
         TextFont {
-            font_size: FontSize::Px(40.0),
+            font_size: 40.0,
             ..default()
         },
         TextColor::default(),

@@ -133,6 +133,8 @@ pub fn setup_dev_chunks(
                 let mut chunk_data = VoxelChunk::empty();
                 worldgen.generate_chunk(chunk_pos, &mut chunk_data);
 
+                bevy::log::debug!("Generating static chunk at position ({}, {}, {})", cx, cy, cz);
+
                 commands.spawn((
                     StaticChunk { dimension: dim_id, position: chunk_pos },
                     chunk_data.clone(),

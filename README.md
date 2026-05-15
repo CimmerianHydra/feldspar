@@ -1,7 +1,7 @@
 <p align="center"><img src="assets/title/logo_transparent.png"></img>
 <img src="https://img.shields.io/badge/latest_release:-not_yet_ready_for_release-red"></img>
 <img src="https://img.shields.io/badge/license-MIT-blue"></img>
-<img src="https://img.shields.io/badge/Bevy%20tracking-main-lightblue"></img>
+<img src="https://img.shields.io/badge/Bevy%20tracking-0.18-lightblue"></img>
 </p>
 
 A voxel game written in Rust with the [Bevy](https://bevyengine.org/) engine.
@@ -77,19 +77,6 @@ Please understand that the project is very far in development, and issues are ex
 
 ### Camera & controls
 - Free-fly debug camera with mouse-look and WASD/Space/Shift movement.
-
----
-
-## Building
-
-Feldspar tracks Bevy's `main` branch. With a recent stable Rust toolchain:
-
-```bash
-cargo run --release
-```
-
-The dev profile is configured with `opt-level = 1` (and `opt-level = 3` for dependencies) so debug builds stay playable without the full release wait.
-
 
 ---
 

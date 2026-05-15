@@ -2,10 +2,10 @@ use bevy::{
     prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
 use bevy::pbr::MaterialPipeline;
-use bevy::material::descriptor::RenderPipelineDescriptor;
+use bevy::render::render_resource::RenderPipelineDescriptor;
 use bevy::mesh::MeshVertexBufferLayoutRef;
 use bevy::pbr::MaterialPipelineKey;
-use bevy::material::specialize::SpecializedMeshPipelineError;
+use bevy::render::render_resource::SpecializedMeshPipelineError;
 
 use bevy::{
     asset::RenderAssetUsages,
@@ -19,7 +19,7 @@ use bevy::{
     },
 };
 
-use crate::plugin::meshing::{ATTRIBUTE_TEXTURE_LAYER, ATTRIBUTE_OVERLAY_LAYER, ATTRIBUTE_OVERLAY_TINT};
+use crate::plugin::geometry::meshing::{ATTRIBUTE_TEXTURE_LAYER, ATTRIBUTE_OVERLAY_LAYER, ATTRIBUTE_OVERLAY_TINT};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MATERIAL PLUGIN

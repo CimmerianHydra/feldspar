@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::item_registry::*;
-use crate::plugin::controls::{MouseEvent, MouseAction};
+use crate::plugin::controller::main::{MouseEvent, MouseAction};
 
 pub const HOTBAR_CAPACITY: usize = 9;
 

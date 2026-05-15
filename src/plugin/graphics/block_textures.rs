@@ -149,8 +149,10 @@ pub const NO_OVERLAY: u32 = 0;
 
 #[derive(Clone, Debug)]
 pub enum FaceTextures {
-    /// First index is into base texture array, second into overlay array.
-    Simple(u32, u32),
+    /// First index is into base texture array.
+    Simple(u32),
+    /// Has both texture and (non-tinted) overlay.
+    Bilayer(u32, u32),
     /// First index is into base texture array, second into overlay array.
     /// Color is used to tint the overlay texture.
     Tinted(u32, u32, Color),
@@ -158,10 +160,9 @@ pub enum FaceTextures {
 
 pub enum BlockAppearance {
 
-    /// All six faces use the same layer pair. Default choice.
+    /// All six faces use the same texture. Default choice.
     Uniform(FaceTextures),
-    /// Top/bottom differ from sides.  Interior faces (slab inner wall, stair
-    /// riser) are treated as sides since they face no chunk boundary.
+    /// Top/bottom differ from sides.
     TopBotSide {
         up:    FaceTextures,
         down:  FaceTextures,
@@ -175,10 +176,16 @@ pub enum BlockAppearance {
         east:  FaceTextures,
         west:  FaceTextures,
     },
+    /// All six faces use the same texture, but an "internal" texture is defined
+    /// for all those faces that don't sit on the boundary of the voxel.
+    UniformWithInternal {
+        ext:    FaceTextures,
+        int:    FaceTextures,
+    }
 }
 
 impl Default for BlockAppearance {
     fn default() -> Self {
-        BlockAppearance::Uniform(FaceTextures::Simple(1, NO_OVERLAY))
+        BlockAppearance::Uniform(FaceTextures::Simple(1))
     }
 }

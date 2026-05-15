@@ -28,8 +28,6 @@ impl Plugin for ChunkPlugin {
             .add_systems(PreUpdate,register_new_chunks_sys)
             .add_systems(PreUpdate,unregister_removed_chunks_sys)
 
-            // Only run this once
-            .add_systems(Update, crate::plugin::worldgen::main::setup_dev_chunks.run_if(run_once))
         ;
     }
 }

@@ -2,6 +2,11 @@ use bevy::{
     prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
 
+use bevy::pbr::MaterialPipeline;
+use bevy::render::render_resource::RenderPipelineDescriptor;
+use bevy::mesh::MeshVertexBufferLayoutRef;
+use bevy::pbr::MaterialPipelineKey;
+use bevy::render::render_resource::SpecializedMeshPipelineError;
 
 pub struct WeatherPlugin;
 
@@ -35,14 +40,14 @@ impl Material for SkyMaterial {
     }
 
     fn specialize(
-            _pipeline: &bevy::pbr::MaterialPipeline,
-            descriptor: &mut bevy::material::descriptor::RenderPipelineDescriptor,
-            _layout: &bevy::mesh::MeshVertexBufferLayoutRef,
-            _key: bevy::pbr::MaterialPipelineKey<Self>,
-        ) -> Result<(), bevy::material::specialize::SpecializedMeshPipelineError> {
+            _pipeline: &MaterialPipeline,
+            descriptor: &mut RenderPipelineDescriptor,
+            _layout: &MeshVertexBufferLayoutRef,
+            _key: MaterialPipelineKey<Self>,
+        ) -> Result<(), SpecializedMeshPipelineError> {
         descriptor.primitive.cull_mode = None; // render inside
         descriptor.depth_stencil.as_mut().map(|depth| {
-            depth.depth_write_enabled = Some(false);
+            depth.depth_write_enabled = false;
         });
         Ok(())
     }

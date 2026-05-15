@@ -36,11 +36,12 @@ pub struct BlockID(pub u16);
 /// A fully resolved, immutable description of one block type.
 /// Created once at startup, lives in the global BlockRegistry.
 pub struct BlockDefinition {
-    pub id:           BlockID,
-    pub name:         String,          // e.g. "oreIronAndesite"
-    pub display_name: String,          // e.g. "Andesite Iron Ore"
-    pub shape:        BlockShape,
-    pub appearance:   BlockAppearance,
+    pub id:             BlockID,
+    pub name:           String,          // e.g. "oreIronAndesite"
+    pub display_name:   String,          // e.g. "Andesite Iron Ore"
+    pub shape:          BlockShape,
+    pub appearance:     BlockAppearance,
+    pub has_collision:  bool,
 }
 
 impl BlockDefinition {
@@ -61,6 +62,7 @@ impl Default for BlockDefinition {
             display_name: "Default Cube".to_string(),
             shape: BlockShape::default(),
             appearance: BlockAppearance::default(),
+            has_collision: true,
         }
     }
 }
@@ -69,7 +71,7 @@ impl Default for BlockDefinition {
 /// Global resource that keeps in memory all the blocks in the game
 #[derive(Resource)]
 pub struct BlockRegistry {
-    blocks:       Vec<BlockDefinition>,      // indexed by BlockID
+    blocks:         Vec<BlockDefinition>,      // indexed by BlockID
 }
 
 impl BlockRegistry {
@@ -149,7 +151,7 @@ pub fn initialize_registry_sys(
         BlockDefinition {
             name: "dirt".to_string(),
             display_name: "Dirt".to_string(),
-            appearance: BlockAppearance::Uniform(FaceTextures::Simple(1, 0)),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(1)),
             ..default()
         }
     );
@@ -158,7 +160,7 @@ pub fn initialize_registry_sys(
         BlockDefinition {
             name: "slate".to_string(),
             display_name: "Slate".to_string(),
-            appearance: BlockAppearance::Uniform(FaceTextures::Simple(2, 0)),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(2)),
             ..default()
         }
     );
@@ -171,7 +173,7 @@ pub fn initialize_registry_sys(
             display_name: "Grass".to_string(),
             appearance: BlockAppearance::TopBotSide {
                 up: FaceTextures::Tinted(1, 1, green_color),
-                down: FaceTextures::Simple(1, 0),
+                down: FaceTextures::Simple(1),
                 side: FaceTextures::Tinted(1, 2, green_color),
             },
             ..default()

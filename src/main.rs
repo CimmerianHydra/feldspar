@@ -3,25 +3,32 @@ use bevy::light::CascadeShadowConfigBuilder;
 
 mod plugin;
 use plugin::camera::{FreeCameraPlugin, FreeCamera};
-use plugin::meshing::MeshingPlugin;
+use plugin::geometry::meshing::MeshingPlugin;
 use plugin::block_registry::BlockRegistryPlugin;
 use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
 use plugin::chunk::ChunkPlugin;
 use plugin::ui::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
-use plugin::controls::ControlsPlugin;
+use plugin::controller::main::ControlsPlugin;
 use plugin::inventory::main::InventoryPlugin;
 use plugin::inventory::item_registry::ItemRegistryPlugin;
-use plugin::graphics::block_material::VoxelMaterialPlugin;
+use plugin::graphics::block_material::{VoxelMaterialPlugin, VoxelMaterial};
 use plugin::worldgen::main::WorldgenPlugin;
+use plugin::controller::player::PlayerControllerPlugin;
+
+use bevy::{input::common_conditions::input_toggle_active};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
+use avian3d::PhysicsPlugins;
 
 fn main() {
     App::new()
         // Plugins
         .add_plugins(DefaultPlugins)
+        .add_plugins(PhysicsPlugins::default())
         .add_plugins(StatePlugin)
-        .add_plugins(FreeCameraPlugin)
+        //.add_plugins(FreeCameraPlugin)
+        .add_plugins(PlayerControllerPlugin)
         .add_plugins(ControlsPlugin)
         .add_plugins(VoxelMaterialPlugin)
         .add_plugins(MeshingPlugin)
@@ -34,11 +41,18 @@ fn main() {
         .add_plugins(WorldgenPlugin)
         .add_plugins(WeatherPlugin)
 
+        .add_plugins(EguiPlugin::default())
+        .add_plugins(
+            WorldInspectorPlugin::default().run_if(input_toggle_active(true, KeyCode::F3)),
+        )
+
         // Game systems (that can't fit into any one previous plugin neatly)
         .add_systems(PreStartup, setup)
-        .add_systems(Startup, add_dda_ray_to_camera)
 
         // .add_systems(Update, debug_sys)
+
+        // Only run this once to generate the world
+        .add_systems(Update, crate::plugin::worldgen::main::setup_dev_chunks.run_if(run_once))
 
         .run();
 }
@@ -51,8 +65,8 @@ fn setup(
     // directional 'sun' light
     commands.spawn((
         DirectionalLight {
-            illuminance: light_consts::lux::OVERCAST_DAY,
-            shadow_maps_enabled: true,
+            illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
+            shadows_enabled: true,
             ..default()
         },
         Transform {
@@ -67,12 +81,6 @@ fn setup(
             ..default()
         }.build(),
     ));
-}
-
-fn add_dda_ray_to_camera(mut commands: Commands, query: Query<Entity, With<FreeCamera>>) {
-    if let Ok(entity) = query.single() {
-        commands.entity(entity).insert(DDARay { max_distance: 5.0 });
-    }
 }
 
 /*

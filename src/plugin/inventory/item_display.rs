@@ -17,7 +17,8 @@ pub enum ItemDisplay {
     /// 
     /// This is used to attach an image to an item, which informs the UI
     /// or any other system how to represent the item visually in the game.
-    Simple {
+    
+    Image {
         image: Handle<Image>,
     },
 }
@@ -81,7 +82,7 @@ pub fn build_ui_item_display(
 
     match display {
         // ── Static ───────────────────────────────────────────────────────
-        ItemDisplay::Simple { image } => { return (
+        ItemDisplay::Image { image } => { return (
                 icon_node,
                 ImageNode {
                     image: image.clone(),

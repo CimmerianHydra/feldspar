@@ -1,7 +1,7 @@
 use bevy::{
     prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
-use bevy::render::mesh::{Mesh, PrimitiveTopology};
+use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::block_registry::BlockRegistry;
@@ -11,9 +11,9 @@ use crate::plugin::inventory::player_inventory::*;
 use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction};
-use crate::plugin::meshing::{BLOCK_SIZE};
+use crate::plugin::geometry::meshing::{BLOCK_SIZE};
 use crate::plugin::dimension::DimensionId;
-use crate::plugin::controls::{MouseEvent, MouseAction};
+use crate::plugin::controller::main::{MouseEvent, MouseAction};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin and Component Definitions
@@ -150,11 +150,11 @@ fn digital_differential_analysis(origin: Vec3, direction: Vec3, max_distance: f3
 
 fn cast_static_dda_ray_sys(
     mut commands: Commands,
-    query: Query<(Entity, &DDARay, &Transform)>,
+    query: Query<(Entity, &DDARay, &GlobalTransform)>,
 ) {
-    if let Ok((entity, ray, transform)) = query.single() {
-        let origin = transform.translation;
-        let direction = transform.forward();
+    if let Ok((entity, ray, g_transform)) = query.single() {
+        let origin = g_transform.translation();
+        let direction = g_transform.forward();
         let hits = digital_differential_analysis(origin, direction.as_vec3(), ray.max_distance);
         commands.trigger(DDAResult {
             hits: hits
@@ -283,7 +283,7 @@ fn handle_mouse_interaction_obs(
 ) {
     if mouse_event.action == MouseAction::Primary {
         match look_target.target {
-            Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
+            Some(LookTarget::StaticVoxel { chunk_entity, voxel, pos, face }) => {
                 let event = StaticVoxelWriteRequest {
                     block_coord: pos,
                     dimension: DimensionId::OVERWORLD,
@@ -295,7 +295,7 @@ fn handle_mouse_interaction_obs(
         }
     } else if mouse_event.action == MouseAction::Secondary {
             match look_target.target {
-            Some(LookTarget::StaticVoxel { chunk_entity, pos, face }) => {
+            Some(LookTarget::StaticVoxel { chunk_entity, voxel, pos, face }) => {
                 let neighbor_pos = pos + face.as_ivec3();
 
                 if let Some(held_item_right) = held_item.right_hand {
@@ -341,11 +341,13 @@ pub struct PlayerLookTarget{
 pub enum LookTarget {
     StaticVoxel {
         chunk_entity:   Entity,
+        voxel:          Voxel,
         pos:            IVec3,
         face:           Direction,
     },
     MovingGridVoxel {
         grid_entity:    Entity,
+        voxel:          Voxel,
         local_pos:      IVec3,
         face:           Direction,
     },
@@ -369,11 +371,14 @@ fn update_look_target_obs(
     
     if let Some((block_coord, face)) = hit_blocks.into_iter().find(|(coord, _)| {
         // Check if the block at this coordinate is not air.
-        static_world_access.get_voxel(*coord, DimensionId::OVERWORLD).is_air() != true // Assuming 0 is the ID for air.
+        // This closure short-circuits at the first non-air block in the voxel data.
+        static_world_access.get_voxel(*coord, DimensionId::OVERWORLD).is_air() != true
     }) {
         if let Some(entity) = static_world_access.get_chunk_entity(block_coord, DimensionId::OVERWORLD) {
+            let voxel = static_world_access.get_voxel(block_coord, DimensionId::OVERWORLD);
             target.target = Some(LookTarget::StaticVoxel {
                 chunk_entity: entity,
+                voxel,
                 pos: block_coord,
                 face: face
             });
@@ -414,7 +419,7 @@ pub struct PlayerHeldItems{
 fn update_held_items_obs(
     event: On<PlayerHotbarSelectedChange>,
     mut held_items: ResMut<PlayerHeldItems>,
-    mut inv_query: Query<&Inventory, With<PlayerInventory>>,
+    inv_query: Query<&Inventory, With<PlayerInventory>>,
 ) {
     if let Ok(inventory) = inv_query.single() {
         let next_slot = event.new_index;
