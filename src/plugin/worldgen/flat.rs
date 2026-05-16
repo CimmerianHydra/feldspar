@@ -43,6 +43,10 @@ impl FlatGenerator {
 }
 
 impl WorldGenerator for FlatGenerator {
+
+    /// "generate_chunk" takes a VoxelChunk mutable reference and modifies it into
+    /// a newly generated chunk. This makes it more async friendly when worldgen will
+    /// be weaved into the chunk load/unload/generation system.
     fn generate_chunk(&self, chunk_pos: IVec3, out: &mut VoxelChunk) {
         let chunk_base_y = chunk_pos.y * CHUNK_SIZE as i32;
         let chunk_top_y  = chunk_base_y + CHUNK_SIZE as i32 - 1;        // inclusive
@@ -50,13 +54,13 @@ impl WorldGenerator for FlatGenerator {
         // Lowest world-y that's still dirt (e.g. -2 when thickness = 3).
         let lowest_dirt_y = SURFACE_Y - (DIRT_THICKNESS - 1);
 
-        // ── Fast path 1: chunk entirely above the surface → all air ────────
+        // ── Fast path 1: chunk entirely above the surface -> all air ────────
         if chunk_base_y > SURFACE_Y {
             *out = VoxelChunk::empty();
             return;
         }
 
-        // ── Fast path 2: chunk entirely below dirt band → all slate ────────
+        // ── Fast path 2: chunk entirely below dirt band -> all slate ────────
         if chunk_top_y < lowest_dirt_y {
             *out = VoxelChunk::filled(Voxel::full(SLATE_ID));
             return;

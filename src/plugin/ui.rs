@@ -67,6 +67,7 @@ const UI_SLOT_COLOR: Color = Color::srgb_u8(46, 52, 64);
 const BUTTON_NORMAL: Color = Color::srgb(0.20, 0.20, 0.20);
 const BUTTON_HOVERED: Color = Color::srgb(0.30, 0.30, 0.30);
 const BUTTON_PRESSED: Color = Color::srgb(0.15, 0.45, 0.15);
+const BUTTON_FONT_SIZE: f32 = 20.0;
 
 const SLOT_SIZE: Val = Val::Px(80.0);
 const SLOT_GAP: Val = Val::Px(6.0);
@@ -100,7 +101,7 @@ fn spawn_button(
             button.spawn((
                 Text::new(text),
                 TextFont {
-                    font_size: 40.0,
+                    font_size: BUTTON_FONT_SIZE,
                     ..default()
                 },
                 TextColor(Color::WHITE),
@@ -171,7 +172,7 @@ fn spawn_pause_menu_sys(
     let pause_text_bundle = (
         Text::new("Game Paused"),
         TextFont {
-            font_size: 40.0,
+            font_size: 20.0,
             ..default()
         },
         TextColor::default(),

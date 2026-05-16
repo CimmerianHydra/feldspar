@@ -70,6 +70,10 @@ impl HillsGenerator {
 }
 
 impl WorldGenerator for HillsGenerator {
+
+    /// "generate_chunk" takes a VoxelChunk mutable reference and modifies it into
+    /// a newly generated chunk. This makes it more async friendly when worldgen will
+    /// be weaved into the chunk load/unload/generation system.
     fn generate_chunk(&self, chunk_pos: IVec3, out: &mut VoxelChunk) {
         let chunk_base = chunk_pos * CHUNK_SIZE as i32;
         let chunk_base_y = chunk_base.y;

@@ -41,11 +41,6 @@ pub fn spawn_player_inventory_sys(
         PlayerInventory,
         new_inventory,
     ));
-
-    commands.trigger(PlayerHotbarSelectedChange {
-        old_index: 0,
-        new_index: 0,
-    });
 }
 
 /// Hardcoded function to spawn some items into the player's inventory.
@@ -68,6 +63,11 @@ pub fn dev_populate_player_inventory(
             });
         };
     }
+
+    commands.trigger(PlayerHotbarSelectedChange {
+        old_index: 0,
+        new_index: 0,
+    });
 }
 
 

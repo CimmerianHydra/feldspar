@@ -10,7 +10,7 @@ pub enum ItemDisplay {
     ///
     /// Example:
     /// ```rust
-    /// ItemDisplay::Simple {
+    /// ItemDisplay::Image {
     ///     image: asset_server.load("items/iron_ore.png"),
     /// }
     /// ```

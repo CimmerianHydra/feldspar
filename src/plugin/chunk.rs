@@ -61,13 +61,14 @@ pub struct VoxelChunk {
 }
 
 impl VoxelChunk {
+    /// Fill every voxel with air blocks.
     pub fn empty() -> Self {
         Self {
             voxels: Box::new([Voxel::AIR; CHUNK_VOLUME])
         }
     }
 
-    /// Fill every voxel with the same block (useful for solid test chunks).
+    /// Fill every voxel with the same block.
     pub fn filled(voxel: Voxel) -> Self {
         Self {
             voxels: Box::new([voxel; CHUNK_VOLUME])
@@ -120,6 +121,7 @@ impl VoxelChunk {
         })
     }
 
+    /// Short-circuiting checker to see if all voxels are air.
     pub fn is_all_air(&self) -> bool {
         !self.raw().iter().any(|v| !v.is_air())
     }
@@ -138,7 +140,7 @@ pub struct NeedsRemeshing;
 /// Marks a `VoxelChunk` entity as a fixed, static world chunk.
 ///
 /// The `register_new_chunks` system automatically inserts this into
-/// `VoxelWorld` so lookups by coordinate work immediately.
+/// `StaticWorld` so lookups by coordinate work immediately.
 ///
 /// ## Required bundle
 /// ```rust
@@ -192,8 +194,8 @@ pub struct MovingGrid {
 /// Provides **O(1)** lookup of the `Entity` that owns a
 /// `(DimensionId, chunk_pos)` pair.
 ///
-/// You usually never touch this manually — the `register_new_chunks`
-/// and `unregister_removed_chunks` systems keep it in sync automatically.
+/// Never update this manually — the `register_new_chunks` and
+/// `unregister_removed_chunks` systems keep it in sync automatically.
 
 
 #[derive(Resource, Default)]
@@ -243,7 +245,7 @@ impl StaticWorld {
 
     /// Inverse of `to_chunk_local`.
     #[inline]
-    pub fn to_world_block(chunk_pos: IVec3, local: UVec3) -> IVec3 {
+    pub fn to_world_pos(chunk_pos: IVec3, local: UVec3) -> IVec3 {
         chunk_pos * CHUNK_SIZE as i32 + local.as_ivec3()
     }
 
@@ -257,7 +259,7 @@ impl StaticWorld {
 
 /// StaticWorldAccess and StaticWorldAccessMut provide (immutable or mutable, respectively) access
 /// to the StaticWorld resource. It should be added as an input parameter to all systems that need
-/// to be able to access the chunk data.
+/// to be able to access loaded chunk data.
 
 #[derive(SystemParam)]
 pub struct StaticWorldAccess<'w, 's> {
@@ -375,13 +377,13 @@ pub fn unregister_removed_chunks_sys(
 // SECTION 6 – BLOCK ENTITIES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Sparse map of local block positions → associated ECS entities.
+/// Sparse map of local block positions -> associated ECS entities.
 /// Lives as a *separate* component on the same chunk entity as `VoxelChunk`.
 ///
 /// Only added to chunks that actually contain at least one interactive block,
 /// so plain terrain chunks pay zero overhead.
 ///
-/// Local positions are in `[0, 15]³` matching `VoxelChunk`'s coordinate space.
+/// Local positions are in `[0, 15]^3` matching `VoxelChunk`'s coordinate space.
 #[derive(Component, Default)]
 pub struct ChunkBlockEntities {
     map: HashMap<UVec3, Entity>,
