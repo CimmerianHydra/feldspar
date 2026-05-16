@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::{graphics::block_textures::{BlockAppearance, FaceTextures}, voxel::BlockShape};
+use crate::plugin::voxel::BlockShape;
+use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
+use crate::plugin::registry::material::BlockMaterial;
+use crate::plugin::audio::block::SoundProfile;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin Definition
@@ -15,8 +18,6 @@ impl Plugin for BlockRegistryPlugin {
         // Add systems related to block registry management here
         app
         .insert_resource(BlockRegistry::new())
-        
-        .add_systems(Startup, initialize_registry_sys)
         ;
     }
 }
@@ -42,6 +43,8 @@ pub struct BlockDefinition {
     pub shape:          BlockShape,
     pub appearance:     BlockAppearance,
     pub has_collision:  bool,
+    pub material:       BlockMaterial,
+    pub sound_profile:  SoundProfile,
 }
 
 impl BlockDefinition {
@@ -63,6 +66,8 @@ impl Default for BlockDefinition {
             shape: BlockShape::default(),
             appearance: BlockAppearance::default(),
             has_collision: true,
+            material: BlockMaterial::default(),
+            sound_profile: SoundProfile::default(),
         }
     }
 }
@@ -135,77 +140,4 @@ impl ChunkPalette {
     pub fn local_to_global(&self, local: u16) -> BlockID {
         self.entries[local as usize]
     }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// HARDCODED REGISTRY
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Test function that will provide with a few variations of basic blocks
-pub fn initialize_registry_sys(
-    mut registry: ResMut<BlockRegistry>
-) {
-    // We're just going to add some blocks manually
-
-    registry.register_block(
-        BlockDefinition {
-            name: "dirt".to_string(),
-            display_name: "Dirt".to_string(),
-            appearance: BlockAppearance::Uniform(FaceTextures::Simple(1)),
-            ..default()
-        }
-    );
-
-    registry.register_block(
-        BlockDefinition {
-            name: "slate".to_string(),
-            display_name: "Slate".to_string(),
-            appearance: BlockAppearance::Uniform(FaceTextures::Simple(2)),
-            ..default()
-        }
-    );
-
-    let green_color = Color::srgb_u8(108, 185, 71);
-
-    registry.register_block(
-        BlockDefinition {
-            name: "grass".to_string(),
-            display_name: "Grass".to_string(),
-            appearance: BlockAppearance::TopBotSide {
-                up: FaceTextures::Tinted(1, 1, green_color),
-                down: FaceTextures::Simple(1),
-                side: FaceTextures::Tinted(1, 2, green_color),
-            },
-            ..default()
-        }
-    );
-
-    // In the future we'll generate blocks from JSON files with their whole definition
-    for shape in [
-        BlockShape::Cube,
-        BlockShape::Slab,
-        BlockShape::Stair,
-        BlockShape::Slope,
-        ] {
-        let base_name = "test".to_string();
-        let base_display_name = "Test".to_string();
-
-        let (name, display_name) = match shape {
-            BlockShape::Cube => (format!("{}_{}", base_name, "cube"), format!("{} {}", base_display_name, "Cube")),
-            BlockShape::Slab => (format!("{}_{}", base_name, "slab"), format!("{} {}", base_display_name, "Slab")),
-            BlockShape::Stair => (format!("{}_{}", base_name, "stair"), format!("{} {}", base_display_name, "Stair")),
-            BlockShape::Slope => (format!("{}_{}", base_name, "slope"), format!("{} {}", base_display_name, "Slope")),
-            _ => ("test".to_string(), "Test".to_string())
-        };
-
-        let definition = BlockDefinition {
-            name,
-            display_name,
-            shape,
-            ..default()
-        };
-        registry.register_block(definition);
-    }
-
-    bevy::log::info_once!("BlockRegistry successfully initialized.");
 }

@@ -98,6 +98,7 @@ fn spawn_player(mut commands: Commands) {
                 DDARay { max_distance: DEFAULT_REACH },
                 Camera3d::default(),
                 Transform::from_xyz(0.0, CAM_LOCAL_Y, 0.0),
+                SpatialListener::default(),
             )],
         ))
         .observe(on_move_fire)

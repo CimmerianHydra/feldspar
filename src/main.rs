@@ -4,22 +4,26 @@ use bevy::light::CascadeShadowConfigBuilder;
 mod plugin;
 use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
-use plugin::block_registry::BlockRegistryPlugin;
+use plugin::block_registry::{BlockRegistryPlugin, BlockDefinition, BlockID, BlockRegistry};
 use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
 use plugin::chunk::ChunkPlugin;
 use plugin::ui::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
+use plugin::voxel::BlockShape;
 use plugin::controller::main::ControlsPlugin;
 use plugin::inventory::main::InventoryPlugin;
 use plugin::inventory::item_registry::ItemRegistryPlugin;
 use plugin::graphics::block_material::{VoxelMaterialPlugin, VoxelMaterial};
+use plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use plugin::worldgen::main::WorldgenPlugin;
 use plugin::controller::player::PlayerControllerPlugin;
 
 use bevy::{input::common_conditions::input_toggle_active};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
+
+use crate::plugin::audio::block::BlockAudioPlugin;
 
 fn main() {
     App::new()
@@ -40,6 +44,7 @@ fn main() {
         .add_plugins(BlockInteractionPlugin)
         .add_plugins(WorldgenPlugin)
         .add_plugins(WeatherPlugin)
+        .add_plugins(BlockAudioPlugin)
 
         .add_plugins(EguiPlugin::default())
         .add_plugins(
@@ -48,8 +53,8 @@ fn main() {
 
         // Game systems (that can't fit into any one previous plugin neatly)
         .add_systems(PreStartup, setup)
-
-        // .add_systems(Update, debug_sys)
+        .add_systems(Startup, dev_initialize_registry_sys)
+        .add_systems(Startup, crate::plugin::inventory::item_registry::initialize_item_registry_sys.after(dev_initialize_registry_sys))
 
         // Only run this once to generate the world
         .add_systems(Update, crate::plugin::worldgen::main::setup_dev_chunks.run_if(run_once))
@@ -92,3 +97,72 @@ fn debug_sys(
     }
 }
 */
+
+/// Test function that will provide with a few variations of basic blocks
+pub fn dev_initialize_registry_sys(
+    mut registry: ResMut<BlockRegistry>
+) {
+    // We're just going to add some blocks manually
+
+    registry.register_block(
+        BlockDefinition {
+            name: "dirt".to_string(),
+            display_name: "Dirt".to_string(),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(1)),
+            ..default()
+        }
+    );
+
+    registry.register_block(
+        BlockDefinition {
+            name: "slate".to_string(),
+            display_name: "Slate".to_string(),
+            appearance: BlockAppearance::Uniform(FaceTextures::Simple(2)),
+            ..default()
+        }
+    );
+
+    let green_color = Color::srgb_u8(108, 185, 71);
+
+    registry.register_block(
+        BlockDefinition {
+            name: "grass".to_string(),
+            display_name: "Grass".to_string(),
+            appearance: BlockAppearance::TopBotSide {
+                up: FaceTextures::Tinted(1, 1, green_color),
+                down: FaceTextures::Simple(1),
+                side: FaceTextures::Tinted(1, 2, green_color),
+            },
+            ..default()
+        }
+    );
+
+    // In the future we'll generate blocks from JSON files with their whole definition
+    for shape in [
+        BlockShape::Cube,
+        BlockShape::Slab,
+        BlockShape::Stair,
+        BlockShape::Slope,
+        ] {
+        let base_name = "test".to_string();
+        let base_display_name = "Test".to_string();
+
+        let (name, display_name) = match shape {
+            BlockShape::Cube => (format!("{}_{}", base_name, "cube"), format!("{} {}", base_display_name, "Cube")),
+            BlockShape::Slab => (format!("{}_{}", base_name, "slab"), format!("{} {}", base_display_name, "Slab")),
+            BlockShape::Stair => (format!("{}_{}", base_name, "stair"), format!("{} {}", base_display_name, "Stair")),
+            BlockShape::Slope => (format!("{}_{}", base_name, "slope"), format!("{} {}", base_display_name, "Slope")),
+            _ => ("test".to_string(), "Test".to_string())
+        };
+
+        let definition = BlockDefinition {
+            name,
+            display_name,
+            shape,
+            ..default()
+        };
+        registry.register_block(definition);
+    }
+
+    bevy::log::info_once!("BlockRegistry successfully initialized.");
+}

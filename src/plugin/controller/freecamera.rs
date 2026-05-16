@@ -36,6 +36,7 @@ pub fn camera_spawn_sys(mut commands: Commands) {
             sensitivity: 0.005
         },
         Transform::from_xyz(0.0, 4.0, 0.0).looking_at(Vec3::new(8.0, 0.0, 8.0), Vec3::Y),
+        SpatialListener::default(),
     ));
 }
 

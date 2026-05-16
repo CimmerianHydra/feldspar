@@ -1,6 +1,8 @@
 use crate::plugin::audio::block::SoundProfile;
 
+#[derive(Default)]
 pub enum ToolType {
+    #[default]
     Pick,
     Hammer,
     Wrench,
@@ -8,7 +10,10 @@ pub enum ToolType {
     Weapon,
 }
 
+#[derive(Default)]
 pub enum WeaponType {
+    #[default]
+    Hand,
     Sword,
     Dagger,
     Spear,
@@ -16,10 +21,11 @@ pub enum WeaponType {
     Shield
 }
 
-pub struct MaterialDefinition {
+#[derive(Default)]
+pub struct BlockMaterial {
     name: String,
     hardness: f32,
-    required_tool: Some(ToolType),
-    hardness_tier: u32,
-    sound_profile: SoundProfile,
+    mass_of_block: f32,                     // The mass of a full block of this material
+    required_tool: Option<ToolType>,        // Required tool type to initiate breaking the material
+    hardness_tier: u32,                     // Tier-gating so that only certain materials can break certain others
 }

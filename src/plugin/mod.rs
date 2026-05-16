@@ -14,3 +14,5 @@ pub mod graphics;
 pub mod worldgen;
 pub mod controller;
 pub mod geometry;
+pub mod audio;
+pub mod registry;

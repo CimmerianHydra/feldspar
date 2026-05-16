@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::block_registry::{BlockID, BlockRegistry, initialize_registry_sys};
+use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::inventory::item_display::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
 use crate::plugin::state::GameUpdateState;
@@ -19,8 +19,7 @@ impl Plugin for ItemRegistryPlugin {
             // Resources
             .insert_resource(ItemRegistry::new())
 
-            // Startup Systems
-            .add_systems(Startup, initialize_item_registry_sys.after(initialize_registry_sys))
+
         ;
     }
 }

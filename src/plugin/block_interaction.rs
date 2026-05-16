@@ -4,7 +4,7 @@ use bevy::{
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
-use crate::plugin::block_registry::BlockRegistry;
+use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::player_inventory::*;
@@ -289,7 +289,7 @@ fn handle_mouse_interaction_obs(
                     dimension: DimensionId::OVERWORLD,
                     voxel: Voxel::AIR,
                 };
-                commands.trigger(event)
+                commands.trigger(event);
             },
             _ => { return }
         }
@@ -311,7 +311,8 @@ fn handle_mouse_interaction_obs(
                                 voxel: Voxel::new(block_id.0, shape, face),
                             };
 
-                            commands.trigger(event)
+                            commands.trigger(event);
+                            commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos });
                         }
                         _ => { return }
                     }
@@ -407,7 +408,28 @@ fn static_voxel_write_obs(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 5 – Player Held Item
+// SECTION 6 – Block-specific Events
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Event)]
+pub enum BlockEvent{
+    Place {
+        block_id: BlockID,
+        world_pos: IVec3
+    },
+    Break {
+        block_id: BlockID,
+        world_pos: IVec3
+    },
+    Interact {
+        block_id: BlockID,
+        world_pos: IVec3
+    }
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 7 – Player Held Item
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Resource, Default)]
