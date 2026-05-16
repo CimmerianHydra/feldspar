@@ -12,8 +12,8 @@ use crate::plugin::block_interaction::DDARay;
 // ── Tunables ──────────────────────────────────────────────────────────────────
 
 const PLAYER_HEIGHT:    f32 = 1.9;
-const PLAYER_RADIUS:    f32 = 0.40;
-const CAPSULE_LENGTH:   f32 = PLAYER_HEIGHT;
+const PLAYER_RADIUS:    f32 = 0.4;
+const CYL_HEIGHT:       f32 = PLAYER_HEIGHT;
 const EYE_HEIGHT:       f32 = 1.75;
 const CAM_LOCAL_Y:      f32 = EYE_HEIGHT - PLAYER_HEIGHT * 0.5;
 
@@ -51,10 +51,18 @@ pub struct FPSCamera {
 }
 
 #[derive(Component, Default)]
-struct PlayerMovement {
-    wish_dir:    Vec2,
-    jump_queued: bool,
-    grounded:    bool,
+struct PlayerMovementData {
+    wish_dir:               Vec2,
+    jump_queued:            bool,
+    state:                  PlayerMovementState,
+    time_since_grounded:    f32,
+}
+
+#[derive(Default, PartialEq)]
+enum PlayerMovementState {
+    #[default]
+    Grounded,
+    Airborne,
 }
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
@@ -63,11 +71,11 @@ fn spawn_player(mut commands: Commands) {
     commands
         .spawn((
             Player,
-            PlayerMovement::default(),
+            PlayerMovementData::default(),
             InheritedVisibility::default(),
 
             RigidBody::Kinematic,
-            Collider::cylinder(PLAYER_RADIUS, CAPSULE_LENGTH),
+            Collider::cylinder(PLAYER_RADIUS, CYL_HEIGHT),
             LockedAxes::new().lock_rotation_x().lock_rotation_z(),
             Friction::new(0.0),
             Transform::from_xyz(0.0, 20.0, 0.0),
@@ -135,19 +143,19 @@ fn player_look_sys(
 
 // ── Input observers ───────────────────────────────────────────────────────────
 
-fn on_move_fire(fire: On<Fire<Move>>, mut players: Query<&mut PlayerMovement>) {
+fn on_move_fire(fire: On<Fire<Move>>, mut players: Query<&mut PlayerMovementData>) {
     if let Ok(mut mv) = players.get_mut(fire.context) {
         mv.wish_dir = fire.value;
     }
 }
 
-fn on_move_complete(done: On<Complete<Move>>, mut players: Query<&mut PlayerMovement>) {
+fn on_move_complete(done: On<Complete<Move>>, mut players: Query<&mut PlayerMovementData>) {
     if let Ok(mut mv) = players.get_mut(done.context) {
         mv.wish_dir = Vec2::ZERO;
     }
 }
 
-fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovement>) {
+fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovementData>) {
     if let Ok(mut mv) = players.get_mut(start.context) {
         mv.jump_queued = true;
     }
@@ -155,52 +163,42 @@ fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovement>
 
 // ── Physics step ──────────────────────────────────────────────────────────────
 
-const GROUND_ANGLE_LIMIT: f32 = std::f32::consts::FRAC_PI_4 + 3.0; // max walkable slope: slightly more steep than a 45° slope
+const GROUND_DOTPROD_LIMIT:  f32 = 0.51;  // max walkable slope: slightly more steep than a 45° slope (dot product with vertcal almost 0.5)
+const GROUND_PROBE_DISTANCE: f32 = 0.10;  // how far below the feet we probe
+const GROUND_PROBE_SHRINK:   f32 = 0.10;  // shrink the probe shape vs body
+const GROUND_GLUE_VELOCITY:  f32 = -2.0;  // m/s downward "stickiness"
+
+const COYOTE_TIME:  f32 = 0.1;
 
 fn step(
+    spatial: SpatialQuery,
     move_and_slide: MoveAndSlide,
     time: Res<Time>,
-    mut players: Query<
-        (
-            Entity,
-            &Collider,
-            &mut Transform,
-            &mut LinearVelocity,
-            &mut PlayerMovement,
-        ),
-        With<Player>,
-    >,
+    mut players: Query<(Entity, &Collider, &mut Transform, &mut LinearVelocity, &mut PlayerMovementData), With<Player>>,
 ) {
     let dt = time.delta();
 
     for (entity, collider, mut tf, mut vel, mut mv) in &mut players {
-        // 1. Camera-relative horizontal wish velocity.
+        // Input -> planar wish velocity.
         let wish_local = Vec3::new(mv.wish_dir.x, 0.0, -mv.wish_dir.y);
         let planar     = (tf.rotation * wish_local).normalize_or_zero() * MOVE_SPEED;
-
-        // 2. Compose the velocity move-and-slide will use this tick.
-        //    Horizontal comes from input; vertical is whatever physics has
-        //    accumulated (gravity below, jump impulse).
         vel.x = planar.x;
         vel.z = planar.z;
 
-        // 3. Gravity (skip when grounded so we don't drill into the floor;
-        //    move-and-slide will zero residual downward velocity anyway).
-        if !mv.grounded {
+        if mv.state == PlayerMovementState::Airborne {
+            // Apply gravity, only when airborne.
             vel.y -= GRAVITY_ACCEL * dt.as_secs_f32();
-        }
+        };
 
-        // 4. Jump: consume the queued flag while we're still grounded.
-        if mv.jump_queued && mv.grounded {
+        // Handle jumping
+        let can_jump = mv.time_since_grounded < COYOTE_TIME;
+        if can_jump && mv.jump_queued {
             vel.y = JUMP_SPEED;
-            mv.grounded = false; // we just left the ground
+            mv.state = PlayerMovementState::Airborne;
         }
         mv.jump_queued = false;
 
-        // 5. Move-and-slide. Updates ground state from the hits we observe.
-        let mut hit_ground   = false;
-        let mut hit_ceiling  = false;
-
+        // Move-and-slide. We no longer rely on its callback for ground state.
         let MoveAndSlideOutput { position, projected_velocity } =
             move_and_slide.move_and_slide(
                 collider,
@@ -208,35 +206,60 @@ fn step(
                 tf.rotation,
                 vel.0,
                 dt,
-                &MoveAndSlideConfig {
-                    skin_width: GROUND_SKIN,
-                    ..default()
-                },
+                &MoveAndSlideConfig::default(),
                 &SpatialQueryFilter::from_excluded_entities([entity]),
-                |hit| {
-                    // Surface classification: floor if its normal points
-                    // up steeply enough; ceiling if it points down.
-                    let dot_up = hit.normal.dot(Vec3::Y);
-                    let angle  = dot_up.acos();
-                    if dot_up > 0.0 && angle <= GROUND_ANGLE_LIMIT {
-                        hit_ground = true;
-                    }
-                    if dot_up < 0.0 {
-                        hit_ceiling = true;
-                    }
-                    MoveAndSlideHitResponse::Accept
-                },
+                |_| MoveAndSlideHitResponse::Accept,
             );
-
-        // 6. Write back the new pose and ground state.
         tf.translation = position;
-        mv.grounded    = hit_ground;
-
-        // 7. Kill vertical velocity on floor/ceiling contact so it doesn't
-        //    accumulate. Horizontal velocity follows the slide projection.
         vel.0 = projected_velocity;
-        if hit_ground && vel.y < 0.0 { vel.y = 0.0; }
-        if hit_ceiling && vel.y > 0.0 { vel.y = 0.0; }
+
+        // Ground probe. Authoritative source of "am I on the ground?"
+        // Shapecast a slightly-smaller copy of the body downward and see
+        // if it hits something with a near-vertical normal.
+        let new_state = probe_ground(&spatial, entity, tf.translation, tf.rotation);
+        
+        if new_state == PlayerMovementState::Grounded {
+            mv.time_since_grounded = 0.0;
+        } else {
+            mv.time_since_grounded += dt.as_secs_f32();
+        }
+        mv.state = new_state;
+
+        // Clamp tiny downward velocity when grounded so it doesn't
+        // accumulate while we're glued to the floor.
+        if mv.state == PlayerMovementState::Grounded && vel.y < 0.0 {
+            vel.y = 0.0;
+        }
+    }
+}
+
+fn probe_ground(
+    spatial:     &SpatialQuery,
+    entity:      Entity,
+    position:    Vec3,
+    rotation:    Quat,
+) -> PlayerMovementState {
+
+    // Shrink the probe so it doesn't catch on walls we're sliding against.
+    // For a cylinder, you'd shrink the radius; for a capsule, same idea.
+    let probe = Collider::cylinder(PLAYER_RADIUS - GROUND_PROBE_SHRINK, CYL_HEIGHT) ;
+
+    let filter = SpatialQueryFilter::default().with_excluded_entities([entity]);
+    let hit = spatial.cast_shape(
+        &probe,
+        position,
+        rotation,
+        Dir3::NEG_Y,
+        &ShapeCastConfig::from_max_distance(GROUND_PROBE_DISTANCE),
+        &filter,
+    );
+
+    match hit {
+        Some(h) => {
+            if (h.normal1.dot(Vec3::Y) > GROUND_DOTPROD_LIMIT) {PlayerMovementState::Grounded}
+            else {PlayerMovementState::Airborne}
+        },  // ~45° max slope
+        None    => PlayerMovementState::Airborne,
     }
 }
 
