@@ -144,6 +144,6 @@ pub fn initialize_item_registry_sys(
 
 
     // After we're done, we're free to play the game
-    // We need to change this into an event and create a "loading checklist" in the future
+    // We need to create a "loading checklist" in the future
     next_game_state.set(GameUpdateState::Running);
 }

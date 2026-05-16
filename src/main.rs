@@ -23,7 +23,8 @@ use bevy::{input::common_conditions::input_toggle_active};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
 
-use crate::plugin::audio::block::BlockAudioPlugin;
+use crate::plugin::audio::block::{BlockAudioPlugin, SoundProfile};
+use crate::plugin::audio::loader::AudioAssetLoader;
 
 fn main() {
     App::new()
@@ -100,15 +101,32 @@ fn debug_sys(
 
 /// Test function that will provide with a few variations of basic blocks
 pub fn dev_initialize_registry_sys(
-    mut registry: ResMut<BlockRegistry>
+    asset_server: Res<AssetServer>,
+    mut registry: ResMut<BlockRegistry>,
 ) {
-    // We're just going to add some blocks manually
+    // Initialize texture files
 
+    // Initialize audio files
+    let sample_break_audio = asset_server.load("audio\\block\\stone_on_break.ogg");
+    let sample_place_audio = asset_server.load("audio\\block\\stone_on_place.ogg");
+
+    let sound_profile = SoundProfile {
+        on_break: Some(sample_break_audio),
+        on_place: Some(sample_place_audio),
+        ..default()
+    };
+
+    bevy::log::info_once!("Audio assets successfully loaded.");
+
+
+
+    // We're just going to add some blocks manually
     registry.register_block(
         BlockDefinition {
             name: "dirt".to_string(),
             display_name: "Dirt".to_string(),
             appearance: BlockAppearance::Uniform(FaceTextures::Simple(1)),
+            sound_profile: sound_profile.clone(),
             ..default()
         }
     );
@@ -118,6 +136,7 @@ pub fn dev_initialize_registry_sys(
             name: "slate".to_string(),
             display_name: "Slate".to_string(),
             appearance: BlockAppearance::Uniform(FaceTextures::Simple(2)),
+            sound_profile: sound_profile.clone(),
             ..default()
         }
     );
@@ -133,6 +152,7 @@ pub fn dev_initialize_registry_sys(
                 down: FaceTextures::Simple(1),
                 side: FaceTextures::Tinted(1, 2, green_color),
             },
+            sound_profile: sound_profile.clone(),
             ..default()
         }
     );

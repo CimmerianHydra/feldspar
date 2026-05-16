@@ -1,22 +1,13 @@
 use bevy::{
-    prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
+    prelude::*, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
-use bevy::pbr::MaterialPipeline;
 use bevy::render::render_resource::RenderPipelineDescriptor;
 use bevy::mesh::MeshVertexBufferLayoutRef;
-use bevy::pbr::MaterialPipelineKey;
 use bevy::render::render_resource::SpecializedMeshPipelineError;
 
 use bevy::{
-    asset::RenderAssetUsages,
     image::Image,
-    mesh::{MeshVertexAttribute},
     pbr::{ExtendedMaterial, MaterialExtension, MaterialExtensionKey, MaterialExtensionPipeline},
-    prelude::*,
-    render::render_resource::{
-        Extent3d,
-        TextureDimension, TextureFormat, VertexFormat,
-    },
 };
 
 use crate::plugin::geometry::meshing::{ATTRIBUTE_TEXTURE_LAYER, ATTRIBUTE_OVERLAY_LAYER, ATTRIBUTE_OVERLAY_TINT};
