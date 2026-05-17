@@ -6,7 +6,7 @@ use crate::plugin::block_interaction::BlockEvent;
 use crate::plugin::block_registry::BlockRegistry;
 
 /// Half-width of the random pitch interval, in playback-speed units.
-pub const AUDIO_PITCH_VARIANCE: f32 = 0.15;
+pub const AUDIO_PITCH_HALFRANGE: f32 = 0.16;
 
 /// Per-block sound bundle. `None` means "this block makes no sound
 /// for this action" — air uses the default and is silent everywhere.
@@ -51,7 +51,7 @@ fn play_block_sound_obs(
     let Some(handle) = sound else { return; };
 
     // Uniform random pitch in [1 - V, 1 + V].
-    let pitch = 1.0 + (rand::random::<f32>() * 2.0 - 1.0) * AUDIO_PITCH_VARIANCE;
+    let pitch = 1.0 + (rand::random::<f32>() * 2.0 - 1.0) * AUDIO_PITCH_HALFRANGE;
 
     // Center of the block, in world space.
     let pos = world_pos + Vec3::splat(0.5); // displacing it so that it's at the very middle of the block

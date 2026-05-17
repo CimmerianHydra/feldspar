@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use crate::plugin::voxel::BlockShape;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
-use crate::plugin::registry::material::BlockMaterial;
+use crate::plugin::block::material::BlockMaterial;
 use crate::plugin::audio::block::SoundProfile;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
