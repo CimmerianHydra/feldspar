@@ -4,6 +4,11 @@ use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::item_registry::*;
 use crate::plugin::controller::main::{MouseEvent, MouseAction};
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Basic Definitions
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 pub const HOTBAR_CAPACITY: usize = 9;
 
 /// Marks an entity as "the player's inventory".
@@ -24,6 +29,11 @@ impl PlayerHotbar {
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Player Inventory Unique Events
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
 #[derive(Event)]
 pub struct PlayerHotbarSelectedChange {
     pub old_index: usize,
@@ -42,6 +52,36 @@ pub fn spawn_player_inventory_sys(
         new_inventory,
     ));
 }
+
+/// Updates the hotbar resource globally, which allows the system to sync both UI
+/// and player held items.
+pub fn update_hotbar_obs(
+    event: On<MouseEvent>,
+    mut commands: Commands,
+    mut hotbar: ResMut<PlayerHotbar>,
+) {
+    if event.action == MouseAction::ScrollDown {
+        let old_index = hotbar.selected_slot_index;
+        let new_index = (old_index + 1) % HOTBAR_CAPACITY;
+        commands.trigger(PlayerHotbarSelectedChange {
+            old_index,
+            new_index,
+        });
+        hotbar.selected_slot_index = new_index;
+    } else if event.action == MouseAction::ScrollUp {
+        let old_index = hotbar.selected_slot_index;
+        let new_index = (old_index + HOTBAR_CAPACITY - 1) % HOTBAR_CAPACITY;
+        commands.trigger(PlayerHotbarSelectedChange {
+            old_index,
+            new_index,
+        });
+        hotbar.selected_slot_index = new_index;
+    };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SYSTEMS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Hardcoded function to spawn some items into the player's inventory.
 /// Since I hardcoded a few blocks in the block registry, I'll add them here.
@@ -71,28 +111,24 @@ pub fn dev_populate_player_inventory(
 }
 
 
-/// Updates the hotbar resource globally, which allows the system to sync both UI
-/// and player held items.
-pub fn update_hotbar_obs(
-    event: On<MouseEvent>,
-    mut commands: Commands,
-    mut hotbar: ResMut<PlayerHotbar>,
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Player Held Item / Player Equipment (in the future)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Resource, Default)]
+pub struct PlayerHeldItems{
+    pub right_hand: Option<ItemStack>,
+    pub left_hand: Option<ItemStack>,
+}
+
+pub fn update_held_items_obs(
+    event: On<PlayerHotbarSelectedChange>,
+    mut held_items: ResMut<PlayerHeldItems>,
+    inv_query: Query<&Inventory, With<PlayerInventory>>,
 ) {
-    if event.action == MouseAction::ScrollDown {
-        let old_index = hotbar.selected_slot_index;
-        let new_index = (old_index + 1) % HOTBAR_CAPACITY;
-        commands.trigger(PlayerHotbarSelectedChange {
-            old_index,
-            new_index,
-        });
-        hotbar.selected_slot_index = new_index;
-    } else if event.action == MouseAction::ScrollUp {
-        let old_index = hotbar.selected_slot_index;
-        let new_index = (old_index + HOTBAR_CAPACITY - 1) % HOTBAR_CAPACITY;
-        commands.trigger(PlayerHotbarSelectedChange {
-            old_index,
-            new_index,
-        });
-        hotbar.selected_slot_index = new_index;
-    };
+    if let Ok(inventory) = inv_query.single() {
+        let next_slot = event.new_index;
+        held_items.right_hand = inventory.slots()[next_slot];
+    }
 }

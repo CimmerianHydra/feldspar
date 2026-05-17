@@ -37,6 +37,24 @@ struct Move;
 #[action_output(bool)]
 struct Jump;
 
+// To be used in the future in place of my custom made events, because it's probably way
+// more optimized.
+
+/// Action corresponding to left click in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct PrimaryFire;
+
+/// Action corresponding to right click in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct SecondaryFire;
+
+/// Action corresponding to middle mouse button in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+struct AltFire;
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 #[derive(Component)]

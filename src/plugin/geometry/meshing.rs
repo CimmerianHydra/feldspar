@@ -81,9 +81,16 @@ fn update_dirty_mesh_sys(
         let mut e = commands.entity(entity);
 
         // Quirk of Bevy: an empty mesh kinda breaks the system.
-        // So if the chunk is all air, we just remove the mesh entirely.
+        // So if the chunk is all air, we need to remove the mesh entirely.
         // is_all_air is short circuiting, so we shouldn't be afraid to use it: we won't be
         // looping over every chunk. Especially the chunks that are completely full only add one operation.
+
+        // Note to self: removing the mesh and the collider, or adding them, is very slow.
+        // this causes some desyncs when the mesh needs to be generated from empty and added to the chunk entity.
+        // Need to find a more performant way to keep the chunks "ready to have a mesh and collider" rather than
+        // adding or removing them.
+        // Still, this is fine for now, Bevy handles it async.
+
         if voxel_chunk.is_all_air() {
             // No geometry; drop any stale mesh handle.
             if existing_mesh.is_some() {
@@ -162,6 +169,7 @@ fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4
 
 /// Helper function that figures out whether a certain block has a neighbor
 /// in the same chunk in the specified direction.
+/// All local coordinates only.
 fn neighbor_pos(pos: UVec3, face: Direction) -> Option<UVec3> {
     let (x, y, z) = (pos.x as i32, pos.y as i32, pos.z as i32);
 
@@ -181,7 +189,7 @@ fn neighbor_pos(pos: UVec3, face: Direction) -> Option<UVec3> {
 
 /// Helper function to figure out whether the given quad is visible, knowing the neighbor it's looking at.
 /// TODO: include a more sophisticated coverage system to check visibility.
-/// TODO: include chunk boundaries (replace voxelchunk with some "chunk context" input data).
+/// TODO: include chunk boundaries (augment voxelchunk with some "chunk context" input data).
 fn is_visible(quad: &Quad, chunk: &VoxelChunk, pos: UVec3) -> bool {
     let visible = match quad.culling_direction {
         None => true, // It's an internal face, so we need to always render it

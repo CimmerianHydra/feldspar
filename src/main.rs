@@ -7,7 +7,7 @@ use plugin::geometry::meshing::MeshingPlugin;
 use plugin::block_registry::{BlockRegistryPlugin, BlockDefinition, BlockID, BlockRegistry};
 use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
 use plugin::chunk::ChunkPlugin;
-use plugin::ui::UIPlugin;
+use plugin::ui::main::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
 use plugin::voxel::BlockShape;
@@ -18,13 +18,13 @@ use plugin::graphics::block_material::{VoxelMaterialPlugin, VoxelMaterial};
 use plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use plugin::worldgen::main::WorldgenPlugin;
 use plugin::controller::player::PlayerControllerPlugin;
+use plugin::audio::block::BlockAudioPlugin;
 
 use bevy::{input::common_conditions::input_toggle_active};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
 
-use crate::plugin::audio::block::{BlockAudioPlugin, SoundProfile};
-use crate::plugin::audio::loader::AudioAssetLoader;
+use crate::plugin::audio::block::SoundProfile;
 
 fn main() {
     App::new()

@@ -6,7 +6,6 @@ use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
-use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::player_inventory::*;
 use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameUpdateState;
@@ -41,7 +40,6 @@ impl Plugin for BlockInteractionPlugin {
         )
 
         .add_observer(update_look_target_obs)
-        .add_observer(update_held_items_obs)
         .add_observer(handle_mouse_interaction_obs)
         .add_observer(static_voxel_write_obs)
         ;
@@ -283,7 +281,7 @@ fn handle_mouse_interaction_obs(
 ) {
     if mouse_event.action == MouseAction::Primary {
         match look_target.target {
-            Some(LookTarget::StaticVoxel { chunk_entity, voxel, pos, face }) => {
+            Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
                 let block_id = BlockID(voxel.id());
 
                 let event = StaticVoxelWriteRequest {
@@ -301,7 +299,7 @@ fn handle_mouse_interaction_obs(
         }
     } else if mouse_event.action == MouseAction::Secondary {
             match look_target.target {
-            Some(LookTarget::StaticVoxel { chunk_entity, voxel, pos, face }) => {
+            Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
                 let neighbor_pos = pos + face.as_ivec3();
 
                 if let Some(held_item_right) = held_item.right_hand {
@@ -350,7 +348,6 @@ pub struct PlayerLookTarget{
 #[derive(Clone, PartialEq, Eq)]
 pub enum LookTarget {
     StaticVoxel {
-        chunk_entity:   Entity,
         voxel:          Voxel,
         pos:            IVec3,
         face:           Direction,
@@ -366,35 +363,43 @@ pub enum LookTarget {
     },
 }
 
-#[derive(Event)]
-pub struct LookTargetChanged {
-    pub old: Option<LookTarget>,
-    pub new:  Option<LookTarget>,
-}
+// Will need to be able to edit PlayerLookTarget with the correct data, by analyzing the
+// result from all raycasters and declaring which "thing" the player is definitely looking at.
+// Currently only capable of telling which static world voxel the player is looking at.
 
 fn update_look_target_obs(
     dda_event: On<DDAResult>,
-    mut target:  ResMut<PlayerLookTarget>,
+    mut looktarget_resource:  ResMut<PlayerLookTarget>,
     static_world_access: StaticWorldAccess,
 ) {
-    let hit_blocks = dda_event.hits.clone();
+    let dda_hit_voxels = dda_event.hits.clone();
     
-    if let Some((block_coord, face)) = hit_blocks.into_iter().find(|(coord, _)| {
-        // Check if the block at this coordinate is not air.
-        // This closure short-circuits at the first non-air block in the voxel data.
-        static_world_access.get_voxel(*coord, DimensionId::OVERWORLD).is_air() != true
+    looktarget_resource.target = looktarget_from_dda(dda_hit_voxels, static_world_access);
+}
+
+fn looktarget_from_dda(
+    dda_hits: Vec<(IVec3, Direction)>,
+    static_world_access: StaticWorldAccess<'_, '_>
+    ) -> Option<LookTarget> {
+    
+    // Find the first non-air block in the DDA hits array.
+    // If one could be found, return all relevant looktarget information.
+    // If none could be found, then return none.
+    if let Some((block_coord, face, voxel)) = dda_hits.into_iter().find_map(|(coord, face)| {
+        let voxel = static_world_access.get_voxel(coord, DimensionId::OVERWORLD);
+        if !voxel.is_air() {
+            Some((coord, face, voxel))
+        } else {
+            None
+        }
     }) {
-        if let Some(entity) = static_world_access.get_chunk_entity(block_coord, DimensionId::OVERWORLD) {
-            let voxel = static_world_access.get_voxel(block_coord, DimensionId::OVERWORLD);
-            target.target = Some(LookTarget::StaticVoxel {
-                chunk_entity: entity,
-                voxel,
-                pos: block_coord,
-                face: face
-            });
-        } else { target.target = None }
+        Some(LookTarget::StaticVoxel {
+            voxel,
+            pos: block_coord,
+            face
+        })
     } else {
-        target.target = None
+        None
     }
 }
 
@@ -403,7 +408,7 @@ fn update_look_target_obs(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // This should probably be turned into a Message instead
-// Since Messages are pull-based instead of push-based (like Events are)
+// Since Messages are pull-based instead of push-based
 #[derive(Event)]
 pub struct StaticVoxelWriteRequest {
     block_coord: IVec3,
@@ -435,27 +440,5 @@ pub enum BlockEvent{
     Interact {
         block_id: BlockID,
         world_pos: Vec3
-    }
-}
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 7 – Player Held Item
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-#[derive(Resource, Default)]
-pub struct PlayerHeldItems{
-    right_hand: Option<ItemStack>,
-    left_hand: Option<ItemStack>,
-}
-
-fn update_held_items_obs(
-    event: On<PlayerHotbarSelectedChange>,
-    mut held_items: ResMut<PlayerHeldItems>,
-    inv_query: Query<&Inventory, With<PlayerInventory>>,
-) {
-    if let Ok(inventory) = inv_query.single() {
-        let next_slot = event.new_index;
-        held_items.right_hand = inventory.slots()[next_slot];
     }
 }
