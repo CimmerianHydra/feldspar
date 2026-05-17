@@ -6,8 +6,7 @@ use crate::plugin::block_interaction::BlockEvent;
 use crate::plugin::block_registry::BlockRegistry;
 
 /// Half-width of the random pitch interval, in playback-speed units.
-/// 0.1 ⇒ speed sampled uniformly from [0.9, 1.1].
-pub const AUDIO_PITCH_VARIANCE: f32 = 0.1;
+pub const AUDIO_PITCH_VARIANCE: f32 = 0.15;
 
 /// Per-block sound bundle. `None` means "this block makes no sound
 /// for this action" — air uses the default and is silent everywhere.
@@ -24,6 +23,8 @@ impl Plugin for BlockAudioPlugin {
     fn build(&self, app: &mut App) {
         app
             .insert_resource(AudioAssetLoader::default())
+            .insert_resource(GlobalVolume::new(Volume::Linear(10.0)))
+
             .add_observer(play_block_sound_obs)
         ;
     }
@@ -52,8 +53,8 @@ fn play_block_sound_obs(
     // Uniform random pitch in [1 - V, 1 + V].
     let pitch = 1.0 + (rand::random::<f32>() * 2.0 - 1.0) * AUDIO_PITCH_VARIANCE;
 
-    // Centre of the block, in world space.
-    let pos = world_pos.as_vec3() + Vec3::splat(0.5); // displacing it so that it's at the very middle of the block
+    // Center of the block, in world space.
+    let pos = world_pos + Vec3::splat(0.5); // displacing it so that it's at the very middle of the block
 
     commands.spawn((
         AudioPlayer(handle.clone()),

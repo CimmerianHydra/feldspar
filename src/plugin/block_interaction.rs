@@ -284,12 +284,18 @@ fn handle_mouse_interaction_obs(
     if mouse_event.action == MouseAction::Primary {
         match look_target.target {
             Some(LookTarget::StaticVoxel { chunk_entity, voxel, pos, face }) => {
+                let block_id = BlockID(voxel.id());
+
                 let event = StaticVoxelWriteRequest {
                     block_coord: pos,
                     dimension: DimensionId::OVERWORLD,
                     voxel: Voxel::AIR,
                 };
                 commands.trigger(event);
+
+                // This is fine here for now, but it needs to be moved so that it only triggers if the
+                // voxel is successfully broken
+                commands.trigger(BlockEvent::Break { block_id, world_pos: pos.as_vec3() });
             },
             _ => { return }
         }
@@ -299,8 +305,8 @@ fn handle_mouse_interaction_obs(
                 let neighbor_pos = pos + face.as_ivec3();
 
                 if let Some(held_item_right) = held_item.right_hand {
-                    let kind = item_registry.get(held_item_right.id).kind.clone();
-                    match kind {
+                    let held_item_kind = item_registry.get(held_item_right.id).kind.clone();
+                    match held_item_kind {
                         ItemKind::Block { block_id } => {
                             let block_data = block_registry.get(block_id);
                             let shape = block_data.shape.clone();
@@ -312,7 +318,10 @@ fn handle_mouse_interaction_obs(
                             };
 
                             commands.trigger(event);
-                            commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos });
+
+                            // This is fine here for now, but it needs to be moved so that it only triggers if the
+                            // voxel is successfully placed
+                            commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos.as_vec3() });
                         }
                         _ => { return }
                     }
@@ -393,6 +402,8 @@ fn update_look_target_obs(
 // SECTION 6 – Voxel Writing Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+// This should probably be turned into a Message instead
+// Since Messages are pull-based instead of push-based (like Events are)
 #[derive(Event)]
 pub struct StaticVoxelWriteRequest {
     block_coord: IVec3,
@@ -415,15 +426,15 @@ fn static_voxel_write_obs(
 pub enum BlockEvent{
     Place {
         block_id: BlockID,
-        world_pos: IVec3
+        world_pos: Vec3
     },
     Break {
         block_id: BlockID,
-        world_pos: IVec3
+        world_pos: Vec3
     },
     Interact {
         block_id: BlockID,
-        world_pos: IVec3
+        world_pos: Vec3
     }
 }
 
