@@ -113,7 +113,6 @@ pub fn sync_ui_compass_sys(
                 }
             }
 
-            // There's probably a much smarter way of doing this
             for (mut node, mut visibility, marker_data) in compass_markers.iter_mut() {
                 let marker_angle = marker_data.angle;
 

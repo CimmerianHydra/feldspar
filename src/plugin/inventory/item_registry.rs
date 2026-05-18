@@ -18,8 +18,6 @@ impl Plugin for ItemRegistryPlugin {
         app
             // Resources
             .insert_resource(ItemRegistry::new())
-
-
         ;
     }
 }

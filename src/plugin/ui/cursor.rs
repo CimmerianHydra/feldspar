@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-use crate::plugin::inventory::item_registry;
 use crate::plugin::inventory::item_registry::ItemRegistry;
 use crate::plugin::inventory::main::Inventory;
 use crate::plugin::inventory::main::InventoryChangedEvent;
@@ -41,7 +40,7 @@ pub fn spawn_cursor_item_display_sys(
         },
         CursorSlot,
         InventorySlot { 
-            entity: cursor_inventory_entity,
+            source_entity: cursor_inventory_entity,
             slot_index: 0
         },
         MouseFollower,
@@ -89,7 +88,6 @@ pub fn sync_cursor_inventory_obs(
     cursor_slot_q: Query<Entity, With<CursorSlot>>,
     item_registry: Res<ItemRegistry>,
 ) {
-    bevy::log::info!("Cursor inventory change was detected!");
     if let Ok((cursor_entity, cursor_inventory)) = cursor_inventory_q.single() {
         if let Ok(cursor_slot) = cursor_slot_q.single() {
             if event.entity == cursor_entity {

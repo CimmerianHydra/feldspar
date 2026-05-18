@@ -11,14 +11,14 @@ impl Plugin for StatePlugin {
         .init_state::<UIState>()
         .init_state::<GameMode>()
         
-        .add_systems(Update, toggle_pause_sys)
+        .add_systems(Update, toggle_state_sys)
 
         ;
     }
 }
 
 // Toggles between pause and unpause.
-fn toggle_pause_sys(
+fn toggle_state_sys(
     input: Res<ButtonInput<KeyCode>>,
     game_state: Res<State<GameUpdateState>>,
     mut next_game_state: ResMut<NextState<GameUpdateState>>,
@@ -26,14 +26,23 @@ fn toggle_pause_sys(
     mut next_ui_state: ResMut<NextState<UIState>>,
 ) {
     if input.just_pressed(KeyCode::Escape) {
-        match game_state.get() {
-            GameUpdateState::Running => next_game_state.set(GameUpdateState::Paused),
-            GameUpdateState::Paused => next_game_state.set(GameUpdateState::Running),
-            _ => return,
-        }
         match ui_state.get() {
-            UIState::Game => next_ui_state.set(UIState::Menu),
-            UIState::Menu => next_ui_state.set(UIState::Game),
+            UIState::Game => {
+                next_ui_state.set(UIState::PauseMenu);
+                next_game_state.set(GameUpdateState::Paused);
+            },
+            _ => {
+                next_ui_state.set(UIState::Game);
+                next_game_state.set(GameUpdateState::Running);
+            },
+        }
+    }
+
+    if input.just_pressed(KeyCode::KeyI) {
+        match ui_state.get() {
+            UIState::Game => next_ui_state.set(UIState::Inventory),
+            UIState::Inventory => next_ui_state.set(UIState::Game),
+            UIState::PauseMenu => {},
         }
     }
 }
@@ -50,7 +59,8 @@ pub enum GameUpdateState {
 pub enum UIState {
     #[default]
     Game,
-    Menu,
+    PauseMenu,
+    Inventory,
 }
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]

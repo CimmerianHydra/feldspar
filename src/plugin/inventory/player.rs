@@ -97,7 +97,6 @@ pub fn spawn_player_inventory_sys(
 pub fn dev_populate_player_inventory(
     mut commands: Commands,
     mut player_inventory_query: Query<(Entity, &mut Inventory), With<PlayerInventory>>,
-    mut cursor_inventory_query: Query<(Entity, &mut Inventory), (With<CursorInventory>, Without<PlayerInventory>)>,
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
@@ -117,15 +116,6 @@ pub fn dev_populate_player_inventory(
         old_index: 0,
         new_index: 0,
     });
-
-    if let Ok((entity, mut inventory)) = cursor_inventory_query.single_mut() {
-        inventory.insert(ItemID(1), 10, &item_registry);
-        bevy::log::info!("Added [{}]x{} to cursor inventory.", item_registry.get(ItemID(1)).name, 10);
-        commands.trigger(InventoryChangedEvent {
-                entity,
-                index: 0,
-            });
-    };
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

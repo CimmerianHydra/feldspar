@@ -1,10 +1,12 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::inventory::player::{CursorInventory, PlayerHotbarSelection, dev_populate_player_inventory, spawn_player_inventory_sys, update_held_items_obs, update_hotbar_obs
+use crate::plugin::inventory::player::{CursorInventory, PlayerHotbarSelection,
+    dev_populate_player_inventory, spawn_player_inventory_sys, update_held_items_obs, update_hotbar_obs
 };
 use crate::plugin::inventory::item_registry::*;
-use crate::plugin::ui::inventory::InventoryClickedEvent;
+use crate::plugin::state::UIState;
+use crate::plugin::ui::inventory::{InventoryClickedEvent, InventoryViewRequest};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -22,11 +24,18 @@ impl Plugin for InventoryPlugin {
             .add_systems(Startup, spawn_player_inventory_sys)
 
             // Update Systems
+
+            // DEVELOPMENT SYSTEMS TO TEST THINGS
             .add_systems(Update, dev_populate_player_inventory.run_if(run_once))
+            .add_systems(Update, dev_spawn_dummy_inventory.run_if(run_once))
+            .add_systems(OnEnter(UIState::Inventory), dev_show_dummy_inventory_request_obs)
 
             // Event Observers
             .add_observer(update_hotbar_obs)
             .add_observer(update_held_items_obs)
+
+
+
         ;
     }
 }
@@ -403,5 +412,37 @@ pub fn inventory_ui_click_obs(
             entity: target_entity,
             index:  slot_index,
         });
+    }
+}
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DEV FUNCTIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pub fn dev_spawn_dummy_inventory(
+    mut commands: Commands,
+    item_registry: Res<ItemRegistry>,
+) {
+    let mut new_inventory = Inventory::new(27);
+    new_inventory.insert(ItemID(1), 50, &item_registry);
+    bevy::log::info!("Added [{}]x{} to dummy inventory.", item_registry.get(ItemID(1)).name, 50);
+    new_inventory.insert(ItemID(2), 50, &item_registry);
+    bevy::log::info!("Added [{}]x{} to dummy inventory.", item_registry.get(ItemID(2)).name, 50);
+
+    commands.spawn(
+        (Inventory::new(27),
+        Name::new("Dummy"))
+    );
+}
+
+pub fn dev_show_dummy_inventory_request_obs(
+    mut commands: Commands,
+    dummy_inventory_q: Query<(Entity, &Name)>,
+) {
+    for (entity, name) in dummy_inventory_q.iter() {
+        if name.contains("Dummy") {
+            commands.trigger(InventoryViewRequest { source_entity: entity });
+        }
     }
 }

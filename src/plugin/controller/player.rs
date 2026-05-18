@@ -293,7 +293,7 @@ impl Plugin for PlayerControllerPlugin {
         .add_input_context::<PlayerInput>()
 
         .add_systems(Update, spawn_player.run_if(run_once))
-        .add_systems(Update, player_look_sys.run_if(in_state(GameUpdateState::Running)))
+        .add_systems(Update, player_look_sys.run_if(in_state(UIState::Game)))
         .add_systems(FixedUpdate, step.run_if(in_state(GameUpdateState::Running)));
     }
 }

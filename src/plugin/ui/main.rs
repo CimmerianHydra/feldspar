@@ -1,12 +1,14 @@
 use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use crate::plugin::inventory::main::{Inventory, dev_spawn_dummy_inventory};
 use crate::plugin::inventory::player::spawn_player_inventory_sys;
 use crate::plugin::state::*;
 
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
 use crate::plugin::ui::cursor::*;
+use crate::plugin::ui::inventory::*;
 
 pub struct UIPlugin;
 
@@ -17,22 +19,26 @@ impl Plugin for UIPlugin {
 
         .add_systems(Startup, spawn_hotbar_sys)
         .add_systems(Startup, spawn_ui_compass_sys)
+        .add_systems(Startup, spawn_crosshair_sys)
+
         .add_systems(Startup, spawn_cursor_item_display_sys.after(spawn_player_inventory_sys))
+
 
         .add_systems(Update, button_sys)
         .add_systems(Update, sync_ui_compass_sys)
 
-        .add_systems(OnEnter(GameUpdateState::Running), cursor_lock_sys)
-        .add_systems(OnEnter(GameUpdateState::Running), spawn_crosshair_sys)
-
-        .add_systems(OnEnter(GameUpdateState::Paused), cursor_release_sys)
         .add_systems(OnEnter(GameUpdateState::Paused), spawn_pause_menu_sys)
 
+        .add_systems(OnEnter(UIState::Game), cursor_lock_sys)
+        .add_systems(OnExit(UIState::Game), cursor_release_sys)
 
         .add_observer(pause_menu_actions_obs)
         .add_observer(sync_hotbar_highlight_obs)
         .add_observer(sync_hotbar_item_display_obs)
         .add_observer(sync_cursor_inventory_obs)
+        .add_observer(inventory_ui_click_obs)
+        .add_observer(sync_on_inventory_changed_obs)
+        .add_observer(show_requested_inventory_obs)
         ;
     }
 }
@@ -150,7 +156,7 @@ pub struct PauseMenuButton {
 }
 
 pub fn build_pause_menu() -> impl Bundle {
-    let pause_menu_bundle = (
+    let pause_menu_root = (
         Node {
             width: percent(100),
             height: percent(100),
@@ -161,9 +167,10 @@ pub fn build_pause_menu() -> impl Bundle {
         },
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
         DespawnOnExit(GameUpdateState::Paused),
-        ZIndex(1000),
+        ZIndex(100),
+        Pickable::IGNORE,
     );
-    return pause_menu_bundle
+    return pause_menu_root
 }
 
 fn spawn_pause_menu_sys(
@@ -223,6 +230,7 @@ pub fn spawn_crosshair_sys(
             ..default()
         },
         BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+        Pickable::IGNORE,
     );
 
     // Large node to center the crosshair
@@ -235,6 +243,7 @@ pub fn spawn_crosshair_sys(
             ..default()
         },
         DespawnOnExit(GameUpdateState::Running),
+        Pickable::IGNORE,
         children![crosshair_bundle]
     );
 
@@ -242,4 +251,36 @@ pub fn spawn_crosshair_sys(
     commands.spawn(crosshair_parent);
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DEV FUNCTIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+pub fn show_requested_inventory_obs(
+    view_requests: On<InventoryViewRequest>,
+    mut commands: Commands,
+    inventory_q: Query<(Entity, &Inventory)>
+) {
+    let requested_inventory = view_requests.source_entity;
+    if let Ok((source_entity, inventory)) = inventory_q.get(requested_inventory) {
+
+        let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 3);
+
+        let root_bundle = (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            DespawnOnExit(UIState::Inventory),
+            ZIndex(100),
+            Pickable::IGNORE,
+            children![
+                ui_bundle,
+            ]
+        );
+
+        commands.spawn(root_bundle);
+    }
+}

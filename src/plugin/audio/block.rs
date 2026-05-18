@@ -1,7 +1,6 @@
 use bevy::audio::*;
 use bevy::prelude::*;
 
-use crate::plugin::audio::loader::AudioAssetLoader;
 use crate::plugin::block_interaction::BlockEvent;
 use crate::plugin::block_registry::BlockRegistry;
 
@@ -22,7 +21,6 @@ pub struct BlockAudioPlugin;
 impl Plugin for BlockAudioPlugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(AudioAssetLoader::default())
             .insert_resource(GlobalVolume::new(Volume::Linear(10.0)))
 
             .add_observer(play_block_sound_obs)
