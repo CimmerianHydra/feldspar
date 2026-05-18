@@ -1,13 +1,10 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::inventory::player_inventory::{PlayerHotbar,
-    spawn_player_inventory_sys,
-    dev_populate_player_inventory,
-    update_hotbar_obs,
-    update_held_items_obs,
+use crate::plugin::inventory::player::{CursorInventory, PlayerHotbarSelection, dev_populate_player_inventory, spawn_player_inventory_sys, update_held_items_obs, update_hotbar_obs
 };
 use crate::plugin::inventory::item_registry::*;
+use crate::plugin::ui::inventory::InventoryClickedEvent;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -19,10 +16,10 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app
             // Resources
-            .insert_resource(PlayerHotbar::new())
+            .insert_resource(PlayerHotbarSelection::new())
 
             // Startup Systems
-            .add_systems(PostStartup, spawn_player_inventory_sys)
+            .add_systems(Startup, spawn_player_inventory_sys)
 
             // Update Systems
             .add_systems(Update, dev_populate_player_inventory.run_if(run_once))
@@ -58,14 +55,21 @@ pub struct TransferResult {
     pub remainder:   u16,
 }
 
+impl TransferResult {
+    pub fn failed(count: u16) -> Self {
+        TransferResult { transferred: 0, remainder: count }
+    }
+}
+
 /// A fixed-size inventory.
 ///
 /// **Dual-structure design:**
 /// - `slots`  → ordered Vec for UI rendering and slot-specific manipulation
 /// - `totals` → HashMap for O(1) "how many X do I have" queries used by
-///              automation belts, inserters, filters, etc.
+///              automation, inserters, filters, etc.
 ///
 /// Both are kept in sync on every mutation — never touch one without the other.
+
 #[derive(Component)]
 pub struct Inventory {
     slots:     Vec<Option<ItemStack>>,
@@ -188,6 +192,87 @@ impl Inventory {
         TransferResult { transferred, remainder: remaining }
     }
 
+    pub fn insert_at_slot(
+        &mut self,
+        item:     ItemID,
+        count:    u16,
+        slot:     usize,
+        registry: &ItemRegistry,
+    ) -> TransferResult {
+        if count == 0 {
+            return TransferResult { transferred: 0, remainder: 0 };
+        }
+
+        let max_stack = registry.get(item).max_stack;
+
+        let added = match self.slots[slot].as_mut() {
+            // Empty slot → place a fresh stack, capped at max_stack.
+            None => {
+                let added = count.min(max_stack);
+                self.slots[slot] = Some(ItemStack { id: item, count: added });
+                added
+            }
+            // Same item already present → top it off.
+            Some(s) if s.id == item => {
+                let space = max_stack.saturating_sub(s.count);
+                let added = count.min(space);
+                s.count += added;
+                added
+            }
+            // Different item → cannot insert here.
+            Some(_) => return TransferResult::failed(count),
+        };
+
+        if added > 0 {
+            *self.totals.entry(item).or_insert(0) += added;
+        }
+
+        TransferResult {
+            transferred: added,
+            remainder:   count - added,
+        }
+    }
+
+    pub fn extract_from_slot(
+        &mut self,
+        item:  ItemID,
+        count: u16,
+        slot:  usize,
+    ) -> TransferResult {
+        if count == 0 {
+            return TransferResult { transferred: 0, remainder: 0 };
+        }
+
+        let Some(s) = self.slots[slot].as_mut() else {
+            return TransferResult::failed(count);
+        };
+
+        if s.id != item {
+            return TransferResult::failed(count);
+        }
+
+        let taken = count.min(s.count);
+        s.count -= taken;
+
+        // Update totals
+        if let Some(total) = self.totals.get_mut(&item) {
+            *total -= taken;
+            if *total == 0 {
+                self.totals.remove(&item);
+            }
+        }
+
+        // Clear slot if drained
+        if s.count == 0 {
+            self.slots[slot] = None;
+        }
+
+        TransferResult {
+            transferred: taken,
+            remainder:   count - taken,
+        }
+    }
+
     // ── UI iteration ─────────────────────────────────────────────────────
 
     pub fn slots(&self) -> &[Option<ItemStack>] {
@@ -207,27 +292,27 @@ impl Inventory {
 /// Returns how many were actually transferred.
 ///
 /// This is THE hot-path function for belts, inserters, pipes, etc.
-/// Zero allocations, no locking — call it in a regular Bevy system.
+
 pub fn transfer_items(
     from:     &mut Inventory,
     to:       &mut Inventory,
     item:     ItemID,
     count:    u16,
     registry: &ItemRegistry,
-) -> u16 {
+) -> TransferResult {
     // Fast-reject: source doesn't have enough, or destination is full
     let available = from.count(item);
-    if available == 0 { return 0; }
+    if available == 0 { return TransferResult::failed(count); }
 
     let wanted    = count.min(available);
     let insertable = to.free_capacity_for(item, registry);
     let to_move   = wanted.min(insertable);
 
-    if to_move == 0 { return 0; }
+    if to_move == 0 { return TransferResult::failed(count); }
 
     from.extract(item, to_move);
     to.insert(item, to_move, registry);
-    to_move
+    TransferResult { transferred: to_move, remainder: insertable }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -235,12 +320,88 @@ pub fn transfer_items(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Fired whenever an Inventory's contents change. Lets UI diff and redraw.
-#[derive(Event)]
+#[derive(EntityEvent)]
 pub struct InventoryChangedEvent {
-    pub entity:     Entity,         // The entity that was changed
-    pub index:      usize,          // Which slot of the inventory was affected by this change
-    pub result:     TransferResult, // The result of the transfer operation
+    #[event_target]
+    pub entity: Entity,
+    pub index: usize,
 }
 
+pub fn inventory_ui_click_obs(
+    event: On<InventoryClickedEvent>,
+    mut commands: Commands,
+    mut inventory_query: Query<&mut Inventory, Without<CursorInventory>>,
+    mut cursor_query:    Query<(Entity, &mut Inventory), With<CursorInventory>>,
+    item_registry: Res<ItemRegistry>,
+) {
+    let target_entity = event.entity;
+    let slot_index    = event.slot_index;
 
+    let Ok((cursor_entity, mut cursor_inv)) = cursor_query.single_mut() else { return };
+    let Ok(mut target_inv) = inventory_query.get_mut(target_entity) else { return };
 
+    // Snapshot both relevant slots up-front. ItemStack is Copy, so these
+    // are cheap snapshots, not borrows. We can freely mutate the inventories below.
+    let cursor_stack = cursor_inv.slots()[0];
+    let target_stack = target_inv.slots()[slot_index];
+
+    // Did each side actually change? Used to decide what events to fire.
+    let mut cursor_changed = false;
+    let mut target_changed = false;
+
+    match (cursor_stack, target_stack) {
+        // Both empty: no op.
+        (None, None) => {}
+
+        // Pick up: target -> cursor.
+        (None, Some(t)) => {
+            let extracted = target_inv.extract_from_slot(t.id, t.count, slot_index);
+            if extracted.transferred > 0 {
+                cursor_inv.insert_at_slot(t.id, extracted.transferred, 0, &item_registry);
+                cursor_changed = true;
+                target_changed = true;
+            }
+        }
+
+        // Place down: cursor -> target.
+        (Some(c), None) => {
+            let inserted = target_inv.insert_at_slot(c.id, c.count, slot_index, &item_registry);
+            if inserted.transferred > 0 {
+                cursor_inv.extract_from_slot(c.id, inserted.transferred, 0);
+                cursor_changed = true;
+                target_changed = true;
+            }
+        }
+
+        // Merge: top off the target, cursor keeps the remainder.
+        (Some(c), Some(t)) if c.id == t.id => {
+            let inserted = target_inv.insert_at_slot(c.id, c.count, slot_index, &item_registry);
+            if inserted.transferred > 0 {
+                cursor_inv.extract_from_slot(c.id, inserted.transferred, 0);
+                cursor_changed = true;
+                target_changed = true;
+            }
+        }
+
+        // Swap: different items in cursor and target.
+        // TODO: implement slot-swap.
+        (Some(_), Some(_)) => {
+            cursor_changed = true;
+            target_changed = true;
+            todo!()
+        }
+    }
+
+    if cursor_changed {
+        commands.trigger(InventoryChangedEvent {
+            entity: cursor_entity,
+            index:  0,
+        });
+    }
+    if target_changed {
+        commands.trigger(InventoryChangedEvent {
+            entity: target_entity,
+            index:  slot_index,
+        });
+    }
+}

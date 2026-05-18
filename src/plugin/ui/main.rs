@@ -1,10 +1,12 @@
 use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
+use crate::plugin::inventory::player::spawn_player_inventory_sys;
 use crate::plugin::state::*;
 
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
+use crate::plugin::ui::cursor::*;
 
 pub struct UIPlugin;
 
@@ -14,7 +16,8 @@ impl Plugin for UIPlugin {
         app
 
         .add_systems(Startup, spawn_hotbar_sys)
-        .add_systems(Startup, spawn_ui_compass)
+        .add_systems(Startup, spawn_ui_compass_sys)
+        .add_systems(Startup, spawn_cursor_item_display_sys.after(spawn_player_inventory_sys))
 
         .add_systems(Update, button_sys)
         .add_systems(Update, sync_ui_compass_sys)
@@ -29,6 +32,7 @@ impl Plugin for UIPlugin {
         .add_observer(pause_menu_actions_obs)
         .add_observer(sync_hotbar_highlight_obs)
         .add_observer(sync_hotbar_item_display_obs)
+        .add_observer(sync_cursor_inventory_obs)
         ;
     }
 }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
-use crate::plugin::inventory::item_display::ItemDisplay;
+use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::BlockShape;

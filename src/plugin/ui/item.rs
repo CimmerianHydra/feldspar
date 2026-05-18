@@ -24,37 +24,6 @@ pub enum ItemDisplay {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ASSET LOADING
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// TODO
-
-use bevy::asset::LoadState;
-
-/// Holds all loaded image handles for item displays.
-/// Populated during the Loading state; safe to clone handles freely after that.
-#[derive(Resource, Default)]
-pub struct ItemAssetLoader {
-    pub handles: Vec<Handle<Image>>,
-}
-
-impl ItemAssetLoader {
-    /// Convenience: load a single image and store the handle, returning it.
-    pub fn load(&mut self, path: &'static str, asset_server: &AssetServer) -> Handle<Image> {
-        let handle = asset_server.load(path);
-        self.handles.push(handle.clone());
-        handle
-    }
-
-    /// Returns true once every tracked image has finished loading.
-    pub fn all_loaded(&self, asset_server: &AssetServer) -> bool {
-        self.handles.iter().all(|h| {
-            matches!(asset_server.load_state(h), LoadState::Loaded)
-        })
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // UI ICON SPAWNER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -67,6 +36,7 @@ const ITEM_COUNT_ZINDEX: i32 = 2;
 ///
 /// `composite_materials` is only needed when the display is `Composite`;
 /// you can obtain it via `ResMut<Assets<CompositeItemMaterial>>` in a system.
+
 pub fn build_ui_item_display(
     display:    &ItemDisplay,
     count:      u16,
@@ -90,6 +60,7 @@ pub fn build_ui_item_display(
                     ..default()
                 },
                 ZIndex(ITEM_ICON_ZINDEX),
+                Pickable::IGNORE,
                 children![
                     build_ui_item_count(count)
                 ]
@@ -113,5 +84,6 @@ fn build_ui_item_count(
         TextColor(Color::WHITE),
         TextLayout::default(),
         ZIndex(ITEM_COUNT_ZINDEX),
+        Pickable::IGNORE,
     )
 }

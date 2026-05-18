@@ -6,7 +6,7 @@ use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
-use crate::plugin::inventory::player_inventory::*;
+use crate::plugin::inventory::player::*;
 use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction};
@@ -29,7 +29,7 @@ impl Plugin for BlockInteractionPlugin {
         // Keeps track of which block or other entity is being looked at right now
         // Figured out from the combo of all raycasting systems (currently just DDA)
         .insert_resource(PlayerLookTarget{ target: None })
-        .insert_resource(PlayerHeldItems{ right_hand: None, left_hand: None })
+        .insert_resource(PlayerHeldItems::default())
 
         .add_systems(PreStartup, spawn_block_highlight_sys)
 

@@ -1,10 +1,10 @@
 use bevy::prelude::*;
 
 use crate::plugin::ui::main::*;
-use crate::plugin::inventory::item_display::{build_ui_item_display};
+use crate::plugin::ui::item::{build_ui_item_display};
 use crate::plugin::inventory::item_registry::ItemRegistry;
 use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
-use crate::plugin::inventory::player_inventory::*;
+use crate::plugin::inventory::player::*;
 
 
 
@@ -111,7 +111,7 @@ pub fn spawn_hotbar_sys(
 }
 
 pub fn sync_hotbar_highlight_obs(
-    event: On<PlayerHotbarSelectedChange>,
+    event: On<PlayerHotbarSelectionChange>,
     mut query: Query<(&mut Node, &mut BorderColor, &HotbarSlot)>
 ) {
     let new_index = event.new_index;

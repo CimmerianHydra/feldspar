@@ -6,51 +6,30 @@ use crate::plugin::controller::main::{MouseEvent, MouseAction};
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Basic Definitions
+// Hotbar Data
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub const HOTBAR_CAPACITY: usize = 9;
 
-/// Marks an entity as "the player's inventory".
-/// Useful for distinguishing player from world containers in queries.
-#[derive(Component)]
-pub struct PlayerInventory;
 
 /// Marker that identifies the player's hotbar. This is a shared resource
 /// so that multiple systems (i.e. the UI) can poll from it.
+
 #[derive(Resource, Default)]
-pub struct PlayerHotbar {
+pub struct PlayerHotbarSelection {
     selected_slot_index: usize,
 }
 
-impl PlayerHotbar {
+impl PlayerHotbarSelection {
     pub fn new() -> Self {
-        PlayerHotbar { selected_slot_index: 0 }
+        PlayerHotbarSelection { selected_slot_index: 0 }
     }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// Player Inventory Unique Events
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
 #[derive(Event)]
-pub struct PlayerHotbarSelectedChange {
+pub struct PlayerHotbarSelectionChange {
     pub old_index: usize,
     pub new_index: usize,
-}
-
-/// Simple spawning of the player's inventory. For now, we spawn it empty and then add
-/// items to it using the populate_player_inventory function.
-pub fn spawn_player_inventory_sys(
-    mut commands: Commands,
-) {
-    let new_inventory = Inventory::new(9);
-
-    commands.spawn((
-        PlayerInventory,
-        new_inventory,
-    ));
 }
 
 /// Updates the hotbar resource globally, which allows the system to sync both UI
@@ -58,12 +37,12 @@ pub fn spawn_player_inventory_sys(
 pub fn update_hotbar_obs(
     event: On<MouseEvent>,
     mut commands: Commands,
-    mut hotbar: ResMut<PlayerHotbar>,
+    mut hotbar: ResMut<PlayerHotbarSelection>,
 ) {
     if event.action == MouseAction::ScrollDown {
         let old_index = hotbar.selected_slot_index;
         let new_index = (old_index + 1) % HOTBAR_CAPACITY;
-        commands.trigger(PlayerHotbarSelectedChange {
+        commands.trigger(PlayerHotbarSelectionChange {
             old_index,
             new_index,
         });
@@ -71,12 +50,42 @@ pub fn update_hotbar_obs(
     } else if event.action == MouseAction::ScrollUp {
         let old_index = hotbar.selected_slot_index;
         let new_index = (old_index + HOTBAR_CAPACITY - 1) % HOTBAR_CAPACITY;
-        commands.trigger(PlayerHotbarSelectedChange {
+        commands.trigger(PlayerHotbarSelectionChange {
             old_index,
             new_index,
         });
         hotbar.selected_slot_index = new_index;
     };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Player Inventory
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Marks an entity as "the player's inventory".
+/// Useful for distinguishing player from world containers in queries.
+#[derive(Component)]
+pub struct PlayerInventory;
+
+/// Marker component. Used for the singular inventory slot, which allows users to 
+/// pick item stacks with their cursor.
+#[derive(Component)]
+pub struct CursorInventory;
+
+/// Simple spawning of the player's inventory. For now, we spawn it empty and then add
+/// items to it using the populate_player_inventory function.
+pub fn spawn_player_inventory_sys(
+    mut commands: Commands,
+) {
+    commands.spawn((
+        PlayerInventory,
+        Inventory::new(9),
+    ));
+
+    commands.spawn((
+        CursorInventory,
+        Inventory::new(1),
+    ));
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -87,7 +96,8 @@ pub fn update_hotbar_obs(
 /// Since I hardcoded a few blocks in the block registry, I'll add them here.
 pub fn dev_populate_player_inventory(
     mut commands: Commands,
-    mut player_inventory_query: Query<(Entity, &mut Inventory), With<PlayerInventory>>, 
+    mut player_inventory_query: Query<(Entity, &mut Inventory), With<PlayerInventory>>,
+    mut cursor_inventory_query: Query<(Entity, &mut Inventory), (With<CursorInventory>, Without<PlayerInventory>)>,
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
@@ -99,18 +109,24 @@ pub fn dev_populate_player_inventory(
             commands.trigger(InventoryChangedEvent {
                 entity,
                 index: id - 1,
-                result,
             });
         };
     }
 
-    commands.trigger(PlayerHotbarSelectedChange {
+    commands.trigger(PlayerHotbarSelectionChange {
         old_index: 0,
         new_index: 0,
     });
+
+    if let Ok((entity, mut inventory)) = cursor_inventory_query.single_mut() {
+        inventory.insert(ItemID(1), 10, &item_registry);
+        bevy::log::info!("Added [{}]x{} to cursor inventory.", item_registry.get(ItemID(1)).name, 10);
+        commands.trigger(InventoryChangedEvent {
+                entity,
+                index: 0,
+            });
+    };
 }
-
-
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Player Held Item / Player Equipment (in the future)
@@ -119,11 +135,10 @@ pub fn dev_populate_player_inventory(
 #[derive(Resource, Default)]
 pub struct PlayerHeldItems{
     pub right_hand: Option<ItemStack>,
-    pub left_hand: Option<ItemStack>,
 }
 
 pub fn update_held_items_obs(
-    event: On<PlayerHotbarSelectedChange>,
+    event: On<PlayerHotbarSelectionChange>,
     mut held_items: ResMut<PlayerHeldItems>,
     inv_query: Query<&Inventory, With<PlayerInventory>>,
 ) {

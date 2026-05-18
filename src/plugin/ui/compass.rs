@@ -24,7 +24,7 @@ pub struct UICompassMarkerFixed {
 pub const UI_COMPASS_WIDTH: Val = Val::Px(400.0);
 pub const UI_COMPASS_HEIGHT: Val = Val::Px(40.0);
 
-pub fn spawn_ui_compass (
+pub fn spawn_ui_compass_sys (
     mut commands: Commands,
 ) {
     let root = (Node {

@@ -6,7 +6,6 @@ pub mod block_registry;
 pub mod block_interaction;
 pub mod weather;
 pub mod state;
-pub mod shape;
 
 pub mod inventory;
 pub mod graphics;
