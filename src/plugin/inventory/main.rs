@@ -6,7 +6,7 @@ use crate::plugin::inventory::player::{CursorInventory, PlayerHotbarSelection,
 };
 use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::UIState;
-use crate::plugin::ui::inventory::{InventoryClickedEvent, InventoryViewRequest};
+use crate::plugin::ui::inventory::{InventoryClickedEvent, InventoryUISpawnRequest};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -33,7 +33,7 @@ impl Plugin for InventoryPlugin {
             // Event Observers
             .add_observer(update_hotbar_obs)
             .add_observer(update_held_items_obs)
-
+            .add_observer(inventory_ui_click_obs)
 
 
         ;
@@ -425,13 +425,13 @@ pub fn dev_spawn_dummy_inventory(
     item_registry: Res<ItemRegistry>,
 ) {
     let mut new_inventory = Inventory::new(27);
-    new_inventory.insert(ItemID(1), 50, &item_registry);
-    bevy::log::info!("Added [{}]x{} to dummy inventory.", item_registry.get(ItemID(1)).name, 50);
-    new_inventory.insert(ItemID(2), 50, &item_registry);
-    bevy::log::info!("Added [{}]x{} to dummy inventory.", item_registry.get(ItemID(2)).name, 50);
+    new_inventory.insert_at_slot(ItemID(1), 40, 0, &item_registry);
+    new_inventory.insert_at_slot(ItemID(1), 40, 1, &item_registry);
+    new_inventory.insert_at_slot(ItemID(1), 40, 1, &item_registry);
 
+    bevy::log::info!("Added stuff to dummy inventory.");
     commands.spawn(
-        (Inventory::new(27),
+        (new_inventory,
         Name::new("Dummy"))
     );
 }
@@ -442,7 +442,7 @@ pub fn dev_show_dummy_inventory_request_obs(
 ) {
     for (entity, name) in dummy_inventory_q.iter() {
         if name.contains("Dummy") {
-            commands.trigger(InventoryViewRequest { source_entity: entity });
+            commands.trigger(InventoryUISpawnRequest { source_entity: entity });
         }
     }
 }

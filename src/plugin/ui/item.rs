@@ -59,7 +59,6 @@ pub fn build_ui_item_display(
                     image_mode: NodeImageMode::Stretch,
                     ..default()
                 },
-                ZIndex(ITEM_ICON_ZINDEX),
                 Pickable::IGNORE,
                 children![
                     build_ui_item_count(count)
@@ -83,7 +82,6 @@ fn build_ui_item_count(
         Text::new(count_text),
         TextColor(Color::WHITE),
         TextLayout::default(),
-        ZIndex(ITEM_COUNT_ZINDEX),
         Pickable::IGNORE,
     )
 }

@@ -35,7 +35,6 @@ pub fn spawn_cursor_item_display_sys(
         align_items: AlignItems::Center,
         justify_content: JustifyContent::Center,
         flex_direction: FlexDirection::Column,
-        margin: UiRect::all(SLOT_GAP),
         ..default()
         },
         CursorSlot,

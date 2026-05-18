@@ -48,7 +48,7 @@ fn play_block_sound_obs(
 
     let Some(handle) = sound else { return; };
 
-    // Uniform random pitch in [1 - V, 1 + V].
+    // Uniform random pitch in [1 - hr, 1 + hr].
     let pitch = 1.0 + (rand::random::<f32>() * 2.0 - 1.0) * AUDIO_PITCH_HALFRANGE;
 
     // Center of the block, in world space.

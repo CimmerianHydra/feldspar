@@ -45,19 +45,27 @@ fn build_inventory_ui_item_slot(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Event)]
-pub struct InventoryViewRequest {
+pub struct InventoryUISpawnRequest {
     pub source_entity: Entity, // The inventory entity we would like to view
+}
+
+#[derive(Event)]
+pub struct InventoryUISyncRequest {
+    pub entity: Entity, // The inventory entity we would like to view
+    pub index: usize,
 }
 
 pub fn build_inventory_ui(
     source_entity: Entity,
     capacity: usize,
-    rows: u16,
+    max_cols: usize,
 ) -> impl Bundle {
+    let cols = capacity.min(max_cols) as u16;
+
     (Node {
             display: Display::Grid,
             align_content: AlignContent::FlexStart,
-            grid_template_rows: RepeatedGridTrack::auto(rows),
+            grid_template_columns: RepeatedGridTrack::auto(cols),
             border_radius: BorderRadius::all(UI_PANEL_RADIUS),
             border: UiRect::all(UI_BORDER_THICKN),
             padding: UiRect::all(UI_PANEL_PADDING),
@@ -97,16 +105,14 @@ pub fn inventory_ui_click_obs(
         let entity = slot_data.source_entity;
         let slot_index = slot_data.slot_index;
         commands.trigger(InventoryClickedEvent{ entity, slot_index });
+        click.propagate(false);
     }
-    click.propagate(false);
 }
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // REBUILDING INVENTORY UI
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
 
 /// Redraw a single slot: wipe any existing item-display child, then respawn
 /// one if the slot is non-empty. Single source of truth for "what does a slot
@@ -131,30 +137,11 @@ fn render_slot_contents(
     }
 }
 
-/// Full populate pass — call this once after spawning an inventory UI to fill
-/// every slot. After that, [`on_sync_inventory_ui`] handles incremental updates.
-///
-/// `inventory_entity` is the entity that owns the `Inventory` component
-/// (i.e. the value used as `source_entity` when the slots were built).
-pub fn populate_inventory_ui(
-    commands:         &mut Commands,
-    inventory_entity: Entity,
-    inventory:        &Inventory,
-    slots_q:          &Query<(Entity, &InventorySlot)>,
-    item_registry:    &ItemRegistry,
-) {
-    for (slot_ui_entity, slot_data) in slots_q.iter() {
-        if slot_data.source_entity != inventory_entity { continue; }
-        let stack = inventory.slots()[slot_data.slot_index];
-        render_slot_contents(commands, slot_ui_entity, stack, item_registry);
-    }
-}
-
 /// On-demand sync: when an inventory changes, redraw only the slot that was
 /// affected. Slots whose `source_entity` doesn't match the event target are
 /// skipped, so this is cheap even with many UIs (or none) in existence.
-pub fn sync_on_inventory_changed_obs(
-    event: On<InventoryChangedEvent>,
+pub fn inventory_sync_obs(
+    event: On<InventoryUISyncRequest>,
     mut commands: Commands,
     slots_q: Query<(Entity, &InventorySlot)>,
     inventory_q: Query<&Inventory>,
@@ -175,4 +162,16 @@ pub fn sync_on_inventory_changed_obs(
         if slot_data.slot_index    != event.index  { continue; }
         render_slot_contents(&mut commands, slot_ui_entity, stack, &item_registry);
     }
+}
+
+pub fn inventory_changed_to_ui_sync_obs(
+    event: On<InventoryChangedEvent>,
+    mut commands: Commands,
+) {
+    let entity = event.entity;
+    let index = event.index;
+
+    commands.trigger(InventoryUISyncRequest {
+        entity, index
+    });
 }
