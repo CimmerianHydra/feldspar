@@ -16,7 +16,6 @@ impl Plugin for ControlsPlugin {
         app
         
         .add_systems(Update, (
-            mouse_click_handling_sys,
             mouse_scroll_handling_sys,
         ).run_if(in_state(UIState::Game)))
         ;
@@ -32,39 +31,13 @@ impl Plugin for ControlsPlugin {
 /// their controls are active. For this reason, they are by default disabled
 /// during menu navigation.
 
-#[derive(Event)]
-pub struct MouseEvent {
-    pub action: MouseAction,
-}
-
-#[derive(PartialEq)]
-pub enum MouseAction {
-    Primary,
-    Secondary,
-    Middle,
+#[derive(Event, PartialEq)]
+pub enum MouseScrollEvent {
     ScrollUp,
     ScrollDown,
 }
 
-// Placeholder, just sends events when the player clicks.
-fn mouse_click_handling_sys(
-    mouse_button_input: Res<ButtonInput<MouseButton>>,
-    mut commands: Commands,
-) {
-    if mouse_button_input.just_pressed(MouseButton::Left) {
-        commands.trigger(MouseEvent{ action: MouseAction::Primary });
-    }
-    if mouse_button_input.just_pressed(MouseButton::Right) {
-        commands.trigger(MouseEvent{ action: MouseAction::Secondary });
-    }
-    if mouse_button_input.just_pressed(MouseButton::Middle) {
-        commands.trigger(MouseEvent{ action: MouseAction::Middle });
-    }
-    
-}
-
 fn mouse_scroll_handling_sys(
-    // Placeholder, just sends events when the player clicks.
     mut scroll_wheel: MessageReader<MouseWheel>,
     mut commands: Commands,
 ) {
@@ -74,9 +47,9 @@ fn mouse_scroll_handling_sys(
             MouseScrollUnit::Pixel => { (event.y / MouseScrollUnit::SCROLL_UNIT_CONVERSION_FACTOR).signum() },
         };
         if scroll_direction < 0.0 {
-            commands.trigger(MouseEvent{ action: MouseAction::ScrollDown });
+            commands.trigger(MouseScrollEvent::ScrollDown );
         } else {
-            commands.trigger(MouseEvent{ action: MouseAction::ScrollUp });
+            commands.trigger(MouseScrollEvent::ScrollUp );
         }
     }
 }

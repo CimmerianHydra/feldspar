@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::item_registry::*;
-use crate::plugin::controller::main::{MouseEvent, MouseAction};
+use crate::plugin::controller::main::MouseScrollEvent;
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -35,11 +35,11 @@ pub struct PlayerHotbarSelectionChange {
 /// Updates the hotbar resource globally, which allows the system to sync both UI
 /// and player held items.
 pub fn update_hotbar_obs(
-    event: On<MouseEvent>,
+    event: On<MouseScrollEvent>,
     mut commands: Commands,
     mut hotbar: ResMut<PlayerHotbarSelection>,
 ) {
-    if event.action == MouseAction::ScrollDown {
+    if *event.event() == MouseScrollEvent::ScrollDown {
         let old_index = hotbar.selected_slot_index;
         let new_index = (old_index + 1) % HOTBAR_CAPACITY;
         commands.trigger(PlayerHotbarSelectionChange {
@@ -47,7 +47,7 @@ pub fn update_hotbar_obs(
             new_index,
         });
         hotbar.selected_slot_index = new_index;
-    } else if event.action == MouseAction::ScrollUp {
+    } else if *event.event() == MouseScrollEvent::ScrollUp {
         let old_index = hotbar.selected_slot_index;
         let new_index = (old_index + HOTBAR_CAPACITY - 1) % HOTBAR_CAPACITY;
         commands.trigger(PlayerHotbarSelectionChange {

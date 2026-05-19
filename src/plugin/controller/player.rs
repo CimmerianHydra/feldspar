@@ -43,17 +43,17 @@ struct Jump;
 /// Action corresponding to left click in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-struct PrimaryFire;
+pub struct PrimaryFire;
 
 /// Action corresponding to right click in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-struct SecondaryFire;
+pub struct SecondaryFire;
 
 /// Action corresponding to middle mouse button in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-struct AltFire;
+pub struct AltFire;
 
 // ── Components ────────────────────────────────────────────────────────────────
 
@@ -108,6 +108,14 @@ fn spawn_player(mut commands: Commands) {
                 (
                     Action::<Jump>::new(),
                     bindings![KeyCode::Space],
+                ),
+                (
+                    Action::<PrimaryFire>::new(),
+                    bindings![MouseButton::Left],
+                ),
+                (
+                    Action::<SecondaryFire>::new(),
+                    bindings![MouseButton::Right],
                 ),
             ]),
 

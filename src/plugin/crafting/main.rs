@@ -13,7 +13,7 @@ pub struct SpatialCraftingPlugin;
 impl Plugin for SpatialCraftingPlugin {
     fn build(&self, app: &mut App) {
         app
-            // UI observers live in the ui::crafting module and are added there
+            // UI observers live in the ui::crafting module
             // (parallel to how ui::inventory hosts the click observer).
             // Once the recognizer/matcher are finished, they'll be added here.
         ;

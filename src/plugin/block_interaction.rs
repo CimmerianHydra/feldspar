@@ -3,6 +3,7 @@ use bevy::{
 };
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
+use bevy_enhanced_input::prelude::*;
 
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
@@ -12,7 +13,8 @@ use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction};
 use crate::plugin::geometry::meshing::{BLOCK_SIZE};
 use crate::plugin::dimension::DimensionID;
-use crate::plugin::controller::main::{MouseEvent, MouseAction};
+use crate::plugin::controller::player::{PrimaryFire, SecondaryFire, AltFire};
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – Plugin and Component Definitions
@@ -40,7 +42,8 @@ impl Plugin for BlockInteractionPlugin {
         )
 
         .add_observer(update_look_target_obs)
-        .add_observer(handle_mouse_interaction_obs)
+        .add_observer(handle_primary_fire_obs)
+        .add_observer(handle_secondary_fire_obs)
         .add_observer(static_voxel_write_obs)
         ;
     }
@@ -271,16 +274,15 @@ pub fn update_block_highlight_sys(
 // SECTION 4 – Remove/Place Block TEMPORARY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-fn handle_mouse_interaction_obs(
-    mouse_event: On<MouseEvent>,
+fn handle_primary_fire_obs(
+    event: On<Start<PrimaryFire>>,
     mut commands: Commands,
     look_target: Res<PlayerLookTarget>,
     held_item: Res<PlayerHeldItems>,
     block_registry: Res<BlockRegistry>,
     item_registry: Res<ItemRegistry>,
 ) {
-    if mouse_event.action == MouseAction::Primary {
-        match look_target.target {
+    match look_target.target {
             Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
                 let block_id = BlockID(voxel.id());
 
@@ -297,38 +299,46 @@ fn handle_mouse_interaction_obs(
             },
             _ => { return }
         }
-    } else if mouse_event.action == MouseAction::Secondary {
-            match look_target.target {
-            Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
-                let neighbor_pos = pos + face.as_ivec3();
+}
 
-                if let Some(held_item_right) = held_item.right_hand {
-                    let held_item_kind = item_registry.get(held_item_right.id).kind.clone();
-                    match held_item_kind {
-                        ItemKind::Block { block_id } => {
-                            let block_data = block_registry.get(block_id);
-                            let shape = block_data.shape.clone();
+fn handle_secondary_fire_obs(
+    event: On<Start<SecondaryFire>>,
+    mut commands: Commands,
+    look_target: Res<PlayerLookTarget>,
+    held_item: Res<PlayerHeldItems>,
+    block_registry: Res<BlockRegistry>,
+    item_registry: Res<ItemRegistry>,
+) {
+    match look_target.target {
+        Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
+            let neighbor_pos = pos + face.as_ivec3();
 
-                            let event = StaticVoxelWriteRequest {
-                                block_coord: neighbor_pos,
-                                dimension: DimensionID::OVERWORLD,
-                                voxel: Voxel::new(block_id.0, shape, face),
-                            };
+            if let Some(held_item_right) = held_item.right_hand {
+                let held_item_kind = item_registry.get(held_item_right.id).kind.clone();
+                match held_item_kind {
+                    ItemKind::Block { block_id } => {
+                        let block_data = block_registry.get(block_id);
+                        let shape = block_data.shape.clone();
 
-                            commands.trigger(event);
+                        let event = StaticVoxelWriteRequest {
+                            block_coord: neighbor_pos,
+                            dimension: DimensionID::OVERWORLD,
+                            voxel: Voxel::new(block_id.0, shape, face),
+                        };
 
-                            // This is fine here for now, but it needs to be moved so that it only triggers if the
-                            // voxel is successfully placed
-                            commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos.as_vec3() });
-                        }
-                        _ => { return }
+                        commands.trigger(event);
+
+                        // This is fine here for now, but it needs to be moved so that it only triggers if the
+                        // voxel is successfully placed
+                        commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos.as_vec3() });
                     }
+                    _ => { return }
                 }
+            }
 
 
-            },
-            _ => { return }
-        }
+        },
+        _ => { return }
     }
 }
 

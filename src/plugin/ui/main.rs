@@ -284,7 +284,6 @@ pub fn show_requested_inventory_obs(
         // Send a sync request for all nonempty slots
         for (i, slot) in inventory.slots().iter().enumerate() {
             if slot.is_some() {
-                bevy::log::info!("Found nonempty slot at {}, sending request to sync.", i);
                 commands.trigger(InventoryUISyncRequest {
                     entity: requested_inventory,
                     index:  i,

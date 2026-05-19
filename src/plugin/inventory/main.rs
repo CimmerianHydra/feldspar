@@ -446,7 +446,7 @@ pub fn dev_spawn_dummy_inventory(
     let mut new_inventory = Inventory::new(27);
     new_inventory.insert_at_slot(ItemID(1), 40, 0, &item_registry);
     new_inventory.insert_at_slot(ItemID(1), 40, 1, &item_registry);
-    new_inventory.insert_at_slot(ItemID(1), 40, 1, &item_registry);
+    new_inventory.insert_at_slot(ItemID(1), 40, 2, &item_registry);
 
     bevy::log::info!("Added stuff to dummy inventory.");
     commands.spawn(
