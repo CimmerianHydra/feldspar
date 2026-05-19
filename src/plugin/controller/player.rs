@@ -275,7 +275,7 @@ fn probe_ground(
 
     match hit {
         Some(h) => {
-            if (h.normal1.dot(Vec3::Y) > GROUND_DOTPROD_LIMIT) {PlayerMovementState::Grounded}
+            if h.normal1.dot(Vec3::Y) > GROUND_DOTPROD_LIMIT {PlayerMovementState::Grounded}
             else {PlayerMovementState::Airborne}
         },  // ~45° max slope
         None    => PlayerMovementState::Airborne,

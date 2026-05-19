@@ -28,8 +28,6 @@ pub enum ItemDisplay {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const ITEM_ICON_SIZE: Val = Val::Px(64.0);
-const ITEM_ICON_ZINDEX: i32 = 1;
-const ITEM_COUNT_ZINDEX: i32 = 2;
 
 /// Builds the visual representation of an item, adding the necessary children.
 /// Can be spawned into an UI node as a child.
@@ -41,6 +39,7 @@ pub fn build_ui_item_display(
     display:    &ItemDisplay,
     count:      u16,
 ) -> impl Bundle {
+    
     let icon_node = Node {
         width:  ITEM_ICON_SIZE,
         height: ITEM_ICON_SIZE,

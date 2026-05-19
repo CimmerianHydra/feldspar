@@ -11,17 +11,6 @@ pub enum ToolType {
 }
 
 #[derive(Default)]
-pub enum WeaponType {
-    #[default]
-    Hand,
-    Sword,
-    Dagger,
-    Spear,
-    Longsword,
-    Shield
-}
-
-#[derive(Default)]
 pub struct BlockMaterial {
     name: String,
     hardness: f32,

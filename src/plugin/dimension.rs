@@ -10,9 +10,9 @@
 use bevy::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, Reflect)]
-pub struct DimensionId(pub u8);
+pub struct DimensionID(pub u8);
 
-impl DimensionId {
+impl DimensionID {
     pub const OVERWORLD:    Self = Self(0);
     pub const UNDERWORLD:   Self = Self(1);
     pub const LUA:          Self = Self(2);

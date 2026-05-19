@@ -93,6 +93,7 @@ pub struct InventoryClickedEvent {
     #[event_target]
     pub entity:         Entity,
     pub slot_index:     usize,
+    pub button:         PointerButton,
 }
 
 pub fn inventory_ui_click_obs(
@@ -101,10 +102,11 @@ pub fn inventory_ui_click_obs(
     available_slots: Query<&InventorySlot>,
 ) {
     let clicked_entity = click.entity;
+    let button: PointerButton = click.button;
     if let Ok(slot_data) = available_slots.get(clicked_entity) {
         let entity = slot_data.source_entity;
         let slot_index = slot_data.slot_index;
-        commands.trigger(InventoryClickedEvent{ entity, slot_index });
+        commands.trigger(InventoryClickedEvent{ entity, slot_index, button });
         click.propagate(false);
     }
 }

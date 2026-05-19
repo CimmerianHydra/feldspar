@@ -243,7 +243,6 @@ pub fn spawn_crosshair_sys(
             flex_direction: FlexDirection::Column,
             ..default()
         },
-        DespawnOnExit(GameUpdateState::Running),
         Pickable::IGNORE,
         children![crosshair_bundle]
     );
@@ -262,7 +261,7 @@ pub fn show_requested_inventory_obs(
     if let Ok((source_entity, inventory)) = inventory_q.get(requested_inventory) {
 
         let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 9);
-        
+
         let root_bundle = (
             Node {
                 width: percent(100),

@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy::ecs::system::SystemParam;
 use std::collections::HashMap;
 
-use crate::plugin::voxel::Voxel;
-use crate::plugin::dimension::DimensionId;
+use crate::plugin::voxel::{Direction, Voxel};
+use crate::plugin::dimension::DimensionID;
 
 // Contains chunk logic and plugins.
 
@@ -153,7 +153,7 @@ pub struct NeedsRemeshing;
 #[derive(Component, Reflect)]
 pub struct StaticChunk {
     /// Which dimension this chunk belongs to.
-    pub dimension: DimensionId,
+    pub dimension: DimensionID,
     /// Chunk-space position.  
     /// `world_block_pos = chunk_pos * 16 + local_pos`.
     pub position: IVec3,
@@ -200,29 +200,29 @@ pub struct MovingGrid {
 
 #[derive(Resource, Default)]
 pub struct StaticWorld {
-    chunks: HashMap<(DimensionId, IVec3), Entity>,
+    chunks: HashMap<(DimensionID, IVec3), Entity>,
 }
 
 impl StaticWorld {
     // ---- registry (called by ECS systems) -----------------------------------
 
-    pub fn insert(&mut self, dim: DimensionId, chunk_pos: IVec3, entity: Entity) {
+    pub fn insert(&mut self, dim: DimensionID, chunk_pos: IVec3, entity: Entity) {
         self.chunks.insert((dim, chunk_pos), entity);
     }
 
-    pub fn remove(&mut self, dim: DimensionId, chunk_pos: IVec3) {
+    pub fn remove(&mut self, dim: DimensionID, chunk_pos: IVec3) {
         self.chunks.remove(&(dim, chunk_pos));
     }
 
     /// Returns the `Entity` that owns the chunk at `chunk_pos` in `dim`,
     /// or `None` if the chunk is not currently loaded.
     #[inline]
-    pub fn chunk_entity(&self, dim: DimensionId, chunk_pos: IVec3) -> Option<Entity> {
+    pub fn chunk_entity(&self, dim: DimensionID, chunk_pos: IVec3) -> Option<Entity> {
         self.chunks.get(&(dim, chunk_pos)).copied()
     }
 
     /// Returns all loaded chunk positions for a given dimension.
-    pub fn loaded_chunks(&self, dim: DimensionId) -> impl Iterator<Item = IVec3> + '_ {
+    pub fn loaded_chunks(&self, dim: DimensionID) -> impl Iterator<Item = IVec3> + '_ {
         self.chunks.keys()
             .filter(move |(d, _)| *d == dim)
             .map(|(_, p)| *p)
@@ -272,7 +272,7 @@ impl<'w, 's> StaticWorldAccess<'w, 's> {
     pub fn get_voxel(
         &self,
         world_pos: IVec3,
-        dimension: DimensionId,
+        dimension: DimensionID,
     ) -> Voxel {
         let (chunk_pos, local_pos) = StaticWorld::to_chunk_local(world_pos);
 
@@ -287,7 +287,7 @@ impl<'w, 's> StaticWorldAccess<'w, 's> {
     pub fn get_chunk_entity(
         &self,
         world_pos: IVec3,
-        dimension: DimensionId,
+        dimension: DimensionID,
     ) -> Option<Entity> {
         let (chunk_pos, local_pos) = StaticWorld::to_chunk_local(world_pos);
         self.world.chunk_entity(dimension, chunk_pos)
@@ -296,7 +296,7 @@ impl<'w, 's> StaticWorldAccess<'w, 's> {
     pub fn get_block_entity(
         &self,
         world_pos: IVec3,
-        dimension: DimensionId,
+        dimension: DimensionID,
     ) -> Option<Entity> {
         let (chunk_pos, local) = StaticWorld::to_chunk_local(world_pos);
         let chunk_entity = self.world.chunk_entity(dimension, chunk_pos)?;
@@ -316,7 +316,7 @@ impl<'w, 's> StaticWorldAccessMut<'w, 's> {
     pub fn get_voxel(
         &self,
         world_pos: IVec3,
-        dimension: DimensionId,
+        dimension: DimensionID,
     ) -> Voxel {
         let (chunk_pos, local_pos) = StaticWorld::to_chunk_local(world_pos);
 
@@ -331,7 +331,7 @@ impl<'w, 's> StaticWorldAccessMut<'w, 's> {
     pub fn set_voxel(
         &mut self,
         world_pos: IVec3,
-        dimension: DimensionId,
+        dimension: DimensionID,
         voxel: Voxel,
     ) {
         let (chunk_pos, local_pos) = StaticWorld::to_chunk_local(world_pos);
@@ -416,7 +416,7 @@ impl ChunkBlockEntities {
 /// the world (useful for self-removal, chunk queries, serialization).
 #[derive(Component)]
 pub struct BlockEntityTag {
-    pub dimension:   DimensionId,
+    pub dimension:   DimensionID,
     pub world_block: IVec3,   // absolute block position, NOT chunk-local
 }
 
@@ -438,7 +438,7 @@ pub fn spawn_block_entity(
     commands:  &mut Commands,
     world:     &StaticWorld,
     chunks:    &mut Query<Option<&mut ChunkBlockEntities>>,
-    dimension: DimensionId,
+    dimension: DimensionID,
     world_block: IVec3,
 ) -> Option<Entity> {
     let (chunk_pos, local) = StaticWorld::to_chunk_local(world_block);
@@ -472,7 +472,7 @@ pub fn despawn_block_entity(
     commands:    &mut Commands,
     world:       &StaticWorld,
     chunks:      &mut Query<(Option<&mut ChunkBlockEntities>, Entity)>,
-    dimension:   DimensionId,
+    dimension:   DimensionID,
     world_block: IVec3,
 ) {
     let (chunk_pos, local) = StaticWorld::to_chunk_local(world_block);

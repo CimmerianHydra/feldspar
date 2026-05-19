@@ -11,7 +11,7 @@ use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameUpdateState;
 use crate::plugin::voxel::{Voxel, Direction};
 use crate::plugin::geometry::meshing::{BLOCK_SIZE};
-use crate::plugin::dimension::DimensionId;
+use crate::plugin::dimension::DimensionID;
 use crate::plugin::controller::main::{MouseEvent, MouseAction};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -286,7 +286,7 @@ fn handle_mouse_interaction_obs(
 
                 let event = StaticVoxelWriteRequest {
                     block_coord: pos,
-                    dimension: DimensionId::OVERWORLD,
+                    dimension: DimensionID::OVERWORLD,
                     voxel: Voxel::AIR,
                 };
                 commands.trigger(event);
@@ -311,7 +311,7 @@ fn handle_mouse_interaction_obs(
 
                             let event = StaticVoxelWriteRequest {
                                 block_coord: neighbor_pos,
-                                dimension: DimensionId::OVERWORLD,
+                                dimension: DimensionID::OVERWORLD,
                                 voxel: Voxel::new(block_id.0, shape, face),
                             };
 
@@ -386,7 +386,7 @@ fn looktarget_from_dda(
     // If one could be found, return all relevant looktarget information.
     // If none could be found, then return none.
     if let Some((block_coord, face, voxel)) = dda_hits.into_iter().find_map(|(coord, face)| {
-        let voxel = static_world_access.get_voxel(coord, DimensionId::OVERWORLD);
+        let voxel = static_world_access.get_voxel(coord, DimensionID::OVERWORLD);
         if !voxel.is_air() {
             Some((coord, face, voxel))
         } else {
@@ -412,7 +412,7 @@ fn looktarget_from_dda(
 #[derive(Event)]
 pub struct StaticVoxelWriteRequest {
     block_coord: IVec3,
-    dimension: DimensionId,
+    dimension: DimensionID,
     voxel: Voxel,
 }
 

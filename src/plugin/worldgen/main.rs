@@ -69,7 +69,7 @@ impl WorldGenerator for ActiveWorldGenerator {
 use crate::plugin::graphics::block_material::{VoxelMaterial, VoxelMaterialExtension};
 use crate::plugin::graphics::block_textures::create_texture_array;
 use crate::plugin::chunk::{StaticChunk, NeedsRemeshing};
-use crate::plugin::dimension::DimensionId;
+use crate::plugin::dimension::DimensionID;
 
 /// How many chunks out from origin to pre-spawn on each axis.
 /// Total chunk count = (2*R + 1)^3 — with R=8 that's 4913 chunks.
@@ -123,7 +123,7 @@ pub fn setup_dev_chunks(
     });
 
     // ── chunk generation + spawn ──────────────────────────────────────────
-    let dim_id = DimensionId::OVERWORLD;
+    let dim_id = DimensionID::OVERWORLD;
 
     for cx in -DEV_CHUNK_RADIUS..=DEV_CHUNK_RADIUS {
         for cy in -DEV_CHUNK_HEIGHT..=DEV_CHUNK_HEIGHT {
