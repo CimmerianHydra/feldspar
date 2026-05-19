@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use avian3d::prelude::*;
 
 pub struct StatePlugin;
 
@@ -13,8 +14,18 @@ impl Plugin for StatePlugin {
         
         .add_systems(Update, toggle_state_sys)
 
+        .add_systems(OnExit(GameUpdateState::Running), pause_physics)
+        .add_systems(OnEnter(GameUpdateState::Running), resume_physics)
         ;
     }
+}
+
+fn pause_physics(mut time: ResMut<Time<Physics>>) {
+    time.pause();
+}
+
+fn resume_physics(mut time: ResMut<Time<Physics>>) {
+    time.unpause();
 }
 
 // Toggles between pause and unpause.

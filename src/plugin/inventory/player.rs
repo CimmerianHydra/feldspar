@@ -67,6 +67,13 @@ pub fn update_hotbar_obs(
 #[derive(Component)]
 pub struct PlayerInventory;
 
+/// Marks an entity as "the player's hotbar".
+/// This hooks into the hotbar display and update system (TODO).
+#[derive(Component)]
+pub struct PlayerHotbar {
+    highlighted_slot: usize,
+}
+
 /// Marker component. Used for the singular inventory slot, which allows users to 
 /// pick item stacks with their cursor.
 #[derive(Component)]
@@ -79,6 +86,11 @@ pub fn spawn_player_inventory_sys(
 ) {
     commands.spawn((
         PlayerInventory,
+        Inventory::new(27),
+    ));
+
+    commands.spawn((
+        PlayerHotbar { highlighted_slot: 0 },
         Inventory::new(9),
     ));
 

@@ -37,9 +37,6 @@ struct Move;
 #[action_output(bool)]
 struct Jump;
 
-// To be used in the future in place of my custom made events, because it's probably way
-// more optimized.
-
 /// Action corresponding to left click in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
@@ -55,13 +52,28 @@ pub struct SecondaryFire;
 #[action_output(bool)]
 pub struct AltFire;
 
+/// Action corresponding to key I in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct OpenInventory;
+
+/// Action corresponding to key I in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct CloseInventory;
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 #[derive(Component)]
 pub struct Player;
 
+/// Set of inputs available to the player when they're in the game.
 #[derive(Component)]
-struct PlayerInput;
+struct GameInput;
+
+/// Set of inputs available to the player when they're browsing menus.
+#[derive(Component)]
+struct MenuInput;
 
 #[derive(Component)]
 pub struct FPSCamera {
@@ -74,6 +86,7 @@ struct PlayerMovementData {
     jump_queued:            bool,
     state:                  PlayerMovementState,
     time_since_grounded:    f32,
+    time_since_jump_q:      f32,
 }
 
 #[derive(Default, PartialEq)]
@@ -98,26 +111,10 @@ fn spawn_player(mut commands: Commands) {
             Friction::new(0.0),
             Transform::from_xyz(0.0, 20.0, 0.0),
 
-            PlayerInput,
-            actions!(PlayerInput[
-                (
-                    Action::<Move>::new(),
-                    DeadZone::default(),
-                    Bindings::spawn(Cardinal::wasd_keys()),
-                ),
-                (
-                    Action::<Jump>::new(),
-                    bindings![KeyCode::Space],
-                ),
-                (
-                    Action::<PrimaryFire>::new(),
-                    bindings![MouseButton::Left],
-                ),
-                (
-                    Action::<SecondaryFire>::new(),
-                    bindings![MouseButton::Right],
-                ),
-            ]),
+            build_game_input_actions(),
+            build_menu_input_actions(),
+            ContextActivity::<GameInput>::ACTIVE,
+            ContextActivity::<MenuInput>::INACTIVE,
 
             children![(
                 FPSCamera { sensitivity: DEFAULT_SENSITIVITY },
@@ -129,8 +126,63 @@ fn spawn_player(mut commands: Commands) {
         ))
         .observe(on_move_fire)
         .observe(on_move_complete)
-        .observe(on_jump_start);
+        .observe(on_jump_start)
+        .observe(on_open_inventory)
+        .observe(on_close_inventory)
+    ;
 }
+
+fn build_game_input_actions() -> impl Bundle
+{
+    (GameInput,
+    actions!(GameInput[
+            (
+                Action::<Move>::new(),
+                DeadZone::default(),
+                Bindings::spawn(Cardinal::wasd_keys()),
+            ),
+            (
+                Action::<Jump>::new(),
+                bindings![KeyCode::Space],
+            ),
+            (
+                Action::<PrimaryFire>::new(),
+                bindings![MouseButton::Left],
+            ),
+            (
+                Action::<SecondaryFire>::new(),
+                bindings![MouseButton::Right],
+            ),
+            (
+                Action::<OpenInventory>::new(),
+                // We set `require_reset` to `true` because `CloseInventory` action uses the same input,
+                // and we want it to be triggerable only after the button is released.
+                ActionSettings {
+                    require_reset: true,
+                    ..Default::default()
+                },
+                bindings![KeyCode::KeyI],
+            ),
+        ]),
+    )
+}
+
+fn build_menu_input_actions() -> impl Bundle
+{
+    (MenuInput,
+    actions!(MenuInput[
+            (
+                Action::<CloseInventory>::new(),
+                ActionSettings {
+                    require_reset: true,
+                    ..Default::default()
+                },
+                bindings![KeyCode::KeyI],
+            ),
+        ]),
+    )
+}
+
 
 // ── Look ──────────────────────────────────────────────────────────────────────
 //
@@ -185,7 +237,24 @@ fn on_move_complete(done: On<Complete<Move>>, mut players: Query<&mut PlayerMove
 fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovementData>) {
     if let Ok(mut mv) = players.get_mut(start.context) {
         mv.jump_queued = true;
+        mv.time_since_jump_q = 0.0;
     }
+}
+
+fn on_open_inventory(
+    start: On<Start<OpenInventory>>,
+    mut commands: Commands,
+) {
+    bevy::log::info!("Opening inventory");
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<MenuInput>::ACTIVE));
+}
+
+fn on_close_inventory(
+    start: On<Start<CloseInventory>>,
+    mut commands: Commands,
+) {
+    bevy::log::info!("Closing inventory");
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<MenuInput>::INACTIVE));
 }
 
 // ── Physics step ──────────────────────────────────────────────────────────────
@@ -298,10 +367,13 @@ impl Plugin for PlayerControllerPlugin {
     fn build(&self, app: &mut App) {
         app
         .add_plugins(EnhancedInputPlugin)
-        .add_input_context::<PlayerInput>()
+        .add_input_context::<GameInput>()
+        .add_input_context::<MenuInput>()
 
         .add_systems(Update, spawn_player.run_if(run_once))
         .add_systems(Update, player_look_sys.run_if(in_state(UIState::Game)))
-        .add_systems(FixedUpdate, step.run_if(in_state(GameUpdateState::Running)));
+        .add_systems(FixedUpdate, step)
+
+        ;
     }
 }
