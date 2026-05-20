@@ -145,8 +145,6 @@ pub fn create_dummy_textures(
 // BLOCK TEXTURES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub const NO_OVERLAY: u32 = 0;
-
 #[derive(Clone, Debug)]
 pub enum FaceTextures {
     /// First index is into base texture array.

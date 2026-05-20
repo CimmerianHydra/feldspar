@@ -1,8 +1,8 @@
 use bevy::{prelude::*};
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
-use crate::plugin::inventory::main::{Inventory, dev_spawn_dummy_inventory};
-use crate::plugin::inventory::player::spawn_player_inventory_sys;
+use crate::plugin::inventory::main::Inventory;
+use crate::plugin::inventory::player::{PlayerHotbar, PlayerInventory, spawn_player_inventory_sys};
 use crate::plugin::state::*;
 
 use crate::plugin::ui::hotbar::*;
@@ -17,7 +17,6 @@ impl Plugin for UIPlugin {
         // Add systems related to UI here
         app
 
-        .add_systems(Startup, spawn_hotbar_sys)
         .add_systems(Startup, spawn_ui_compass_sys)
         .add_systems(Startup, spawn_crosshair_sys)
 
@@ -33,13 +32,14 @@ impl Plugin for UIPlugin {
         .add_systems(OnExit(UIState::Game), cursor_release_sys)
 
         .add_observer(pause_menu_actions_obs)
-        .add_observer(sync_hotbar_highlight_obs)
-        .add_observer(sync_hotbar_item_display_obs)
         .add_observer(sync_cursor_inventory_obs)
         .add_observer(inventory_ui_click_obs)
         .add_observer(inventory_sync_obs)
         .add_observer(inventory_changed_to_ui_sync_obs)
         .add_observer(show_requested_inventory_obs)
+
+        .add_observer(show_requested_hotbar_obs)
+        .add_observer(sync_hotbar_highlight_sys)
         ;
     }
 }
@@ -252,43 +252,3 @@ pub fn spawn_crosshair_sys(
 }
 
 
-pub fn show_requested_inventory_obs(
-    view_requests: On<InventoryUISpawnRequest>,
-    mut commands: Commands,
-    inventory_q: Query<(Entity, &Inventory)>
-) {
-    let requested_inventory = view_requests.source_entity;
-    if let Ok((source_entity, inventory)) = inventory_q.get(requested_inventory) {
-
-        let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 9);
-
-        let root_bundle = (
-            Node {
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-            DespawnOnExit(UIState::Inventory),
-            ZIndex(100),
-            Pickable::IGNORE,
-            children![
-                ui_bundle,
-            ]
-        );
-
-        commands.spawn(root_bundle);
-
-        // Send a sync request for all nonempty slots
-        for (i, slot) in inventory.slots().iter().enumerate() {
-            if slot.is_some() {
-                commands.trigger(InventoryUISyncRequest {
-                    entity: requested_inventory,
-                    index:  i,
-                });
-            }
-        }
-    }
-}

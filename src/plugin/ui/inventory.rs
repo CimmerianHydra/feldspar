@@ -5,7 +5,30 @@ use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
 use crate::plugin::ui::item::build_ui_item_display;
 use crate::plugin::inventory::item_registry::ItemRegistry;
 use crate::plugin::inventory::main::ItemStack;
+use crate::plugin::state::UIState;
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BASIC SLOT BUILDER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+pub fn build_base_ui_item_slot() -> impl Bundle
+{
+    (
+        Node {
+            width: SLOT_SIZE,
+            height: SLOT_SIZE,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
+            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+            border: UiRect::all(UI_BORDER_THICKN),
+            margin: UiRect::all(SLOT_GAP),
+            ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+    )
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ITEM SLOTS
@@ -22,19 +45,8 @@ fn build_inventory_ui_item_slot(
     source_entity: Entity,
     slot_index: usize,
 ) -> impl Bundle {
-        (Node {
-        width: SLOT_SIZE,
-        height: SLOT_SIZE,
-        align_items: AlignItems::Center,
-        justify_content: JustifyContent::Center,
-        flex_direction: FlexDirection::Column,
-        border_radius: BorderRadius::all(UI_PANEL_RADIUS),
-        border: UiRect::all(UI_BORDER_THICKN),
-        margin: UiRect::all(SLOT_GAP),
-        ..default()
-        },
-        BorderColor::all(UI_BORDER_COLOR),
-        BackgroundColor(UI_SLOT_COLOR),
+    (
+        build_base_ui_item_slot(),
         InventorySlot { source_entity, slot_index },
         Pickable { should_block_lower: true, is_hoverable: true },
     )
@@ -113,7 +125,7 @@ pub fn inventory_ui_click_obs(
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// REBUILDING INVENTORY UI
+// REBUILDING UI FOR ALL INVENTORIES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Redraw a single slot: wipe any existing item-display child, then respawn
@@ -139,7 +151,7 @@ fn render_slot_contents(
     }
 }
 
-/// On-demand sync: when an inventory changes, redraw only the slot that was
+/// On-demand sync: when the event is received, redraw only the slot that was
 /// affected. Slots whose `source_entity` doesn't match the event target are
 /// skipped, so this is cheap even with many UIs (or none) in existence.
 pub fn inventory_sync_obs(
@@ -177,3 +189,45 @@ pub fn inventory_changed_to_ui_sync_obs(
         entity, index
     });
 }
+
+pub fn show_requested_inventory_obs(
+    view_requests: On<InventoryUISpawnRequest>,
+    mut commands: Commands,
+    inventory_q: Query<(Entity, &Inventory)>,
+) {
+    let requested_inventory = view_requests.source_entity;
+    if let Ok((source_entity, inventory)) = inventory_q.get(requested_inventory) {
+
+        let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 9);
+
+        let root_bundle = (
+            Node {
+                width: percent(100),
+                height: percent(100),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
+            DespawnOnExit(UIState::Inventory),
+            ZIndex(100),
+            Pickable::IGNORE,
+            children![
+                ui_bundle,
+            ]
+        );
+
+        commands.spawn(root_bundle);
+
+        // Send a sync request for all nonempty slots
+        for (i, slot) in inventory.slots().iter().enumerate() {
+            if slot.is_some() {
+                commands.trigger(InventoryUISyncRequest {
+                    entity: requested_inventory,
+                    index:  i,
+                });
+            }
+        }
+    }
+}
+

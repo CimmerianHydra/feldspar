@@ -62,6 +62,11 @@ pub struct OpenInventory;
 #[action_output(bool)]
 pub struct CloseInventory;
 
+/// Actions corresponding to numbers 1-9 in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct SelectItem;
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 #[derive(Component)]
@@ -74,6 +79,11 @@ struct GameInput;
 /// Set of inputs available to the player when they're browsing menus.
 #[derive(Component)]
 struct MenuInput;
+
+#[derive(Component)]
+pub struct HotbarSelection {
+    pub index: usize,
+}
 
 #[derive(Component)]
 pub struct FPSCamera {
@@ -136,23 +146,10 @@ fn build_game_input_actions() -> impl Bundle
 {
     (GameInput,
     actions!(GameInput[
-            (
-                Action::<Move>::new(),
-                DeadZone::default(),
-                Bindings::spawn(Cardinal::wasd_keys()),
-            ),
-            (
-                Action::<Jump>::new(),
-                bindings![KeyCode::Space],
-            ),
-            (
-                Action::<PrimaryFire>::new(),
-                bindings![MouseButton::Left],
-            ),
-            (
-                Action::<SecondaryFire>::new(),
-                bindings![MouseButton::Right],
-            ),
+            (Action::<PrimaryFire>::new(), bindings![MouseButton::Left]),
+            (Action::<SecondaryFire>::new(), bindings![MouseButton::Right]),
+            (Action::<Move>::new(), DeadZone::default(), Bindings::spawn(Cardinal::wasd_keys())),
+            (Action::<Jump>::new(), bindings![KeyCode::Space]),
             (
                 Action::<OpenInventory>::new(),
                 // We set `require_reset` to `true` because `CloseInventory` action uses the same input,
@@ -163,6 +160,15 @@ fn build_game_input_actions() -> impl Bundle
                 },
                 bindings![KeyCode::KeyI],
             ),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 0 }, bindings![KeyCode::Digit1]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 1 }, bindings![KeyCode::Digit2]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 2 }, bindings![KeyCode::Digit3]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 3 }, bindings![KeyCode::Digit4]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 4 }, bindings![KeyCode::Digit5]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 5 }, bindings![KeyCode::Digit6]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 6 }, bindings![KeyCode::Digit7]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 7 }, bindings![KeyCode::Digit8]),
+            (Action::<SelectItem>::new(), HotbarSelection { index: 8 }, bindings![KeyCode::Digit9]),
         ]),
     )
 }
@@ -245,7 +251,6 @@ fn on_open_inventory(
     start: On<Start<OpenInventory>>,
     mut commands: Commands,
 ) {
-    bevy::log::info!("Opening inventory");
     commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<MenuInput>::ACTIVE));
 }
 
@@ -253,9 +258,10 @@ fn on_close_inventory(
     start: On<Start<CloseInventory>>,
     mut commands: Commands,
 ) {
-    bevy::log::info!("Closing inventory");
     commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<MenuInput>::INACTIVE));
 }
+
+
 
 // ── Physics step ──────────────────────────────────────────────────────────────
 
