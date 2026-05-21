@@ -21,6 +21,11 @@ pub enum ItemDisplay {
     Image {
         image: Handle<Image>,
     },
+
+    ImageWithBar {
+        image: Handle<Image>,
+        bar_percent: f32,
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -64,6 +69,19 @@ pub fn build_ui_item_display(
                 ]
             )
         }
+        ItemDisplay::ImageWithBar { image, bar_percent } => { return (
+                icon_node,
+                ImageNode {
+                    image: image.clone(),
+                    image_mode: NodeImageMode::Stretch,
+                    ..default()
+                },
+                Pickable::IGNORE,
+                children![
+                    build_ui_item_count(count)
+                ]
+            )
+        }
     }
 }
 
@@ -83,4 +101,10 @@ fn build_ui_item_count(
         TextLayout::default(),
         Pickable::IGNORE,
     )
+}
+
+fn build_ui_item_bar(
+    percentage: u16,
+) {
+    todo!();
 }

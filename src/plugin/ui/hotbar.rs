@@ -92,6 +92,7 @@ pub fn show_requested_hotbar_obs(
             ..default()
         },
         ZIndex(0),
+        EntityUISession { source_entities: vec![hotbar_entity] },
         children![
             build_hotbar_ui_panel(hotbar_entity, inventory_data.capacity()),
         ],

@@ -15,9 +15,7 @@ impl Plugin for ControlsPlugin {
         // Add systems related to block registry management here
         app
         
-        .add_systems(Update, (
-            mouse_scroll_handling_sys,
-        ).run_if(in_state(UIState::Game)))
+        .add_systems(Update, mouse_scroll_handling_sys)
         ;
     }
 }
@@ -25,7 +23,6 @@ impl Plugin for ControlsPlugin {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 2 – Systems and Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 
 /// These events are supposed to be used whenever the user is IN GAME and
 /// their controls are active. For this reason, they are by default disabled

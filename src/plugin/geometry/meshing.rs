@@ -6,7 +6,7 @@ use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, StaticChunk, NeedsRemeshing};
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Direction};
 use crate::plugin::geometry::quads::{Quad, shape_quads};
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
@@ -30,7 +30,7 @@ impl Plugin for MeshingPlugin {
             add_components_to_static_chunk_sys,
             sync_static_chunk_transform_sys,
             update_dirty_mesh_sys
-        ).run_if(in_state(GameUpdateState::Running)))
+        ).run_if(in_state(GameState::Running)))
         ;
     }
 }

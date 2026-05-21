@@ -14,7 +14,7 @@ pub enum ToolType {
 pub struct BlockMaterial {
     name: String,
     hardness: f32,
-    mass_of_block: f32,                     // The mass of a full block of this material
+    mass_of_block: f32,                     // The mass of a full block of this material, useful for physics
     required_tool: Option<ToolType>,        // Required tool type to initiate breaking the material
     hardness_tier: u32,                     // Tier-gating so that only certain materials can break certain others
 }

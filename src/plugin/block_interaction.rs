@@ -9,7 +9,7 @@ use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
 use crate::plugin::inventory::player::*;
 use crate::plugin::inventory::item_registry::*;
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Voxel, Direction};
 use crate::plugin::geometry::meshing::{BLOCK_SIZE};
 use crate::plugin::dimension::DimensionID;
@@ -38,7 +38,7 @@ impl Plugin for BlockInteractionPlugin {
         .add_systems(Update, (
                 cast_static_dda_ray_sys,
                 update_block_highlight_sys
-            ).run_if(in_state(GameUpdateState::Running))
+            ).run_if(in_state(GameState::Running))
         )
 
         .add_observer(update_look_target_obs)
@@ -434,7 +434,7 @@ fn static_voxel_write_obs(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 6 – Block-specific Events
+// SECTION 7 – Block-specific Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Event)]

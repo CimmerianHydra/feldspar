@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::state::GameState;
 use crate::plugin::voxel::BlockShape;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -110,8 +110,8 @@ impl ItemRegistry {
 pub fn initialize_item_registry_sys(
     block_registry: Res<BlockRegistry>,
     mut item_registry: ResMut<ItemRegistry>,
-    _game_state: Res<State<GameUpdateState>>,
-    mut next_game_state: ResMut<NextState<GameUpdateState>>,
+    _game_state: Res<State<GameState>>,
+    mut next_game_state: ResMut<NextState<GameState>>,
     asset_server: Res<AssetServer>,
 ) {
     // First we register all the blocks as items.
@@ -143,5 +143,5 @@ pub fn initialize_item_registry_sys(
 
     // After we're done, we're free to play the game
     // We need to create a "loading checklist" in the future
-    next_game_state.set(GameUpdateState::Running);
+    next_game_state.set(GameState::Running);
 }

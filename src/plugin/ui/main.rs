@@ -1,14 +1,14 @@
-use bevy::{prelude::*};
-use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
+use bevy::prelude::*;
+use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::inventory::main::Inventory;
-use crate::plugin::inventory::player::{PlayerHotbar, PlayerInventory, spawn_player_inventory_sys};
-use crate::plugin::state::*;
+use crate::plugin::controller::player::{Player, ClosePauseMenu, OpenPauseMenu};
+use crate::plugin::inventory::player::{spawn_player_inventory_sys};
 
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
 use crate::plugin::ui::cursor::*;
 use crate::plugin::ui::inventory::*;
+use crate::plugin::ui::player::*;
 
 pub struct UIPlugin;
 
@@ -26,17 +26,21 @@ impl Plugin for UIPlugin {
         .add_systems(Update, button_sys)
         .add_systems(Update, sync_ui_compass_sys)
 
-        .add_systems(OnEnter(GameUpdateState::Paused), spawn_pause_menu_sys)
-
-        .add_systems(OnEnter(UIState::Game), cursor_lock_sys)
-        .add_systems(OnExit(UIState::Game), cursor_release_sys)
-
+        .add_observer(spawn_pause_menu_obs)
+        .add_observer(despawn_pause_menu_obs)
         .add_observer(pause_menu_actions_obs)
+
+        .add_observer(cursor_lock_request_obs)
         .add_observer(sync_cursor_inventory_obs)
+
         .add_observer(inventory_ui_click_obs)
         .add_observer(inventory_sync_obs)
         .add_observer(inventory_changed_to_ui_sync_obs)
         .add_observer(show_requested_inventory_obs)
+        .add_observer(close_requested_inventory_obs)
+
+        .add_observer(open_inventory_player_input_action_obs)
+        .add_observer(close_inventory_player_input_action_obs)
 
         .add_observer(show_requested_hotbar_obs)
         .add_observer(sync_hotbar_highlight_sys)
@@ -44,19 +48,6 @@ impl Plugin for UIPlugin {
     }
 }
 
-pub fn cursor_lock_sys(
-    mut cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>
-) {
-    cursor_options.grab_mode = CursorGrabMode::Locked;
-    cursor_options.visible = false;
-}
-
-pub fn cursor_release_sys(
-    mut cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>
-) {
-    cursor_options.grab_mode = CursorGrabMode::None;
-    cursor_options.visible = true;
-}
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -146,6 +137,9 @@ pub fn button_sys(
 // PAUSE MENU
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+#[derive(Component)]
+pub struct PauseMenu;
+
 pub enum MenuActions {
     RESUME,
     QUIT,
@@ -167,20 +161,21 @@ pub fn build_pause_menu() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-        DespawnOnExit(GameUpdateState::Paused),
+        PauseMenu,
         ZIndex(100),
         Pickable::IGNORE,
     );
     return pause_menu_root
 }
 
-fn spawn_pause_menu_sys(
+fn spawn_pause_menu_obs(
+    event: On<Start<OpenPauseMenu>>,
     mut commands: Commands,
 ) {
     let pause_text_bundle = (
         Text::new("Game Paused"),
         TextFont {
-            font_size: 20.0,
+            font_size: 40.0,
             ..default()
         },
         TextColor::default(),
@@ -193,62 +188,40 @@ fn spawn_pause_menu_sys(
             spawn_button(parent, "Resume", PauseMenuButton { action: MenuActions::RESUME });
             spawn_button(parent, "Quit Game", PauseMenuButton { action: MenuActions::QUIT });
     });
+    commands.trigger(CursorLockRequest::Unlock);
+}
+
+fn despawn_pause_menu_obs(
+    event: On<Start<ClosePauseMenu>>,
+    mut commands: Commands,
+   pause_menu_query: Query<Entity, With<PauseMenu>>,
+) {
+    for entity in pause_menu_query {
+        commands.entity(entity).despawn();
+    }
+    commands.trigger(CursorLockRequest::Lock);
 }
 
 fn pause_menu_actions_obs(
     button_press: On<ButtonPressedEvent>,
     interaction_query: Query<&PauseMenuButton, With<Button>>,
-    mut game_next_state: ResMut<NextState<GameUpdateState>>,
-    mut ui_next_state: ResMut<NextState<UIState>>,
+    player_query: Query<Entity, With<Player>>,
+    mut commands: Commands,
     mut app_exit_writer: MessageWriter<AppExit>,
 ) {
     let pressed_button_entity = button_press.entity;
-    if let Ok(a) = interaction_query.get(pressed_button_entity) {
-        match a.action {
-            MenuActions::QUIT => { app_exit_writer.write(AppExit::Success); },
-            MenuActions::RESUME => {
-                game_next_state.set(GameUpdateState::Running);
-                ui_next_state.set(UIState::Game);
-            }
-        }
+    let Ok(button_data) = interaction_query.get(pressed_button_entity) else { return; };
+    let Ok(player_entity) = player_query.single() else { return; };
+
+    let resume_event = Start::<ClosePauseMenu> {
+        context: player_entity,
+        action: pressed_button_entity,
+        value: true,
+        state: TriggerState::Fired,
+    };
+
+    match button_data.action {
+        MenuActions::QUIT => { app_exit_writer.write(AppExit::Success); },
+        MenuActions::RESUME => { commands.trigger(resume_event); }
     }
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GAME UI
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-pub fn spawn_crosshair_sys(
-    mut commands: Commands,
-) {
-    // Spawn a simple crosshair in the center of the screen using a UI node.
-
-    // For now, just spawn a small square as a placeholder for a crosshair.
-    let crosshair_bundle = (
-        Node {
-            width: px(10),
-            height: px(10),
-            ..default()
-        },
-        BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
-        Pickable::IGNORE,
-    );
-
-    // Large node to center the crosshair
-    let crosshair_parent = (Node {
-            width: percent(100),
-            height: percent(100),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        Pickable::IGNORE,
-        children![crosshair_bundle]
-    );
-
-    // Spawn the parent node and then the crosshair as its child.
-    commands.spawn(crosshair_parent);
-}
-
-

@@ -1,7 +1,7 @@
 use bevy::{input::mouse::AccumulatedMouseMotion, pbr::ScreenSpaceAmbientOcclusion, prelude::*};
 use std::f32::consts::FRAC_PI_2;
 
-use crate::plugin::state::GameUpdateState;
+use crate::plugin::state::GameState;
 
 // Contains camera plugins to be used in both development and production builds.
 
@@ -17,7 +17,7 @@ impl Plugin for FreeCameraPlugin {
         .add_systems(Update, (
             camera_mouse_sys,
             camera_movement_sys,
-        ).run_if(in_state(GameUpdateState::Running)))
+        ).run_if(in_state(GameState::Running)))
         ;
     }
 }

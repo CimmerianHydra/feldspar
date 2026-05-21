@@ -5,7 +5,7 @@ mod plugin;
 use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
 use plugin::block_registry::{BlockRegistryPlugin, BlockDefinition, BlockID, BlockRegistry};
-use plugin::block_interaction::{BlockInteractionPlugin, DDARay};
+use plugin::block_interaction::BlockInteractionPlugin;
 use plugin::chunk::ChunkPlugin;
 use plugin::ui::main::UIPlugin;
 use plugin::weather::WeatherPlugin;
@@ -19,12 +19,14 @@ use plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use plugin::worldgen::main::WorldgenPlugin;
 use plugin::controller::player::PlayerControllerPlugin;
 use plugin::audio::block::BlockAudioPlugin;
+use plugin::crafting::main::SpatialCraftingPlugin;
 
 use bevy::{input::common_conditions::input_toggle_active};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
 
 use crate::plugin::audio::block::SoundProfile;
+
 
 fn main() {
     App::new()
@@ -42,6 +44,7 @@ fn main() {
         .add_plugins(BlockRegistryPlugin)
         .add_plugins(ItemRegistryPlugin)
         .add_plugins(InventoryPlugin)
+        .add_plugins(SpatialCraftingPlugin)
         .add_plugins(BlockInteractionPlugin)
         .add_plugins(WorldgenPlugin)
         .add_plugins(WeatherPlugin)
@@ -57,8 +60,9 @@ fn main() {
         .add_systems(Startup, dev_initialize_registry_sys)
         .add_systems(Startup, crate::plugin::inventory::item_registry::initialize_item_registry_sys.after(dev_initialize_registry_sys))
 
-        // Only run this once to generate the world
         .add_systems(Update, crate::plugin::worldgen::main::setup_dev_chunks.run_if(run_once))
+        .add_systems(Update, dev_populate_player_inventory.run_if(run_once))
+        .add_systems(Update, dev_lock_cursor.run_if(run_once))
 
         .run();
 }
@@ -185,4 +189,54 @@ pub fn dev_initialize_registry_sys(
     }
 
     bevy::log::info_once!("BlockRegistry successfully initialized.");
+}
+
+use crate::plugin::inventory::main::*;
+use crate::plugin::inventory::player::*;
+use crate::plugin::inventory::item_registry::*;
+use crate::plugin::ui::cursor::CursorLockRequest;
+
+/// Hardcoded function to spawn some items into the player's inventory.
+/// Since I hardcoded a few blocks in the block registry, I'll add them here.
+pub fn dev_populate_player_inventory(
+    mut commands: Commands,
+    mut player_hotbar_query: Query<(Entity, &mut Inventory), With<PlayerHotbar>>,
+    mut player_inventory_query: Query<(Entity, &mut Inventory), (With<PlayerInventory>, Without<PlayerHotbar>)>,
+    item_registry: Res<ItemRegistry>,
+) {
+    if let Ok((entity, mut inventory)) = player_hotbar_query.single_mut() {
+        for id in 1..5 {
+            let item_id = ItemID(id as u16);
+            let result = inventory.insert(item_id, 5, &item_registry);
+
+            bevy::log::info!("Added [{}]x{} to player hotbar.", item_registry.get(item_id).name, result.transferred);
+            commands.trigger(InventoryChangedEvent {
+                entity,
+                index: id - 1,
+            });
+        };
+    }
+
+    if let Ok((entity, mut inventory)) = player_inventory_query.single_mut() {
+        for slot in 0..3 {
+            let item_id = ItemID(1);
+            let result = inventory.insert_at_slot(item_id, 40, slot, &item_registry);
+
+            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, result.transferred);
+            commands.trigger(InventoryChangedEvent {
+                entity,
+                index: slot,
+            });
+        };
+    }
+
+
+}
+
+
+/// Lock the cursor to the screen at the beginning of the game
+pub fn dev_lock_cursor(
+    mut commands: Commands,
+) {
+    commands.trigger(CursorLockRequest::Lock);
 }

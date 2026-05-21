@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::window::{CursorOptions, PrimaryWindow, CursorGrabMode};
 
 use crate::plugin::inventory::item_registry::ItemRegistry;
 use crate::plugin::inventory::main::Inventory;
@@ -6,9 +7,39 @@ use crate::plugin::inventory::main::InventoryChangedEvent;
 use crate::plugin::ui::item::build_ui_item_display;
 use crate::plugin::ui::main::*;
 use crate::plugin::ui::inventory::*;
-use crate::plugin::inventory::player::CursorInventory;
+use crate::plugin::inventory::cursor::CursorInventory;
 
 pub const CURSOR_UI_ZINDEX: i32 = 1000;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CURSOR LOCKING
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Event)]
+pub enum CursorLockRequest {
+    Lock,
+    Unlock
+}
+
+pub fn cursor_lock_request_obs(
+    cursor_request: On<CursorLockRequest>,
+    mut cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>
+) {
+    match cursor_request.event() {
+        CursorLockRequest::Lock => {
+            cursor_options.grab_mode = CursorGrabMode::Locked;
+            cursor_options.visible = false;
+        }
+        CursorLockRequest::Unlock => {
+            cursor_options.grab_mode = CursorGrabMode::None;
+            cursor_options.visible = true;
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CURSOR UI AND INVENTORY INTERACTION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Component)]
 pub struct CursorSlot;
@@ -105,4 +136,39 @@ pub fn sync_cursor_inventory_obs(
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CROSSHAIR (it's kinda like a cursor, right?)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+pub fn spawn_crosshair_sys(
+    mut commands: Commands,
+) {
+    // Spawn a simple crosshair in the center of the screen using a UI node.
+
+    // For now, just spawn a small square as a placeholder for a crosshair.
+    let crosshair_bundle = (
+        Node {
+            width: px(10),
+            height: px(10),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+        Pickable::IGNORE,
+    );
+
+    // Large node to center the crosshair
+    let crosshair_parent = (Node {
+            width: percent(100),
+            height: percent(100),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
+            ..default()
+        },
+        Pickable::IGNORE,
+        children![crosshair_bundle]
+    );
+
+    // Spawn the parent node and then the crosshair as its child.
+    commands.spawn(crosshair_parent);
+}

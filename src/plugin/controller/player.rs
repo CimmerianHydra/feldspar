@@ -1,11 +1,7 @@
 use std::f32::consts::FRAC_PI_2;
-
 use bevy::prelude::*;
 
-use crate::plugin::state::*;
-
 use avian3d::prelude::*;
-use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy_enhanced_input::prelude::*;
 use crate::plugin::block_interaction::DDARay;
 
@@ -34,6 +30,10 @@ const GRAVITY_ACCEL:    f32 = 15.0;
 struct Move;
 
 #[derive(InputAction)]
+#[action_output(Vec2)]
+struct Look;
+
+#[derive(InputAction)]
 #[action_output(bool)]
 struct Jump;
 
@@ -55,17 +55,27 @@ pub struct AltFire;
 /// Action corresponding to key I in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-pub struct OpenInventory;
+pub struct OpenPlayerInventory;
 
 /// Action corresponding to key I in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-pub struct CloseInventory;
+pub struct ClosePlayerInventory;
 
 /// Actions corresponding to numbers 1-9 in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
 pub struct SelectItem;
+
+/// Action corresponding to Escape in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct OpenPauseMenu;
+
+/// Action corresponding to Escape in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct ClosePauseMenu;
 
 // ── Components ────────────────────────────────────────────────────────────────
 
@@ -76,10 +86,15 @@ pub struct Player;
 #[derive(Component)]
 struct GameInput;
 
-/// Set of inputs available to the player when they're browsing menus.
+/// Set of inputs available to the player when they're browsing the pause menu.
 #[derive(Component)]
-struct MenuInput;
+struct PauseMenuInput;
 
+/// Set of inputs available to the player when they're browsing their inventory.
+#[derive(Component)]
+struct InventoryInput;
+
+/// Helper component for the "select n-th hotbar slot" action, to retrieve which hotbar index is selected by the action
 #[derive(Component)]
 pub struct HotbarSelection {
     pub index: usize,
@@ -122,9 +137,11 @@ fn spawn_player(mut commands: Commands) {
             Transform::from_xyz(0.0, 20.0, 0.0),
 
             build_game_input_actions(),
-            build_menu_input_actions(),
+            build_pause_menu_input_actions(),
+            build_player_inventory_menu_input_actions(),
             ContextActivity::<GameInput>::ACTIVE,
-            ContextActivity::<MenuInput>::INACTIVE,
+            ContextActivity::<PauseMenuInput>::INACTIVE,
+            ContextActivity::<InventoryInput>::INACTIVE,
 
             children![(
                 FPSCamera { sensitivity: DEFAULT_SENSITIVITY },
@@ -134,11 +151,15 @@ fn spawn_player(mut commands: Commands) {
                 SpatialListener::default(),
             )],
         ))
+        .observe(on_look_fire)
         .observe(on_move_fire)
         .observe(on_move_complete)
         .observe(on_jump_start)
-        .observe(on_open_inventory)
-        .observe(on_close_inventory)
+        .observe(on_open_player_inventory)
+        .observe(on_close_player_inventory)
+        .observe(on_open_pause_menu)
+        .observe(on_close_pause_menu)
+
     ;
 }
 
@@ -146,12 +167,27 @@ fn build_game_input_actions() -> impl Bundle
 {
     (GameInput,
     actions!(GameInput[
+            (
+                Action::<Look>::new(),
+                Bindings::spawn(Spawn((
+                    Binding::mouse_motion(),
+                    Negate::all(),
+                ))),
+            ),
             (Action::<PrimaryFire>::new(), bindings![MouseButton::Left]),
             (Action::<SecondaryFire>::new(), bindings![MouseButton::Right]),
             (Action::<Move>::new(), DeadZone::default(), Bindings::spawn(Cardinal::wasd_keys())),
             (Action::<Jump>::new(), bindings![KeyCode::Space]),
             (
-                Action::<OpenInventory>::new(),
+                Action::<OpenPauseMenu>::new(),
+                ActionSettings {
+                    require_reset: true,
+                    ..Default::default()
+                },
+                bindings![KeyCode::Escape],
+            ),
+            (
+                Action::<OpenPlayerInventory>::new(),
                 // We set `require_reset` to `true` because `CloseInventory` action uses the same input,
                 // and we want it to be triggerable only after the button is released.
                 ActionSettings {
@@ -173,60 +209,44 @@ fn build_game_input_actions() -> impl Bundle
     )
 }
 
-fn build_menu_input_actions() -> impl Bundle
+fn build_pause_menu_input_actions() -> impl Bundle
 {
-    (MenuInput,
-    actions!(MenuInput[
+    (PauseMenuInput,
+    actions!(PauseMenuInput[
             (
-                Action::<CloseInventory>::new(),
+                Action::<ClosePauseMenu>::new(),
                 ActionSettings {
                     require_reset: true,
                     ..Default::default()
                 },
-                bindings![KeyCode::KeyI],
+                bindings![KeyCode::Escape],
+            ),
+        ]),
+    )
+}
+
+fn build_player_inventory_menu_input_actions() -> impl Bundle
+{
+    (InventoryInput,
+    actions!(InventoryInput[
+            (
+                Action::<ClosePlayerInventory>::new(),
+                ActionSettings {
+                    require_reset: true,
+                    ..Default::default()
+                },
+                bindings![KeyCode::KeyI, KeyCode::Escape],
             ),
         ]),
     )
 }
 
 
-// ── Look ──────────────────────────────────────────────────────────────────────
-//
-// Mirrors the convention of camera_mouse_sys, but splits the rotation:
-//   - Body owns yaw (rotation around +Y).
-//   - Camera child owns pitch (rotation around +X), clamped.
-//
-// Because each transform holds only one axis of rotation, we don't need the
-// full YXZ Euler round-trip — `from_rotation_y` / `from_rotation_x` are enough.
 
-fn player_look_sys(
-    mouse_motion: Res<AccumulatedMouseMotion>,
-    mut player_q: Query<(&mut Transform, &Children), With<Player>>,
-    mut camera_q: Query<(&mut Transform, &FPSCamera), Without<Player>>,
-) {
-    let Ok((mut body_tf, children)) = player_q.single_mut() else { return };
-    for &child in children {
-        if let Ok((mut cam_tf, camera_data)) = camera_q.get_mut(child) {
 
-            if mouse_motion.delta == Vec2::ZERO { return; }
-
-            let delta_x = mouse_motion.delta.x * camera_data.sensitivity;
-            let delta_y = mouse_motion.delta.y * camera_data.sensitivity;
-
-            // Body yaw: read current yaw, subtract delta_x, rebuild.
-            let (yaw, _, _) = body_tf.rotation.to_euler(EulerRot::YXZ);
-            body_tf.rotation = Quat::from_rotation_y(yaw - delta_x);
-
-            // Camera pitch: same idea on whichever child is the FpsCamera.
-    
-            let (_, pitch, _) = cam_tf.rotation.to_euler(EulerRot::YXZ);
-            let new_pitch = (pitch - delta_y).clamp(-PITCH_LIMIT, PITCH_LIMIT);
-            cam_tf.rotation = Quat::from_rotation_x(new_pitch);
-        }
-    }
-}
-
-// ── Input observers ───────────────────────────────────────────────────────────
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// INPUT OBSERVERS - TO BE SPAWNED INTO THE PLAYER
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn on_move_fire(fire: On<Fire<Move>>, mut players: Query<&mut PlayerMovementData>) {
     if let Ok(mut mv) = players.get_mut(fire.context) {
@@ -247,20 +267,71 @@ fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovementD
     }
 }
 
-fn on_open_inventory(
-    start: On<Start<OpenInventory>>,
+fn on_open_player_inventory(
+    start: On<Start<OpenPlayerInventory>>,
     mut commands: Commands,
 ) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<MenuInput>::ACTIVE));
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<InventoryInput>::ACTIVE));
 }
 
-fn on_close_inventory(
-    start: On<Start<CloseInventory>>,
+fn on_close_player_inventory(
+    start: On<Start<ClosePlayerInventory>>,
     mut commands: Commands,
 ) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<MenuInput>::INACTIVE));
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<InventoryInput>::INACTIVE));
 }
 
+fn on_open_pause_menu(
+    start: On<Start<OpenPauseMenu>>,
+    mut commands: Commands,
+) {
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<PauseMenuInput>::ACTIVE));
+}
+
+fn on_close_pause_menu(
+    start: On<Start<ClosePauseMenu>>,
+    mut commands: Commands,
+) {
+    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<PauseMenuInput>::INACTIVE));
+}
+
+// ── Look ──────────────────────────────────────────────────────────────────────
+//
+// Mirrors the convention of camera_mouse_sys, but splits the rotation:
+//   - Body owns yaw (rotation around +Y).
+//   - Camera child owns pitch (rotation around +X), clamped.
+//
+// Because each transform holds only one axis of rotation, we don't need the
+// full YXZ Euler round-trip — `from_rotation_y` / `from_rotation_x` are enough.
+
+fn on_look_fire(
+    look: On<Fire<Look>>,
+    mut bodies: Query<(&mut Transform, &Children), With<Player>>,
+    mut cameras: Query<(&mut Transform, &FPSCamera), Without<Player>>,
+) {
+    let Ok((mut body_tf, children)) = bodies.get_mut(look.context) else { return };
+
+    // Body yaw.
+    let (yaw, _, _) = body_tf.rotation.to_euler(EulerRot::YXZ);
+    // Sensitivity is pulled from whichever child is the FPS camera.
+    // We need it before we can apply yaw, so peek at the first matching child.
+    let sensitivity = children
+        .iter()
+        .find_map(|c| cameras.get(c).ok().map(|(_, cam)| cam.sensitivity))
+        .unwrap_or(DEFAULT_SENSITIVITY);
+
+    body_tf.rotation = Quat::from_rotation_y(yaw + look.value.x * sensitivity);
+
+    // Camera pitch.
+    for &child in children {
+        if let Ok((mut cam_tf, _)) = cameras.get_mut(child) {
+            let (_, pitch, _) = cam_tf.rotation.to_euler(EulerRot::YXZ);
+            let new_pitch = (pitch + look.value.y * sensitivity)
+                .clamp(-PITCH_LIMIT, PITCH_LIMIT);
+            cam_tf.rotation = Quat::from_rotation_x(new_pitch);
+        }
+    }
+}
 
 
 // ── Physics step ──────────────────────────────────────────────────────────────
@@ -374,10 +445,10 @@ impl Plugin for PlayerControllerPlugin {
         app
         .add_plugins(EnhancedInputPlugin)
         .add_input_context::<GameInput>()
-        .add_input_context::<MenuInput>()
+        .add_input_context::<PauseMenuInput>()
+        .add_input_context::<InventoryInput>()
 
         .add_systems(Update, spawn_player.run_if(run_once))
-        .add_systems(Update, player_look_sys.run_if(in_state(UIState::Game)))
         .add_systems(FixedUpdate, step)
 
         ;

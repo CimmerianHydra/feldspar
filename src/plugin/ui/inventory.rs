@@ -1,11 +1,17 @@
-use bevy::prelude::*;
+use bevy::{
+    ecs::{component::{Mutable, StorageType}, lifecycle::{ComponentHook, HookContext}, world::DeferredWorld},
+    prelude::*,
+};
 
 use crate::plugin::ui::main::*;
-use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
 use crate::plugin::ui::item::build_ui_item_display;
+use crate::plugin::ui::cursor::CursorLockRequest;
+
+use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent, ItemStack};
+use crate::plugin::inventory::player::PlayerInventory;
 use crate::plugin::inventory::item_registry::ItemRegistry;
-use crate::plugin::inventory::main::ItemStack;
-use crate::plugin::state::UIState;
+
+use crate::plugin::controller::player::{OpenPlayerInventory, ClosePlayerInventory};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BASIC SLOT BUILDER
@@ -35,9 +41,28 @@ pub fn build_base_ui_item_slot() -> impl Bundle
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[derive(Component)]
+#[component(on_add = inventory_slot_on_add)]
 pub struct InventorySlot {
     pub source_entity: Entity, // The inventory entity associated with this slot
     pub slot_index: usize,
+}
+
+fn inventory_slot_on_add(mut world: DeferredWorld, ctx: HookContext) {
+    // Pull the data out of the slot we just received.
+    let (source_entity, slot_index) = {
+        let slot = world
+            .entity(ctx.entity)
+            .get::<InventorySlot>()
+            .expect("on_add hook always runs after the component is in place");
+        (slot.source_entity, slot.slot_index)
+    };
+
+    // Re-use the existing sync pipeline. The observer will look up the
+    // current inventory contents and render this exact slot.
+    world.commands().trigger(InventoryUISyncRequest {
+        entity: source_entity,
+        index:  slot_index,
+    });
 }
 
 /// Builder function that returns a bundle of all relevant components for a hotbar item slot.
@@ -55,6 +80,24 @@ fn build_inventory_ui_item_slot(
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INVENTORY UI
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Keeps track of the entities involved in the displayed UIs. Useful to query the UI objects involved with
+/// entities, such as inventory UI, machine UI, etc. This component is used to despawn the root node
+/// of UIs when a request to close the UI arrives.
+/// This is a problem for multiplayers, so this will be need to be done through EntityEvents.
+#[derive(Component)]
+pub struct EntityUISession {
+    pub source_entities: Vec<Entity>,
+}
+
+/// Useful to end the UI session on a command by simply listing one of the involved entities. If the UI
+/// node has that entity in its EntityUISession vector, it'll be despawned.
+#[derive(EntityEvent)]
+pub struct EntityUISessionEndRequest {
+    #[event_target]
+    pub context: Entity,
+    pub source_entity: Entity,
+}
 
 #[derive(Event)]
 pub struct InventoryUISpawnRequest {
@@ -195,8 +238,8 @@ pub fn show_requested_inventory_obs(
     mut commands: Commands,
     inventory_q: Query<(Entity, &Inventory)>,
 ) {
-    let requested_inventory = view_requests.source_entity;
-    if let Ok((source_entity, inventory)) = inventory_q.get(requested_inventory) {
+    let entity_to_spawn_ui_for = view_requests.source_entity;
+    if let Ok((source_entity, inventory)) = inventory_q.get(entity_to_spawn_ui_for) {
 
         let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 9);
 
@@ -209,7 +252,7 @@ pub fn show_requested_inventory_obs(
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-            DespawnOnExit(UIState::Inventory),
+            EntityUISession { source_entities: vec![entity_to_spawn_ui_for] },
             ZIndex(100),
             Pickable::IGNORE,
             children![
@@ -219,14 +262,21 @@ pub fn show_requested_inventory_obs(
 
         commands.spawn(root_bundle);
 
-        // Send a sync request for all nonempty slots
-        for (i, slot) in inventory.slots().iter().enumerate() {
-            if slot.is_some() {
-                commands.trigger(InventoryUISyncRequest {
-                    entity: requested_inventory,
-                    index:  i,
-                });
-            }
+        // Every item slot, once it's added as a component to an entity, will send a sync event.
+        // This enables us to make sure that we don't need to sync the items the first time a slot is added.
+    }
+}
+
+pub fn close_requested_inventory_obs(
+    close_requests: On<EntityUISessionEndRequest>,
+    mut commands: Commands,
+    session_query: Query<(Entity, &EntityUISession)>,
+) {
+    let entity_to_close_ui_for = close_requests.source_entity;
+
+    for (ui_entity, session) in session_query {
+        if session.source_entities.contains(&entity_to_close_ui_for) {
+            commands.entity(ui_entity).despawn()
         }
     }
 }

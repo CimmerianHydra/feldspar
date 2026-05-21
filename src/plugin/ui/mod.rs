@@ -4,5 +4,6 @@ pub mod compass;
 pub mod item;
 pub mod cursor;
 pub mod crafting;
+pub mod player;
 
 pub mod main;

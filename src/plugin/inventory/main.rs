@@ -2,15 +2,12 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::plugin::inventory::player::{
-    dev_populate_player_inventory,
     spawn_player_inventory_sys,
     on_hotbar_changed,
-    update_hotbar_obs,
-    inventory_ui_click_obs,
+    sync_hotbar_on_mouse_scroll_obs,
 };
 use crate::plugin::inventory::item_registry::*;
-use crate::plugin::state::UIState;
-use crate::plugin::ui::inventory::InventoryUISpawnRequest;
+use crate::plugin::inventory::cursor::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -21,19 +18,12 @@ pub struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app
-
             // Startup Systems
             .add_systems(Startup, spawn_player_inventory_sys)
 
-            // Update Systems
-
-            // DEVELOPMENT SYSTEMS TO TEST THINGS
-            .add_systems(Update, dev_populate_player_inventory.run_if(run_once))
-            .add_systems(Update, dev_spawn_dummy_inventory.run_if(run_once))
-            .add_systems(OnEnter(UIState::Inventory), dev_show_dummy_inventory_request_obs)
-
             // Event Observers
-            .add_observer(update_hotbar_obs)
+            .add_observer(sync_hotbar_on_mouse_scroll_obs)
+            .add_observer(sync_hotbar_on_input_action_obs)
             .add_observer(on_hotbar_changed)
             .add_observer(inventory_ui_click_obs)
         ;
@@ -341,29 +331,5 @@ pub struct InventoryChangedEvent {
 // DEV FUNCTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub fn dev_spawn_dummy_inventory(
-    mut commands: Commands,
-    item_registry: Res<ItemRegistry>,
-) {
-    let mut new_inventory = Inventory::new(27);
-    new_inventory.insert_at_slot(ItemID(1), 40, 0, &item_registry);
-    new_inventory.insert_at_slot(ItemID(1), 40, 1, &item_registry);
-    new_inventory.insert_at_slot(ItemID(1), 40, 2, &item_registry);
+use crate::plugin::inventory::player::*;
 
-    bevy::log::info!("Added stuff to dummy inventory.");
-    commands.spawn(
-        (new_inventory,
-        Name::new("Dummy"))
-    );
-}
-
-pub fn dev_show_dummy_inventory_request_obs(
-    mut commands: Commands,
-    dummy_inventory_q: Query<(Entity, &Name)>,
-) {
-    for (entity, name) in dummy_inventory_q.iter() {
-        if name.contains("Dummy") {
-            commands.trigger(InventoryUISpawnRequest { source_entity: entity });
-        }
-    }
-}

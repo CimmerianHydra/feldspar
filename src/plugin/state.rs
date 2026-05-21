@@ -1,5 +1,8 @@
 use bevy::prelude::*;
 use avian3d::prelude::*;
+use bevy_enhanced_input::prelude::*;
+
+use crate::plugin::controller::player::{OpenPauseMenu, ClosePauseMenu};
 
 pub struct StatePlugin;
 
@@ -8,70 +11,39 @@ impl Plugin for StatePlugin {
         // Add systems related to UI here
         app
 
-        .init_state::<GameUpdateState>()
-        .init_state::<UIState>()
+        .init_state::<GameState>()
         .init_state::<GameMode>()
-        
-        .add_systems(Update, toggle_state_sys)
 
-        .add_systems(OnExit(GameUpdateState::Running), pause_physics)
-        .add_systems(OnEnter(GameUpdateState::Running), resume_physics)
+
         ;
     }
 }
 
-fn pause_physics(mut time: ResMut<Time<Physics>>) {
-    time.pause();
-}
-
-fn resume_physics(mut time: ResMut<Time<Physics>>) {
-    time.unpause();
-}
-
 // Toggles between pause and unpause.
-fn toggle_state_sys(
-    input: Res<ButtonInput<KeyCode>>,
-    game_state: Res<State<GameUpdateState>>,
-    mut next_game_state: ResMut<NextState<GameUpdateState>>,
-    ui_state: Res<State<UIState>>,
-    mut next_ui_state: ResMut<NextState<UIState>>,
+fn open_pause_menu_action_obs(
+    event: On<Start<OpenPauseMenu>>,
+    mut time: ResMut<Time<Physics>>,
+    mut next_state: NextState<GameState>,
 ) {
-    if input.just_pressed(KeyCode::Escape) {
-        match ui_state.get() {
-            UIState::Game => {
-                next_ui_state.set(UIState::PauseMenu);
-                next_game_state.set(GameUpdateState::Paused);
-            },
-            _ => {
-                next_ui_state.set(UIState::Game);
-                next_game_state.set(GameUpdateState::Running);
-            },
-        }
-    }
+    time.pause();
+    next_state.set(GameState::Paused);
+}
 
-    if input.just_pressed(KeyCode::KeyI) {
-        match ui_state.get() {
-            UIState::Game => next_ui_state.set(UIState::Inventory),
-            UIState::Inventory => next_ui_state.set(UIState::Game),
-            UIState::PauseMenu => {},
-        }
-    }
+fn close_pause_menu_action_obs(
+    event: On<Start<ClosePauseMenu>>,
+    mut time: ResMut<Time<Physics>>,
+    mut next_state: NextState<GameState>,
+) {
+    time.unpause();
+    next_state.set(GameState::Running);
 }
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
-pub enum GameUpdateState {
+pub enum GameState {
     #[default]
     Loading,
     Running,
     Paused,
-}
-
-#[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
-pub enum UIState {
-    #[default]
-    Game,
-    PauseMenu,
-    Inventory,
 }
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
