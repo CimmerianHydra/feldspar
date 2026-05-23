@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::plugin::inventory::player::{
-    spawn_player_inventory_sys,
+    append_player_inventory_sys,
     on_hotbar_changed,
     sync_hotbar_on_mouse_scroll_obs,
 };
@@ -18,8 +18,8 @@ pub struct InventoryPlugin;
 impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app
-            // Startup Systems
-            .add_systems(Startup, spawn_player_inventory_sys)
+            // Systems that depend on other plugins
+            .add_systems(Update, append_player_inventory_sys)
 
             // Event Observers
             .add_observer(sync_hotbar_on_mouse_scroll_obs)

@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::Deserialize;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – VOXEL DATA  (voxel.rs)
@@ -139,7 +140,7 @@ impl Voxel {
 /// | Slope | Uphill toward Up/Down | Uphill toward that cardinal |
 
 #[repr(u32)]
-#[derive(Debug, Clone, PartialEq, Eq, Reflect)]
+#[derive(Debug, Clone, PartialEq, Eq, Reflect, Deserialize)]
 pub enum BlockShape {
     /// Fills the entire voxel cube.
     Cube,
@@ -151,8 +152,6 @@ pub enum BlockShape {
     StairInv,
     /// 45 ° ramp / slope. Facing = direction of the uphill edge.
     Slope,
-    /// Custom
-    Custom(Handle<Mesh>),
 }
 
 impl BlockShape {

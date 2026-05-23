@@ -10,11 +10,8 @@ impl Plugin for StatePlugin {
     fn build(&self, app: &mut App) {
         // Add systems related to UI here
         app
-
         .init_state::<GameState>()
         .init_state::<GameMode>()
-
-
         ;
     }
 }

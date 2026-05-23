@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
+use crate::plugin::block_registry::BlockRegistry;
 use crate::plugin::chunk::VoxelChunk;
+use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
+use crate::plugin::loader::block_assets::populate_block_registry_sys;
+use crate::plugin::state::GameState;
 use crate::plugin::worldgen::{flat::FlatGenerator, hills::HillsGenerator};
 
 
@@ -8,20 +12,17 @@ use crate::plugin::worldgen::{flat::FlatGenerator, hills::HillsGenerator};
 // PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub struct WorldgenPlugin;
 
 pub const DEV_SEED: u64 = 0;
 
+pub struct WorldgenPlugin;
+
 impl Plugin for WorldgenPlugin {
     fn build(&self, app: &mut App) {
-        // Default to a flat world with seed 0.
-        // Swap for `ActiveWorldGenerator::Hills(...)` once the hills generator
-        // is in place, or replace at runtime when load-game UI exists.
-        app
-        
-        .insert_resource(ActiveWorldGenerator::Hills(HillsGenerator::new(DEV_SEED)))
-
-        ;
+        app.add_systems(
+            OnExit(GameState::Loading),
+            init_active_worldgen_sys.after(populate_block_registry_sys),
+        );
     }
 }
 
@@ -39,6 +40,14 @@ impl Plugin for WorldgenPlugin {
 /// overwrites it in place.
 pub trait WorldGenerator: Send + Sync {
     fn generate_chunk(&self, chunk_pos: IVec3, out: &mut VoxelChunk);
+}
+
+fn init_active_worldgen_sys(
+    mut commands: Commands,
+    registry:     Res<BlockRegistry>,
+) {
+    let generator = ActiveWorldGenerator::Hills(HillsGenerator::new(DEV_SEED, &registry));
+    commands.insert_resource(generator);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -66,8 +75,6 @@ impl WorldGenerator for ActiveWorldGenerator {
 // DEV FUNCTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-use crate::plugin::graphics::block_material::{VoxelMaterial, VoxelMaterialExtension};
-use crate::plugin::graphics::block_textures::create_texture_array;
 use crate::plugin::chunk::{StaticChunk, NeedsRemeshing};
 use crate::plugin::dimension::DimensionID;
 
@@ -78,50 +85,10 @@ const DEV_CHUNK_RADIUS: i32 = 4;
 const DEV_CHUNK_HEIGHT: i32 = 4;
 
 pub fn setup_dev_chunks(
-    mut commands:     Commands,
-    mut images:       ResMut<Assets<Image>>,
-    mut vox_material: ResMut<Assets<VoxelMaterial>>,
-    worldgen:         Res<ActiveWorldGenerator>,
+    mut commands:                   Commands,
+    terrain_material_handle_res:    Res<VoxelMaterialHandle>,
+    worldgen:                       Res<ActiveWorldGenerator>,
 ) {
-    // ── base texture array ────────────────────────────────────────────────
-    // Layer 0: purple-black  (used by FaceTextures::Simple when base=0)
-    // Layer 1: slate
-    // Layer 2: limestone
-    // to add more as registry grows
-    let array_texture = create_texture_array(
-        &[
-            "assets\\textures\\extra\\missing_tex.png",
-            "assets\\textures\\terrain\\dirt.png",
-            "assets\\textures\\terrain\\slate.png",
-        ],
-        &mut images,
-    );
-
-    // ── overlay texture array ─────────────────────────────────────────────
-    // Layer 0: transparent (NO_OVERLAY = 0)
-    // Layer 1: grass overlay (tinted green via FaceTextures::Tinted)
-    let array_overlay = create_texture_array(
-        &[
-            "assets\\textures\\extra\\missing_tex.png",
-            "assets\\textures\\tinted\\grass_top.png",
-            "assets\\textures\\tinted\\grass_side.png",
-        ],
-        &mut images,
-    );
-    
-    let material_handle = vox_material.add(VoxelMaterial {
-        base: StandardMaterial {
-            base_color: Color::from(bevy::color::palettes::basic::WHITE),
-            metallic: 0.0,
-            perceptual_roughness: 0.8,
-            ..default()
-        },
-        extension: VoxelMaterialExtension {
-            array_texture,
-            array_overlay,
-        },
-    });
-
     // ── chunk generation + spawn ──────────────────────────────────────────
     let dim_id = DimensionID::OVERWORLD;
 
@@ -138,7 +105,7 @@ pub fn setup_dev_chunks(
                 commands.spawn((
                     StaticChunk { dimension: dim_id, position: chunk_pos },
                     chunk_data.clone(),
-                    MeshMaterial3d(material_handle.clone()),
+                    MeshMaterial3d(terrain_material_handle_res.0.clone()),
                     NeedsRemeshing,
                 ));
             }

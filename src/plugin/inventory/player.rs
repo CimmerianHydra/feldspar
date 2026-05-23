@@ -7,6 +7,7 @@ use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::cursor::*;
 
 use crate::plugin::controller::main::MouseScrollEvent;
+use crate::plugin::controller::player::Player;
 use crate::plugin::ui::hotbar::HotbarUISpawnRequest;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -96,31 +97,41 @@ pub struct PlayerHotbar {
 /// items to it using the populate_player_inventory function.
 /// In the future, these entities will have to become children of a player so we can start
 /// to distinguish players in a multiplayer world.
-pub fn spawn_player_inventory_sys(
+pub fn append_player_inventory_sys(
     mut commands: Commands,
+    mut player_query: Query<Entity, Added<Player>>,
 ) {
-    commands.spawn((
-        PlayerInventory,
-        Inventory::new(27),
-    ));
+    for new_player in player_query.iter() {
+        let new_inventory = commands.spawn((
+                PlayerInventory,
+                Inventory::new(27),
+        )).id();
 
-    let hotbar_entity = commands.spawn((
-        PlayerHotbar { highlighted_slot: 0 },
-        Inventory::new(9),
-    )).observe(on_hotbar_changed).id();
+        let new_hotbar = commands.spawn((
+            PlayerHotbar { highlighted_slot: 0 },
+            Inventory::new(9),
+        )).observe(on_hotbar_changed).id();
 
-    commands.spawn((
-        CursorInventory,
-        Inventory::new(1),
-    ));
+        let new_cursor_inventory = commands.spawn((
+            CursorInventory,
+            Inventory::new(1),
+        )).id();
 
-    commands.spawn((
-        PlayerEquipment { right_hand: None },
-    ));
+        let new_equipment = commands.spawn((
+            PlayerEquipment { right_hand: None },
+        )).id();
 
-    commands.trigger(HotbarUISpawnRequest {
-        source_entity: hotbar_entity,
-    });
+        commands.entity(new_player).add_children(&[
+            new_inventory,
+            new_hotbar,
+            new_cursor_inventory,
+            new_equipment
+        ]);
+
+        commands.trigger(HotbarUISpawnRequest {
+        source_entity: new_hotbar,
+        });
+    }
 }
 
 

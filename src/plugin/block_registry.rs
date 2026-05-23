@@ -76,28 +76,35 @@ impl Default for BlockDefinition {
 /// Global resource that keeps in memory all the blocks in the game
 #[derive(Resource)]
 pub struct BlockRegistry {
-    blocks:         Vec<BlockDefinition>,      // indexed by BlockID
+    definitions:         Vec<BlockDefinition>,      // indexed by BlockID
+    name_to_id:          HashMap<String, BlockID>
 }
 
 impl BlockRegistry {
     pub fn get(&self, id: BlockID) -> &BlockDefinition {
-        &self.blocks[id.0 as usize]
+        &self.definitions[id.0 as usize]
     }
 
     pub fn register_block(&mut self, def: BlockDefinition) -> BlockID {
-        let id = BlockID(self.blocks.len() as u16);
-        self.blocks.push(BlockDefinition { id, ..def });
+        let id = BlockID(self.definitions.len() as u16);
+        let name = def.name.clone();
+        self.definitions.push(BlockDefinition { id, ..def });
+        self.name_to_id.insert(name, id);
         id
+    }
+    
+    pub fn by_name(&self, name: String) -> Option<BlockID> {
+        self.name_to_id.get(&name).copied()
     }
 
     pub fn new() -> Self {
-        let mut new_registry = Self { blocks: Vec::new() };
+        let mut new_registry = Self { definitions: Vec::new(), name_to_id: HashMap::new() };
         new_registry.register_block(BlockDefinition::air());
         new_registry
     }
 
     pub fn size(&self) -> usize {
-        self.blocks.len()
+        self.definitions.len()
     }
 }
 

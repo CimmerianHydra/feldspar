@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use crate::plugin::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
-use crate::plugin::state::GameState;
 use crate::plugin::voxel::BlockShape;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -67,6 +66,8 @@ pub struct ItemRegistry {
     items: Vec<ItemDefinition>,
     /// Fast reverse lookup: BlockID → the item that places it
     block_to_item: HashMap<BlockID, ItemID>,
+    /// Stable-by-name lookup
+    name_to_item: HashMap<String, ItemID>,
 }
 
 impl ItemRegistry {
@@ -74,6 +75,7 @@ impl ItemRegistry {
         Self { 
             items: Vec::new(),
             block_to_item: HashMap::new(),
+            name_to_item: HashMap::new(),
         }
     }
 
@@ -81,12 +83,17 @@ impl ItemRegistry {
         &self.items[id.0 as usize]
     }
 
-    pub fn block_to_item(&self, block: BlockID) -> Option<ItemID> {
+    pub fn by_block(&self, block: BlockID) -> Option<ItemID> {
         self.block_to_item.get(&block).copied()
+    }
+
+    pub fn by_name(&self, name: String) -> Option<ItemID> {
+        self.name_to_item.get(&name).copied()
     }
 
     pub fn register(&mut self, def: ItemDefinition) -> ItemID {
         let id = ItemID(self.items.len() as u16);
+        let name = def.name.clone();
 
         // If this item places a block, record the reverse link
         if let ItemKind::Block { block_id } = def.kind {
@@ -94,7 +101,12 @@ impl ItemRegistry {
         }
 
         self.items.push(ItemDefinition { id, ..def });
+        self.name_to_item.insert(name, id);
         id
+    }
+
+    pub fn len(&self) -> usize {
+        self.items.len()
     }
 }
 
@@ -107,15 +119,13 @@ impl ItemRegistry {
 /// and use it to build the registry for the actual game, as well as building any custom
 /// object that only exists in a world in the registry (such as custom tools).
 
-pub fn initialize_item_registry_sys(
+pub fn populate_item_registry_sys(
     block_registry: Res<BlockRegistry>,
     mut item_registry: ResMut<ItemRegistry>,
-    _game_state: Res<State<GameState>>,
-    mut next_game_state: ResMut<NextState<GameState>>,
     asset_server: Res<AssetServer>,
 ) {
     // First we register all the blocks as items.
-    // In the future we'll do this by looking through JSON files.
+
     for id in 0..block_registry.size() {
         let block = block_registry.get(BlockID(id as u16));
         item_registry.register(
@@ -137,11 +147,8 @@ pub fn initialize_item_registry_sys(
             }
         );
     }
+    
+    // In the future we'll add all other items by looking through JSON files.
 
-    bevy::log::info_once!("ItemRegistry successfully initialized.");
-
-
-    // After we're done, we're free to play the game
-    // We need to create a "loading checklist" in the future
-    next_game_state.set(GameState::Running);
+    bevy::log::info_once!("ItemRegistry populated from blocks: {} entries.", item_registry.len());
 }

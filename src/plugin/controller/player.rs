@@ -15,7 +15,6 @@ const CAM_LOCAL_Y:      f32 = EYE_HEIGHT - PLAYER_HEIGHT * 0.5;
 
 const MOVE_SPEED:       f32 = 4.3;
 const JUMP_SPEED:       f32 = 8.0;
-const GROUND_SKIN:      f32 = 0.05;
 
 const DEFAULT_SENSITIVITY: f32 = 0.0022;
 const DEFAULT_REACH:       f32 = 8.0;
@@ -123,7 +122,7 @@ enum PlayerMovementState {
 
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
-fn spawn_player(mut commands: Commands) {
+fn spawn_player_controller(mut commands: Commands) {
     commands
         .spawn((
             Player,
@@ -339,7 +338,6 @@ fn on_look_fire(
 const GROUND_DOTPROD_LIMIT:  f32 = 0.51;  // max walkable slope: slightly more steep than a 45° slope (dot product with vertcal almost 0.5)
 const GROUND_PROBE_DISTANCE: f32 = 0.10;  // how far below the feet we probe
 const GROUND_PROBE_SHRINK:   f32 = 0.10;  // shrink the probe shape vs body
-const GROUND_GLUE_VELOCITY:  f32 = -2.0;  // m/s downward "stickiness"
 
 const COYOTE_TIME:  f32 = 0.1;
 
@@ -448,7 +446,7 @@ impl Plugin for PlayerControllerPlugin {
         .add_input_context::<PauseMenuInput>()
         .add_input_context::<InventoryInput>()
 
-        .add_systems(Update, spawn_player.run_if(run_once))
+        .add_systems(Update, spawn_player_controller.run_if(run_once))
         .add_systems(FixedUpdate, step)
 
         ;

@@ -53,45 +53,43 @@ pub struct MouseFollower;
 
 pub fn spawn_cursor_item_display_sys(
     mut commands: Commands,
-    cursor_inventory_query: Query<Entity, With<CursorInventory>>,
+    new_cursors: Query<Entity, (Added<CursorInventory>, With<Inventory>)>,
 ) {
-    let Ok(cursor_inventory_entity) = cursor_inventory_query.single() else {
-        bevy::log::error!("Cursor inventory does not exist! Please spawn a cursor inventory.");
-        return;
-    };
+    for new_cursor in new_cursors.iter() {
 
-    let cursor_inventory_slot = (Node {
-        width: SLOT_SIZE,
-        height: SLOT_SIZE,
-        align_items: AlignItems::Center,
-        justify_content: JustifyContent::Center,
-        flex_direction: FlexDirection::Column,
-        ..default()
-        },
-        CursorSlot,
-        InventorySlot { 
-            source_entity: cursor_inventory_entity,
-            slot_index: 0
-        },
-        MouseFollower,
-        UiTransform::default(),
-        Pickable::IGNORE,
-    );
-
-    // Large node to house the display
-    let cursor_display_parent = (Node {
-            width: percent(100),
-            height: percent(100),
+        let cursor_inventory_slot = (Node {
+            width: SLOT_SIZE,
+            height: SLOT_SIZE,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            flex_direction: FlexDirection::Column,
             ..default()
-        },
-        MouseFollowerArea,
-        ZIndex(CURSOR_UI_ZINDEX),
-        Visibility::Visible,
-        Pickable { should_block_lower: false, is_hoverable: true },
-        children![cursor_inventory_slot],
-    );
+            },
+            CursorSlot,
+            InventorySlot { 
+                source_entity: new_cursor,
+                slot_index: 0
+            },
+            MouseFollower,
+            UiTransform::default(),
+            Pickable::IGNORE,
+        );
 
-    commands.spawn(cursor_display_parent).observe(on_cursor_move);
+        // Large node to house the display
+        let cursor_display_parent = (Node {
+                width: percent(100),
+                height: percent(100),
+                ..default()
+            },
+            MouseFollowerArea,
+            ZIndex(CURSOR_UI_ZINDEX),
+            Visibility::Visible,
+            Pickable { should_block_lower: false, is_hoverable: true },
+            children![cursor_inventory_slot],
+        );
+
+        commands.spawn(cursor_display_parent).observe(on_cursor_move);
+    }
 }
 
 

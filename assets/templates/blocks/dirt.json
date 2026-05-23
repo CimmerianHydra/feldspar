@@ -1,0 +1,13 @@
+{
+    "name": "dirt",
+    "display_name": "Dirt",
+    "shape": "Cube",
+    "appearance": {
+        "kind": "uniform",
+        "texture": { "kind": "simple", "texture": "dirt" }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}

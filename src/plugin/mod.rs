@@ -16,3 +16,4 @@ pub mod audio;
 pub mod block;
 pub mod ui;
 pub mod crafting;
+pub mod loader;

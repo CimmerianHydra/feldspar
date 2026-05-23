@@ -1,3 +1,4 @@
+use bevy::light::CascadeShadowConfigBuilder;
 use bevy::{
     prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
@@ -15,7 +16,8 @@ impl Plugin for WeatherPlugin {
         // Add systems related to weather effects here
         app
         .add_plugins(MaterialPlugin::<SkyMaterial>::default())
-        .add_systems(PreStartup, spawn_sky)
+        .add_systems(PostStartup, spawn_sky)
+        .add_systems(PostStartup, spawn_sunlight)
         .add_systems(Update, follow_camera)
         ;
     }
@@ -85,4 +87,30 @@ fn follow_camera(
             transform.translation = camera_transform.translation;
         }
     }
+}
+
+
+fn spawn_sunlight(
+    mut commands: Commands,
+) {
+    // light
+    // directional 'sun' light
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::AMBIENT_DAYLIGHT,
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 16.0, 0.0),
+            rotation: Quat::from_rotation_x(- std::f32::consts::PI / 4.) * Quat::from_rotation_y(- std::f32::consts::PI / 4.),
+            ..default()
+        },
+        // The default cascade config is designed to handle large scenes.
+        // As this example has a much smaller world, we can tighten the shadow
+        // bounds for better visual quality.
+        CascadeShadowConfigBuilder {
+            ..default()
+        }.build(),
+    ));
 }

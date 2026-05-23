@@ -24,9 +24,10 @@ impl Plugin for ControlsPlugin {
 // SECTION 2 – Systems and Events
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// These events are supposed to be used whenever the user is IN GAME and
-/// their controls are active. For this reason, they are by default disabled
-/// during menu navigation.
+
+/// For some reason bevy_enhanced_input doesn't have bindings for the scroll wheel
+/// so these are to make up for that. I should be replacing them with bevy_enhanced_input
+/// bindings as soon as I can find a way.
 
 #[derive(Event, PartialEq)]
 pub enum MouseScrollEvent {
