@@ -37,4 +37,8 @@ impl TextureRegistry {
             }
         }
     }
+
+    pub fn new() -> Self {
+        TextureRegistry { base: HashMap::new(), overlay: HashMap::new() }
+    }
 }

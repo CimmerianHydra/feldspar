@@ -1,19 +1,17 @@
-// Modules neeed to be declared here for them to be used in main.rs
-pub mod voxel;
-pub mod dimension;
-pub mod chunk;
-pub mod block_registry;
-pub mod block_interaction;
-pub mod weather;
-pub mod state;
-
-pub mod inventory;
-pub mod graphics;
-pub mod worldgen;
-pub mod controller;
-pub mod geometry;
 pub mod audio;
 pub mod block;
-pub mod ui;
+pub mod block_interaction;
+pub mod chunk;
+pub mod controller;
 pub mod crafting;
+pub mod dimension;
+pub mod geometry;
+pub mod graphics;
+pub mod inventory;
 pub mod loader;
+pub mod state;
+pub mod ui;
+pub mod voxel;
+pub mod weather;
+pub mod worldgen;
+// Modules neeed to be declared here for them to be used in main.rs

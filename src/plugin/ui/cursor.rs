@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy::window::{CursorOptions, PrimaryWindow, CursorGrabMode};
 
-use crate::plugin::inventory::item_registry::ItemRegistry;
+use crate::plugin::loader::item_registry::ItemRegistry;
 use crate::plugin::inventory::main::Inventory;
 use crate::plugin::inventory::main::InventoryChangedEvent;
 use crate::plugin::ui::item::build_ui_item_display;

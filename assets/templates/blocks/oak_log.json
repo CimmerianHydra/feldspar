@@ -1,0 +1,15 @@
+{
+    "name": "logOak",
+    "display_name": "Oak Log",
+    "shape": "Cube",
+    "appearance": {
+        "kind": "top_bot_side",
+        "up":   { "kind": "simple", "texture": "oak_log_top" },
+        "down": { "kind": "simple", "texture": "oak_log_top" },
+        "side": { "kind": "simple", "texture": "oak_log_side"}
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}

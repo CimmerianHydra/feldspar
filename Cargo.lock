@@ -2953,6 +2953,7 @@ dependencies = [
  "bevy_enhanced_input",
  "bevy_kira_audio",
  "image 0.24.9",
+ "iyes_progress",
  "noise",
  "rand 0.10.1",
  "serde",
@@ -3749,6 +3750,20 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "iyes_progress"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "152801d7df1a2761d8716cb566148c07cf790aebfbee9195f8b89844b145c72e"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_platform",
+ "bevy_state",
+ "derive_more",
+ "parking_lot",
+]
 
 [[package]]
 name = "jni"

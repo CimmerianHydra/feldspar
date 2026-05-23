@@ -3,12 +3,12 @@ use serde::Deserialize;
 use bevy_asset_loader::prelude::*;
 
 use crate::plugin::voxel::BlockShape;
-use crate::plugin::block_registry::{BlockID, BlockDefinition, BlockRegistry};
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::block::material::BlockMaterial;
 use crate::plugin::audio::block::SoundProfile;
 
 use crate::plugin::loader::texture_registry::TextureRegistry;
+use crate::plugin::loader::block_registry::{BlockID, BlockDefinition, BlockRegistry};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ASSET COLLECTION  (bevy_asset_loader)

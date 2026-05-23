@@ -6,8 +6,8 @@ use crate::plugin::inventory::player::{
     on_hotbar_changed,
     sync_hotbar_on_mouse_scroll_obs,
 };
-use crate::plugin::inventory::item_registry::*;
 use crate::plugin::inventory::cursor::*;
+use crate::plugin::loader::item_registry::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN

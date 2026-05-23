@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::plugin::block_registry::BlockRegistry;
+use crate::plugin::loader::block_registry::BlockRegistry;
 use crate::plugin::chunk::VoxelChunk;
 use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
 use crate::plugin::loader::block_assets::populate_block_registry_sys;

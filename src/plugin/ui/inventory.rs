@@ -1,17 +1,13 @@
 use bevy::{
-    ecs::{component::{Mutable, StorageType}, lifecycle::{ComponentHook, HookContext}, world::DeferredWorld},
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
     prelude::*,
 };
 
 use crate::plugin::ui::main::*;
 use crate::plugin::ui::item::build_ui_item_display;
-use crate::plugin::ui::cursor::CursorLockRequest;
 
 use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent, ItemStack};
-use crate::plugin::inventory::player::PlayerInventory;
-use crate::plugin::inventory::item_registry::ItemRegistry;
-
-use crate::plugin::controller::player::{OpenPlayerInventory, ClosePlayerInventory};
+use crate::plugin::loader::item_registry::ItemRegistry;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BASIC SLOT BUILDER

@@ -6,21 +6,6 @@ use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::block::material::BlockMaterial;
 use crate::plugin::audio::block::SoundProfile;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 1 – Plugin Definition
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
-pub struct BlockRegistryPlugin;
-
-impl Plugin for BlockRegistryPlugin {
-    fn build(&self, app: &mut App) {
-        // Add systems related to block registry management here
-        app
-        .insert_resource(BlockRegistry::new())
-        ;
-    }
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 2 – Basic Definitions

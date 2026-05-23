@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::inventory::item_registry::ItemID;
 use crate::plugin::inventory::main::ItemStack;
+
+use crate::plugin::loader::item_registry::ItemID;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN

@@ -1,25 +1,11 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::plugin::block_registry::{BlockID, BlockRegistry};
+use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
 use crate::plugin::voxel::BlockShape;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// PLUGIN
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-pub struct ItemRegistryPlugin;
-
-impl Plugin for ItemRegistryPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            // Resources
-            .insert_resource(ItemRegistry::new())
-        ;
-    }
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ITEM DEFINITIONS

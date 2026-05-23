@@ -3,13 +3,13 @@ use bevy::prelude::*;
 use crate::plugin::chunk::{VoxelChunk, CHUNK_SIZE};
 use crate::plugin::voxel::Voxel;
 use crate::plugin::worldgen::main::WorldGenerator;
+use crate::plugin::loader::block_registry::BlockRegistry;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONSTANTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // Hardcoded while only dirt and slate exist.
-// TODO: resolve through the BlockRegistry once stable-by-name lookup is in.
 const DIRT_ID:  u16 = 1;
 const SLATE_ID: u16 = 2;
 
@@ -34,11 +34,29 @@ const DIRT_THICKNESS: i32 = 3;
 pub struct FlatGenerator {
     /// Unused by the flat generator; kept for API parity with seeded generators.
     pub seed: u64,
+
+    // Pre-resolved blocks. Built once, copied freely.
+    surface: Voxel,
+    dirt:    Voxel,
+    slate:   Voxel,
 }
 
 impl FlatGenerator {
-    pub fn new(seed: u64) -> Self {
-        Self { seed }
+    pub fn new(seed: u64, registry: &BlockRegistry) -> Self {
+
+        fn resolve(name: String, registry: &BlockRegistry) -> Voxel {
+            let id = registry.by_name(name.to_string()).unwrap_or_else(|| {
+                panic!("HillsGenerator: required block '{}' not in registry", name)
+            });
+            Voxel::full(id.0)
+        }
+
+        Self {
+            seed,
+            surface: resolve("grass".to_string(), registry),
+            dirt:    resolve("dirt".to_string(), registry),
+            slate:   resolve("slate".to_string(), registry),
+        }
     }
 }
 
@@ -62,7 +80,7 @@ impl WorldGenerator for FlatGenerator {
 
         // ── Fast path 2: chunk entirely below dirt band -> all slate ────────
         if chunk_top_y < lowest_dirt_y {
-            *out = VoxelChunk::filled(Voxel::full(SLATE_ID));
+            *out = VoxelChunk::filled(self.slate);
             return;
         }
 
@@ -71,14 +89,17 @@ impl WorldGenerator for FlatGenerator {
         // without needing per-cell branching for it.
         *out = VoxelChunk::empty();
 
-        let dirt  = Voxel::full(DIRT_ID);
-        let slate = Voxel::full(SLATE_ID);
+        let surface = self.surface;
+        let dirt  = self.dirt;
+        let slate = self.slate;
 
         for ly in 0..CHUNK_SIZE {
             let world_y = chunk_base_y + ly as i32;
 
             let voxel = if world_y > SURFACE_Y {
                 continue;                       // air, already zeroed
+            } else if world_y == SURFACE_Y {
+                surface
             } else if world_y >= lowest_dirt_y {
                 dirt                            // surface + dirt band
             } else {

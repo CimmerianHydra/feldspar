@@ -1,21 +1,26 @@
 use bevy::prelude::*;
 use bevy_common_assets::json::JsonAssetPlugin;
 use bevy_asset_loader::prelude::*;
+use iyes_progress::{Progress, ProgressPlugin, ProgressReturningSystem, ProgressTracker};
 
 use crate::plugin::state::GameState;
-use crate::plugin::inventory::item_registry::populate_item_registry_sys;
+
 use crate::plugin::loader::texture_registry::*;
+use crate::plugin::loader::block_registry::*;
+use crate::plugin::loader::item_registry::*;
 
 use crate::plugin::loader::block_assets::*;
 use crate::plugin::loader::texture_assets::*;
-
 pub struct AssetLoaderPlugin;
 
 impl Plugin for AssetLoaderPlugin {
     fn build(&self, app: &mut App) {
         app
+        
+        .insert_resource(TextureRegistry::new())
+        .insert_resource(BlockRegistry::new())
+        .insert_resource(ItemRegistry::new())
 
-        .insert_resource(TextureRegistry::default())
         .insert_resource(VoxelMaterialHandle::default())
 
         // Parser for *.json block definition files

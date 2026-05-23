@@ -1,21 +1,16 @@
 use bevy::prelude::*;
-use bevy::light::CascadeShadowConfigBuilder;
 
 mod plugin;
 use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
-use plugin::block_registry::{BlockRegistryPlugin, BlockDefinition, BlockID, BlockRegistry};
 use plugin::block_interaction::BlockInteractionPlugin;
 use plugin::chunk::ChunkPlugin;
 use plugin::ui::main::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::{StatePlugin, GameState};
-use plugin::voxel::BlockShape;
 use plugin::controller::main::ControlsPlugin;
 use plugin::inventory::main::InventoryPlugin;
-use plugin::inventory::item_registry::{ItemRegistryPlugin, populate_item_registry_sys};
-use plugin::graphics::block_material::{VoxelMaterialPlugin, VoxelMaterial};
-use plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
+use plugin::graphics::block_material::VoxelMaterialPlugin;
 use plugin::worldgen::main::WorldgenPlugin;
 use plugin::controller::player::PlayerControllerPlugin;
 use plugin::audio::block::BlockAudioPlugin;
@@ -42,8 +37,6 @@ fn main() {
         .add_plugins(MeshingPlugin)
         .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)
-        .add_plugins(BlockRegistryPlugin)
-        .add_plugins(ItemRegistryPlugin)
         .add_plugins(InventoryPlugin)
         .add_plugins(SpatialCraftingPlugin)
         .add_plugins(BlockInteractionPlugin)
@@ -67,7 +60,7 @@ fn main() {
 
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::player::*;
-use crate::plugin::inventory::item_registry::*;
+use crate::plugin::loader::item_registry::*;
 use crate::plugin::ui::cursor::CursorLockRequest;
 
 /// Hardcoded function to spawn some items into the player's inventory.

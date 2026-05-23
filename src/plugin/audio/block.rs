@@ -2,7 +2,7 @@ use bevy::audio::*;
 use bevy::prelude::*;
 
 use crate::plugin::block_interaction::BlockEvent;
-use crate::plugin::block_registry::BlockRegistry;
+use crate::plugin::loader::block_registry::BlockRegistry;
 
 /// Half-width of the random pitch interval, in playback-speed units.
 pub const AUDIO_PITCH_HALFRANGE: f32 = 0.16;

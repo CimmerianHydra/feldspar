@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 
-use crate::plugin::inventory::item_registry::*;
 use crate::plugin::inventory::main::*;
+
+use crate::plugin::loader::item_registry::*;
 
 use crate::plugin::ui::inventory::{InventoryClickedEvent};
 

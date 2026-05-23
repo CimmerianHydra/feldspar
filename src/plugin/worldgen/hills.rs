@@ -4,7 +4,8 @@ use noise::{Fbm, MultiFractal, NoiseFn, Perlin};
 use crate::plugin::chunk::{VoxelChunk, CHUNK_SIZE};
 use crate::plugin::voxel::Voxel;
 use crate::plugin::worldgen::main::WorldGenerator;
-use crate::plugin::block_registry::BlockRegistry;
+
+use crate::plugin::loader::block_registry::BlockRegistry;
 
 const SEA_LEVEL:      i32   = 0;
 const AMPLITUDE:      i32   = 128;

@@ -5,10 +5,11 @@ use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::block_registry::{BlockID, BlockRegistry};
+use crate::plugin::loader::block_registry::*;
+use crate::plugin::loader::item_registry::*;
+
 use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
 use crate::plugin::inventory::player::*;
-use crate::plugin::inventory::item_registry::*;
 use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Voxel, Direction};
 use crate::plugin::geometry::meshing::{BLOCK_SIZE};

@@ -9,7 +9,7 @@ use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Direction};
 use crate::plugin::geometry::quads::{Quad, shape_quads};
-use crate::plugin::block_registry::{BlockID, BlockRegistry};
+use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 
 use bevy::mesh::MeshVertexAttribute;
 use bevy::render::render_resource::VertexFormat;
