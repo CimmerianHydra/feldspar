@@ -2,8 +2,8 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 use crate::plugin::controller::player::{Player, ClosePauseMenu, OpenPauseMenu};
-use crate::plugin::inventory::player::{append_player_inventory_sys};
 
+use crate::plugin::state::GameState;
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
 use crate::plugin::ui::cursor::*;
@@ -17,8 +17,8 @@ impl Plugin for UIPlugin {
         // Add systems related to UI here
         app
 
-        .add_systems(Startup, spawn_ui_compass_sys)
-        .add_systems(Startup, spawn_crosshair_sys)
+        .add_systems(OnEnter(GameState::InGame), spawn_ui_compass_sys)
+        .add_systems(OnEnter(GameState::InGame), spawn_crosshair_sys)
 
         .add_systems(Update, spawn_cursor_item_display_sys)
         .add_systems(Update, button_sys)

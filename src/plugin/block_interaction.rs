@@ -39,7 +39,7 @@ impl Plugin for BlockInteractionPlugin {
         .add_systems(Update, (
                 cast_static_dda_ray_sys,
                 update_block_highlight_sys
-            ).run_if(in_state(GameState::Running))
+            ).run_if(in_state(GameState::InGame))
         )
 
         .add_observer(update_look_target_obs)

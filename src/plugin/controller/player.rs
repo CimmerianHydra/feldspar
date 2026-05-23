@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use avian3d::prelude::*;
 use bevy_enhanced_input::prelude::*;
-use crate::plugin::block_interaction::DDARay;
+use crate::plugin::{block_interaction::DDARay, state::{GameState, GameUpdate}};
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
 
@@ -344,7 +344,7 @@ const COYOTE_TIME:  f32 = 0.1;
 fn step(
     spatial: SpatialQuery,
     move_and_slide: MoveAndSlide,
-    time: Res<Time>,
+    time: Res<Time<Physics>>,
     mut players: Query<(Entity, &Collider, &mut Transform, &mut LinearVelocity, &mut PlayerMovementData), With<Player>>,
 ) {
     let dt = time.delta();
@@ -446,7 +446,7 @@ impl Plugin for PlayerControllerPlugin {
         .add_input_context::<PauseMenuInput>()
         .add_input_context::<InventoryInput>()
 
-        .add_systems(Update, spawn_player_controller.run_if(run_once))
+        .add_systems(OnEnter(GameState::InGame), spawn_player_controller)
         .add_systems(FixedUpdate, step)
 
         ;

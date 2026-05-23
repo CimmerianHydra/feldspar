@@ -9,6 +9,8 @@ use bevy::mesh::MeshVertexBufferLayoutRef;
 use bevy::pbr::MaterialPipelineKey;
 use bevy::render::render_resource::SpecializedMeshPipelineError;
 
+use crate::plugin::state::GameState;
+
 pub struct WeatherPlugin;
 
 impl Plugin for WeatherPlugin {
@@ -16,8 +18,8 @@ impl Plugin for WeatherPlugin {
         // Add systems related to weather effects here
         app
         .add_plugins(MaterialPlugin::<SkyMaterial>::default())
-        .add_systems(PostStartup, spawn_sky)
-        .add_systems(PostStartup, spawn_sunlight)
+        .add_systems(OnEnter(GameState::InGame), spawn_sky)
+        .add_systems(OnEnter(GameState::InGame), spawn_sunlight)
         .add_systems(Update, follow_camera)
         ;
     }

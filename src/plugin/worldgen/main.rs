@@ -20,7 +20,7 @@ pub struct WorldgenPlugin;
 impl Plugin for WorldgenPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            OnExit(GameState::Loading),
+            OnExit(GameState::AssetLoading),
             init_active_worldgen_sys.after(populate_block_registry_sys),
         );
     }

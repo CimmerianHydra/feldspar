@@ -99,7 +99,7 @@ pub struct PlayerHotbar {
 /// to distinguish players in a multiplayer world.
 pub fn append_player_inventory_sys(
     mut commands: Commands,
-    mut player_query: Query<Entity, Added<Player>>,
+    player_query: Query<Entity, Added<Player>>,
 ) {
     for new_player in player_query.iter() {
         let new_inventory = commands.spawn((

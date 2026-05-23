@@ -17,7 +17,7 @@ impl Plugin for FreeCameraPlugin {
         .add_systems(Update, (
             camera_mouse_sys,
             camera_movement_sys,
-        ).run_if(in_state(GameState::Running)))
+        ).run_if(in_state(GameState::InGame)))
         ;
     }
 }

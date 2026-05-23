@@ -49,10 +49,11 @@ fn main() {
             WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
         )
 
-        .add_systems(OnEnter(GameState::Running), crate::plugin::worldgen::main::setup_dev_chunks)
-        .add_systems(OnEnter(GameState::Running), dev_populate_player_inventory)
-        .add_systems(OnEnter(GameState::Running), dev_populate_player_hotbar)
-        .add_systems(OnEnter(GameState::Running), dev_lock_cursor)
+        .add_systems(OnEnter(GameState::InGame), crate::plugin::worldgen::main::setup_dev_chunks)
+        .add_systems(OnEnter(GameState::InGame), dev_lock_cursor)
+        
+        .add_systems(Update, dev_populate_player_inventory)
+        .add_systems(Update, dev_populate_player_hotbar)
 
         .run();
 }

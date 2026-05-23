@@ -11,7 +11,14 @@ impl Plugin for StatePlugin {
         // Add systems related to UI here
         app
         .init_state::<GameState>()
+        .init_state::<GameUpdate>()
         .init_state::<GameMode>()
+
+        .add_systems(OnEnter(GameUpdate::Enabled), resume_physics_sys)
+        .add_systems(OnEnter(GameUpdate::Disabled), pause_physics_sys)
+
+        .add_observer(open_pause_menu_action_obs)
+        .add_observer(close_pause_menu_action_obs)
         ;
     }
 }
@@ -19,28 +26,46 @@ impl Plugin for StatePlugin {
 // Toggles between pause and unpause.
 fn open_pause_menu_action_obs(
     event: On<Start<OpenPauseMenu>>,
-    mut time: ResMut<Time<Physics>>,
-    mut next_state: NextState<GameState>,
+    mut commands: Commands,
 ) {
-    time.pause();
-    next_state.set(GameState::Paused);
+    commands.set_state(GameUpdate::Disabled);
 }
 
 fn close_pause_menu_action_obs(
     event: On<Start<ClosePauseMenu>>,
+    mut commands: Commands,
+) {
+    commands.set_state(GameUpdate::Enabled);
+}
+
+fn pause_physics_sys(
     mut time: ResMut<Time<Physics>>,
-    mut next_state: NextState<GameState>,
+) {
+    time.pause();
+    bevy::log::debug!("Physics was paused.")
+}
+
+fn resume_physics_sys(
+    mut time: ResMut<Time<Physics>>,
 ) {
     time.unpause();
-    next_state.set(GameState::Running);
+    bevy::log::debug!("Physics was unpaused.")
 }
+
+
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum GameState {
     #[default]
-    Loading,
-    Running,
-    Paused,
+    AssetLoading,
+    InGame,
+}
+
+#[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub enum GameUpdate {
+    #[default]
+    Disabled,
+    Enabled,
 }
 
 #[derive(States, Debug, Clone, Eq, PartialEq, Hash, Default)]

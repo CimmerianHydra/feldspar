@@ -30,7 +30,7 @@ impl Plugin for MeshingPlugin {
             add_components_to_static_chunk_sys,
             sync_static_chunk_transform_sys,
             update_dirty_mesh_sys
-        ).run_if(in_state(GameState::Running)))
+        ).run_if(in_state(GameState::InGame)))
         ;
     }
 }
