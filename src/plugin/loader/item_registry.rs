@@ -97,13 +97,15 @@ impl ItemRegistry {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 6 – Example Systems
+// Loading Systems
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Hardcoded block registry initialization.
 /// In the future we need to have helpers that take this information from JSON files
 /// and use it to build the registry for the actual game, as well as building any custom
 /// object that only exists in a world in the registry (such as custom tools).
+/// The custom objects will need to be loaded at world-load time, so this function will
+/// probably be accompanied by a similar one that loads these things at world-load.
 
 pub fn populate_item_registry_sys(
     block_registry: Res<BlockRegistry>,

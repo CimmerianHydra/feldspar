@@ -25,6 +25,11 @@ pub struct BlockTextureAssets {
     pub overlay: HashMap<String, Handle<Image>>,
 }
 
+#[derive(AssetCollection, Resource)]
+pub struct UITextureAssets {
+    #[asset(path = "textures/ui", collection(typed, mapped))]
+    pub handles: HashMap<String, Handle<Image>>,
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // VOXEL MATERIAL HANDLE  (so worldgen can grab it without rebuilding)
@@ -55,14 +60,19 @@ pub fn assemble_texture_arrays_sys(
     );
     registry.base = base_map;
 
+    bevy::log::info!(
+        "Base texture array populated from image assets: {} layers.",
+        registry.base.len()
+    );
+
     let (overlay_handle, overlay_map) = build_array(
         &block_textures.overlay, &mut images, "none",
     );
     registry.overlay = overlay_map;
 
     bevy::log::info!(
-        "Texture arrays built — base: {} layers, overlay: {} layers",
-        registry.base.len(), registry.overlay.len()
+        "Overlay texture array populated from image assets: {} layers.",
+        registry.overlay.len()
     );
 
     // Build the material once and stash the handle for everyone else.
@@ -79,6 +89,8 @@ pub fn assemble_texture_arrays_sys(
         },
     });
     commands.insert_resource(VoxelMaterialHandle(mat));
+
+    bevy::log::info!("Generated global handle for voxel material.");
 }
 
 /// Builds one array texture from a mapped collection of single-layer images.

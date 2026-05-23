@@ -5,6 +5,7 @@ use bevy_asset_loader::prelude::*;
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use iyes_progress::{Progress, ProgressPlugin, ProgressReturningSystem, ProgressTracker};
 
+
 use crate::plugin::state::GameState;
 
 use crate::plugin::loader::texture_registry::*;
@@ -77,7 +78,7 @@ fn spawn_loading_screen(
     mut commands: Commands,
     image_assets: Res<AssetServer>,
 ) {
-    let title_card_handle = image_assets.load::<Image>("title\\logo_transparent.png");
+    let title_card_handle = image_assets.load::<Image>("title/logo_black.png");
 
     let title_card = (
         Node {
@@ -92,6 +93,7 @@ fn spawn_loading_screen(
             width: percent(0.),
             height: percent(100),
             justify_content: JustifyContent::Start,
+            border_radius: BorderRadius::all(px(5.0)),
             ..default()
         },
         BackgroundColor::from(Color::linear_rgb(1.0, 0.42, 0.0)),
@@ -102,6 +104,7 @@ fn spawn_loading_screen(
         Node {
             width: percent(50),
             height: px(20),
+            border_radius: BorderRadius::all(px(5.0)),
             ..default()
         },
         BackgroundColor::from(Color::linear_rgb(0.1, 0.1, 0.1)),
@@ -116,7 +119,7 @@ fn spawn_loading_screen(
             justify_content: JustifyContent::Start,
             ..default()
         },
-        TextColor::WHITE,
+        TextColor::from(Color::linear_rgb(1.0, 0.42, 0.0)),
         Text::from("Loading assets...")
     );
 
@@ -138,7 +141,14 @@ fn spawn_loading_screen(
         ))
     );
 
+    let temporary_camera = (
+        Camera2d,
+        DespawnOnExit(GameState::AssetLoading),
+    );
+
+    commands.spawn(temporary_camera);
     commands.spawn(splash_screen_root);
+    
 }
 
 fn update_progress(
@@ -157,11 +167,11 @@ fn update_progress(
 }
 
 
-pub const LONG_FAKE_TASK_DURATION: f32 = 10.0;
+pub const LONG_FAKE_TASK_DURATION: f32 = 1.0;
 
 fn track_fake_long_task(time: Res<Time>) -> Progress {
     Progress {
-        done: ceil((time.elapsed_secs() / LONG_FAKE_TASK_DURATION) * 100.0) as u32,
+        done: ceil((time.elapsed_secs() / LONG_FAKE_TASK_DURATION) * 100.0).min(100.) as u32,
         total: 100,
     }
 }
@@ -174,13 +184,13 @@ fn print_progress(
     let progress = progress.get_global_progress();
     if progress.done > *last_done {
         *last_done = progress.done;
-        info!(
-            "[Frame {}] Changed progress: {:?}",
+        debug!(
+            "[Frame {}] Asset Loading Progress: {:2}%",
             diagnostics
                 .get(&FrameTimeDiagnosticsPlugin::FRAME_COUNT)
                 .map(|diagnostic| diagnostic.value().unwrap_or(0.))
                 .unwrap_or(0.),
-            progress
+            (progress.done as f32 / progress.total as f32)
         );
     }
 }
