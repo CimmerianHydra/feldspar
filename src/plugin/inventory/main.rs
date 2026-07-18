@@ -26,6 +26,7 @@ impl Plugin for InventoryPlugin {
             .add_observer(sync_hotbar_on_input_action_obs)
             .add_observer(on_hotbar_changed)
             .add_observer(inventory_ui_click_obs)
+            .add_observer(spatial_inventory_ui_click_obs)
         ;
     }
 }
@@ -332,4 +333,3 @@ pub struct InventoryChangedEvent {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 use crate::plugin::inventory::player::*;
-

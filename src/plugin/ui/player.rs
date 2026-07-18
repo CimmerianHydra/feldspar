@@ -1,10 +1,15 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
+use crate::plugin::crafting::spatial::InventorySpatialCraftingMachine;
+use crate::plugin::ui::crafting::build_inventory_crafting_ui;
 use crate::plugin::ui::inventory::*;
 use crate::plugin::ui::cursor::*;
-use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent};
+
+use crate::plugin::inventory::main::Inventory;
 use crate::plugin::inventory::player::*;
+use crate::plugin::inventory::spatial::SpatialInventory;
+
 use crate::plugin::controller::player::{OpenPlayerInventory, ClosePlayerInventory};
 
 
@@ -54,22 +59,37 @@ fn build_player_ui_with_top_panel(
 
 // Since actions are now children of the player entity, we can leverage that
 // in the future to specifically grab the caller's PlayerInventory and PlayerHotbar.
+// It'll help for multiplayer, eventually.
+
+// For now, by default, the player's "open inventory" action simply opens the inventory
+// with the spatial crafting interface.
 
 pub fn open_inventory_player_input_action_obs(
     _action: On<Start<OpenPlayerInventory>>,
     mut commands: Commands,
     player_hotbar_query: Query<(Entity, &Inventory), (With<PlayerHotbar>, Without<PlayerInventory>)>,
     player_inventory_query: Query<(Entity, &Inventory), (With<PlayerInventory>, Without<PlayerHotbar>)>,
+    player_crafting_machine_query: Query<(Entity, &InventorySpatialCraftingMachine)>,
+    player_spatial_inventory_query: Query<&SpatialInventory>,
 ) {
     let Ok(hotbar_data) = player_hotbar_query.single() else { return; };
     let Ok(player_data) = player_inventory_query.single() else { return; };
+
+    let Ok((inventory_crafting_entity, inventory_crafting_data)) = player_crafting_machine_query.single() else { return; };
+    let spatial_inventory_entity = inventory_crafting_data.input_entity;
+    let Ok(spatial_inventory_data) = player_spatial_inventory_query.get(spatial_inventory_entity) else { return; };
+
 
     commands.spawn(
             build_player_ui_with_top_panel(
             hotbar_data,
             player_data,
-            (),
-            None),
+            build_inventory_crafting_ui(
+                inventory_crafting_entity, 
+                spatial_inventory_entity,
+                spatial_inventory_data
+            ),
+            Some(inventory_crafting_entity)),
         );
     commands.trigger(CursorLockRequest::Unlock);
 }

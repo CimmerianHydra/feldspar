@@ -4,6 +4,7 @@ use bevy_enhanced_input::prelude::*;
 use crate::plugin::controller::player::{Player, ClosePauseMenu, OpenPauseMenu};
 
 use crate::plugin::state::GameState;
+use crate::plugin::ui::crafting::*;
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
 use crate::plugin::ui::cursor::*;
@@ -36,6 +37,12 @@ impl Plugin for UIPlugin {
         .add_observer(inventory_changed_to_ui_sync_obs)
         .add_observer(show_requested_inventory_obs)
         .add_observer(close_requested_inventory_obs)
+
+        .add_observer(spatial_inventory_click_obs)
+        .add_observer(spatial_inventory_changed_to_ui_sync_obs)
+
+        .add_observer(recipe_output_click_obs)
+        .add_observer(recipe_output_sync_obs)
 
         .add_observer(open_inventory_player_input_action_obs)
         .add_observer(close_inventory_player_input_action_obs)

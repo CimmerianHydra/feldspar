@@ -1,0 +1,9 @@
+{
+    "shape": "triangle",
+    "vertices": [
+        { "item": "dirt" },
+        { "item": "dirt" },
+        { "item": "slate", "count": 2 }
+    ],
+    "result": { "item": "grass", "count": 2 }
+}

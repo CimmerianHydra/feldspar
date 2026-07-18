@@ -1,0 +1,15 @@
+{
+    "name": "barrel",
+    "display_name": "Barrel",
+    "shape": "Cube",
+    "appearance": {
+        "kind": "top_bot_side",
+        "up":   { "kind": "simple", "texture": "barrel_top" },
+        "down": { "kind": "simple", "texture": "barrel_bottom" },
+        "side": { "kind": "simple", "texture": "barrel_side" }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}

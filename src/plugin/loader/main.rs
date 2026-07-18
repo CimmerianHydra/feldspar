@@ -14,6 +14,9 @@ use crate::plugin::loader::item_registry::*;
 
 use crate::plugin::loader::block_assets::*;
 use crate::plugin::loader::texture_assets::*;
+
+use crate::plugin::loader::recipe_maps::*;
+
 pub struct AssetLoaderPlugin;
 
 impl Plugin for AssetLoaderPlugin {
@@ -29,17 +32,20 @@ impl Plugin for AssetLoaderPlugin {
         .insert_resource(TextureRegistry::new())
         .insert_resource(BlockRegistry::new())
         .insert_resource(ItemRegistry::new())
+        .insert_resource(SpatialRecipeRegistry::new())
 
         .insert_resource(VoxelMaterialHandle::default())
 
         // Parser for *.json block definition files
         .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["json"]))
+        .add_plugins(JsonAssetPlugin::<RecipeDefinitionAsset>::new(&["recipe.json"]))
 
         // Gate Loading -> Running on every block file being parsed
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading)
                 .load_collection::<BlockDefinitionAssets>()
                 .load_collection::<BlockTextureAssets>()
+                .load_collection::<SpatialRecipeAssets>()
         )
 
         // Splash screen and loading bar
@@ -64,6 +70,7 @@ impl Plugin for AssetLoaderPlugin {
                 assemble_texture_arrays_sys,
                 populate_block_registry_sys,
                 populate_item_registry_sys,
+                populate_spatial_recipe_registry_sys,
             ).chain(),
         )
         ;

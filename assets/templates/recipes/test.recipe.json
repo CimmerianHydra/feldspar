@@ -1,0 +1,9 @@
+{
+    "shape": "triangle",
+    "vertices": [
+        { "item": "barrel" },
+        { "item": "barrel" },
+        { "item": "barrel" }
+    ],
+    "result": { "item": "barrel", "count": 3 }
+}

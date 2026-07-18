@@ -3,5 +3,6 @@ pub mod texture_assets;
 pub mod block_registry;
 pub mod texture_registry;
 pub mod item_registry;
+pub mod recipe_maps;
 
 pub mod main;

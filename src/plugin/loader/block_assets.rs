@@ -17,7 +17,7 @@ use crate::plugin::loader::block_registry::{BlockID, BlockDefinition, BlockRegis
 #[derive(AssetCollection, Resource)]
 pub struct BlockDefinitionAssets {
     /// Every *.json under assets/templates/blocks/, typed.
-    #[asset(path = "templates/blocks", collection(typed))]
+    #[asset(path = "templates\\blocks", collection(typed))]
     pub blocks: Vec<Handle<BlockDefinitionAsset>>,
 }
 

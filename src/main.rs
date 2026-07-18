@@ -14,7 +14,7 @@ use plugin::graphics::block_material::VoxelMaterialPlugin;
 use plugin::worldgen::main::WorldgenPlugin;
 use plugin::controller::player::PlayerControllerPlugin;
 use plugin::audio::block::BlockAudioPlugin;
-use plugin::crafting::main::SpatialCraftingPlugin;
+use plugin::crafting::main::CraftingPlugin;
 use plugin::loader::main::AssetLoaderPlugin;
 
 use bevy::{input::common_conditions::input_toggle_active};
@@ -38,12 +38,12 @@ fn main() {
         .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)
         .add_plugins(InventoryPlugin)
-        .add_plugins(SpatialCraftingPlugin)
         .add_plugins(BlockInteractionPlugin)
         .add_plugins(WorldgenPlugin)
         .add_plugins(WeatherPlugin)
         .add_plugins(BlockAudioPlugin)
-
+        .add_plugins(CraftingPlugin)
+        
         .add_plugins(EguiPlugin::default())
         .add_plugins(
             WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),

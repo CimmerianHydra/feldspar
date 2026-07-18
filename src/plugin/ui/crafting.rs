@@ -1,27 +1,24 @@
 use bevy::prelude::*;
 
-use crate::plugin::ui::main::*;
+use crate::plugin::{crafting::spatial::InventorySpatialCraftingMachine, ui::main::*};
 use crate::plugin::ui::item::build_ui_item_display;
 use crate::plugin::loader::item_registry::ItemRegistry;
-use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent, ItemStack};
-use crate::plugin::inventory::cursor::CursorInventory;
-use crate::plugin::crafting::main::*;
+use crate::plugin::inventory::spatial::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONSTANTS & MARKERS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-const SPATIAL_ITEM_ICON_PX: f32 = 48.0;
-const SPATIAL_ITEM_ICON_SIZE: Val = Val::Px(SPATIAL_ITEM_ICON_PX);
+const SPATIAL_ITEM_ICON_SIZE: f32 = 64.0;
 
 /// Marker on the UI node that visualizes a `SpatialInventory`.
 /// Back-reference mirrors `InventorySlot::source_entity`.
 #[derive(Component)]
-pub struct SpatialCraftingArea {
+pub struct SpatialInventoryNode {
     pub source_entity: Entity,
 }
 
-/// Marker on each item child inside a `SpatialCraftingArea`. The sync
+/// Marker on each item child inside a `SpatialInventoryArea`. The sync
 /// observer uses these to find and despawn the right node when a
 /// placement is removed.
 #[derive(Component)]
@@ -34,25 +31,53 @@ pub struct SpatialPlacementNode {
 // PANEL & PLACEMENT BUILDERS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Build the crafting area panel. Items will be added as absolutely-
-/// positioned children by the sync observer as placements happen.
-pub fn build_crafting_area_ui(
-    source_entity: Entity,
-    width:  f32,
-    height: f32,
+pub fn build_inventory_crafting_ui(
+    machine_entity: Entity,
+    spatial_entity: Entity,
+    spatial_data:  &SpatialInventory,
 ) -> impl Bundle {
+
     (Node {
-            width:         Val::Px(width),
-            height:        Val::Px(height),
-            position_type: PositionType::Relative,
+            display: Display::Flex,
+            align_content: AlignContent::Center,
+            justify_content: JustifyContent::Center,
             border_radius: BorderRadius::all(UI_PANEL_RADIUS),
-            border:        UiRect::all(UI_BORDER_THICKN),
-            padding:       UiRect::all(UI_PANEL_PADDING),
+            border: UiRect::all(UI_BORDER_THICKN),
+            padding: UiRect::all(UI_PANEL_PADDING),
+            width: px(844.0),
             ..default()
         },
         BorderColor::all(UI_BORDER_COLOR),
         BackgroundColor(UI_PANEL_COLOR),
-        SpatialCraftingArea { source_entity },
+        Pickable::IGNORE,
+
+        // Once this bundle is spawned, this will automatically spawn as many children as needed.
+        children![
+            build_spatial_inventory_panel(spatial_entity, spatial_data),
+            build_recipe_output_slot(machine_entity)
+            ]
+    )
+}
+
+
+/// Build the crafting area panel. Items will be added as absolutely-
+/// positioned children by the sync observer as placements happen.
+pub fn build_spatial_inventory_panel(
+    source_entity: Entity,
+    spatial_data:  &SpatialInventory,
+) -> impl Bundle {
+    (Node {
+            width:          Val::Px(spatial_data.width()),
+            height:         Val::Px(spatial_data.height()),
+            position_type:  PositionType::Relative,
+            border_radius:  BorderRadius::all(UI_PANEL_RADIUS),
+            border:         UiRect::all(UI_BORDER_THICKN),
+            margin:         UiRect::all(SLOT_GAP),
+            ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        SpatialInventoryNode { source_entity },
         Pickable { should_block_lower: true, is_hoverable: true },
     )
 }
@@ -67,20 +92,20 @@ fn build_placement_node(
     placement:     &Placement,
     item_registry: &ItemRegistry,
 ) -> impl Bundle {
-    let half = SPATIAL_ITEM_ICON_PX * 0.5;
+    let half = SPATIAL_ITEM_ICON_SIZE * 0.5;
 
     (Node {
             position_type: PositionType::Absolute,
             left: Val::Px(placement.pos.x - half),
             top:  Val::Px(placement.pos.y - half),
-            width:  SPATIAL_ITEM_ICON_SIZE,
-            height: SPATIAL_ITEM_ICON_SIZE,
+            width:  Val::Px(SPATIAL_ITEM_ICON_SIZE),
+            height: Val::Px(SPATIAL_ITEM_ICON_SIZE),
             ..default()
         },
         SpatialPlacementNode { source_entity, placement_id },
-        // Placements catch their own clicks (for pickup) and block the
-        // panel underneath so the area observer doesn't also fire.
-        Pickable { should_block_lower: true, is_hoverable: true },
+        // Placements don't catch clicks, it's the spatial inventory ui that
+        // checks whether they were hit by a click or not. They're a mirage.
+        Pickable::IGNORE,
         children![
             build_ui_item_display(
                 &item_registry.get(placement.stack.id).display,
@@ -94,128 +119,66 @@ fn build_placement_node(
 // EVENTS & SPAWNING
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CLICK → PLACE (empty space)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 /// Internal event raised once a click on the area panel has been resolved
 /// into area-local coordinates. Keeps the "find the panel" pointer math
 /// separate from the "mutate inventories" logic.
 #[derive(EntityEvent)]
-pub struct SpatialAreaClickedEvent {
+pub struct SpatialInventoryClickedEvent {
     #[event_target]
-    pub entity:    Entity, // the SpatialInventory entity
-    pub local_pos: Vec2,
+    pub entity:     Entity, // the SpatialInventory entity
+    pub local_pos:  Vec2,
+    pub id:         Option<PlacementID>, // The PlacementID that was clicked, if any
+    pub button:     PointerButton, // The mouse button used to click
 }
 
-/// First leg: a click landed on a `SpatialCraftingArea` panel. Convert the
-/// screen-space pointer position into area-local coordinates and forward.
-///
-/// `GlobalTransform` of a UI node represents the node's center in
-/// screen-pixel space, and `ComputedNode::size` gives its rendered size.
-pub fn spatial_area_click_obs(
-    mut click: On<Pointer<Click>>,
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CLICK HANDLERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+/// The single click entry point for spatial inventories. Owns ALL geometry:
+/// converts the pointer position into area-local coordinates, discards
+/// out-of-bounds clicks, and hit-tests the click against the DATA's
+/// placement positions (placement nodes are click-transparent visuals).
+/// Emits a fully resolved `SpatialInventoryClickedEvent` for the data side.
+pub fn spatial_inventory_click_obs(
+    click: On<Pointer<Click>>,
     mut commands: Commands,
-    areas: Query<(&SpatialCraftingArea, &ComputedNode, &GlobalTransform)>,
+    node_query: Query<(&SpatialInventoryNode, &ComputedNode)>,
+    inv_query: Query<&SpatialInventory>,
 ) {
-    let Ok((area, computed, transform)) = areas.get(click.entity) else { return };
+    let Ok((node, panel)) = node_query.get(click.entity) else { return };
+    let Ok(spatial) = inv_query.get(node.source_entity) else { return };
+    let Some(local_pos_three_dimensional) = click.hit.position else { return };
 
-    let panel_center   = transform.translation().truncate();
-    let panel_size     = computed.size();
-    let panel_top_left = panel_center - panel_size * 0.5;
-    let local          = click.pointer_location.position - panel_top_left;
+    // Local position in terms of 
+    let local_pos = local_pos_three_dimensional.truncate() * panel.size() + panel.size() * 0.5;
 
-    commands.trigger(SpatialAreaClickedEvent {
-        entity:    area.source_entity,
-        local_pos: local,
-    });
-    click.propagate(false);
-}
+    // Out-of-bounds clicks are discarded before any event exists.
+    if !spatial.contains(local_pos) { return; }
 
-/// Second leg: drop the cursor's held stack into the spatial inventory at
-/// the resolved local position. Snapshot-then-mutate, then fire change
-/// events for cursor and target — same shape as `inventory_ui_click_obs`.
-pub fn place_from_cursor_obs(
-    event: On<SpatialAreaClickedEvent>,
-    mut commands: Commands,
-    mut spatial_q: Query<&mut SpatialInventory>,
-    mut cursor_q:  Query<(Entity, &mut Inventory), With<CursorInventory>>,
-) {
-    let Ok((cursor_entity, mut cursor_inv)) = cursor_q.single_mut() else { return };
-    let Ok(mut spatial) = spatial_q.get_mut(event.entity) else { return };
+    let id = spatial.hit_test(local_pos, SPATIAL_ITEM_ICON_SIZE * 0.5);
 
-    let Some(stack) = cursor_inv.slots()[0] else { return };
-
-    // Bail before mutating anything if the spot is out of bounds.
-    if !spatial.contains(event.local_pos) { return; }
-
-    let extracted = cursor_inv.extract_from_slot(stack.id, stack.count, 0);
-    if extracted.transferred == 0 { return; }
-
-    let Some(id) = spatial.place(
-        event.local_pos,
-        ItemStack { id: stack.id, count: extracted.transferred },
-    ) else { return /* unreachable if `contains` passed */ };
-
-    commands.trigger(SpatialInventoryChangedEvent {
-        entity: event.entity,
-        change: SpatialChange::Placed(id),
-    });
-    commands.trigger(InventoryChangedEvent {
-        entity: cursor_entity,
-        index:  0,
+    commands.trigger(SpatialInventoryClickedEvent {
+        entity:    node.source_entity,
+        local_pos,
+        id,
+        button:    click.button,
     });
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CLICK → PICK UP (on an existing placement)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Clicking a placement returns it to the cursor. For now we only handle
-/// the "cursor is empty" case; merge/swap semantics can come later.
-pub fn placement_click_obs(
-    mut click: On<Pointer<Click>>,
-    mut commands: Commands,
-    placements: Query<&SpatialPlacementNode>,
-    mut spatial_q: Query<&mut SpatialInventory>,
-    mut cursor_q:  Query<(Entity, &mut Inventory), With<CursorInventory>>,
-    item_registry: Res<ItemRegistry>,
-) {
-    let Ok(node) = placements.get(click.entity) else { return };
-    let Ok(mut spatial)                       = spatial_q.get_mut(node.source_entity) else { return };
-    let Ok((cursor_entity, mut cursor_inv))   = cursor_q.single_mut() else { return };
-
-    // TODO: cursor non-empty → swap or merge. For now: ignore.
-    if cursor_inv.slots()[0].is_some() { return; }
-
-    let Some(stack) = spatial.remove(node.placement_id) else { return };
-    cursor_inv.insert_at_slot(stack.id, stack.count, 0, &item_registry);
-
-    commands.trigger(SpatialInventoryChangedEvent {
-        entity: node.source_entity,
-        change: SpatialChange::Removed(node.placement_id),
-    });
-    commands.trigger(InventoryChangedEvent {
-        entity: cursor_entity,
-        index:  0,
-    });
-    click.propagate(false);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// INCREMENTAL SYNC
+// SYNC
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Reacts to a `SpatialInventoryChangedEvent` by doing the minimum work:
-/// spawn one node, despawn one node, or wipe all this area's children.
+/// spawn one node, despawn one node, edit one node...
 /// Handles the edge case of multiple UIs viewing the same inventory.
-pub fn spatial_inventory_sync_obs(
+pub fn spatial_inventory_changed_to_ui_sync_obs(
     event: On<SpatialInventoryChangedEvent>,
     mut commands: Commands,
-    areas: Query<(Entity, &SpatialCraftingArea)>,
+    areas: Query<(Entity, &SpatialInventoryNode)>,
     placement_nodes: Query<(Entity, &SpatialPlacementNode)>,
     spatial_q: Query<&SpatialInventory>,
     item_registry: Res<ItemRegistry>,
@@ -242,11 +205,108 @@ pub fn spatial_inventory_sync_obs(
                 commands.entity(node_entity).despawn();
             }
         }
-        SpatialChange::Cleared => {
+        SpatialChange::Modified(id) => {
+            let Ok(spatial) = spatial_q.get(target) else { return };
+            let Some(placement) = spatial.get(id) else { return };
+
+            // Rebuild the node: despawn stale, spawn fresh. Cheap enough,
+            // and reuses the exact spawn path `Placed` uses.
             for (node_entity, node) in placement_nodes.iter() {
-                if node.source_entity != target { continue; }
-                commands.entity(node_entity).despawn();
+                if node.source_entity == target && node.placement_id == id {
+                    commands.entity(node_entity).despawn();
+                }
+            }
+            for (area_entity, area) in areas.iter() {
+                if area.source_entity != target { continue; }
+                let child = commands.spawn(build_placement_node(
+                    target, id, placement, &item_registry,
+                )).id();
+                commands.entity(area_entity).add_child(child);
             }
         }
     }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CRAFTING-RELATED UI STUFF
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+use bevy::{
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
+};
+use crate::plugin::crafting::main::{CurrentRecipe, MachineRecipeChanged, CraftRequest};
+
+const OUTPUT_GHOST_SLOT_SIZE: Val = Val::Px(64.0); // match your inventory slot size
+
+/// The ghost output: a pure VIEW of the machine's CurrentRecipe cache.
+/// It stores nothing — clicking it asks the machine to craft.
+#[derive(Component)]
+#[component(on_add = recipe_output_slot_on_add)]
+pub struct RecipeOutputSlot {
+    pub machine: Entity,
+}
+
+/// Same pattern as InventorySlot: a freshly spawned slot requests its own
+/// first sync, so no UI builder ever has to remember to.
+fn recipe_output_slot_on_add(mut world: DeferredWorld, ctx: HookContext) {
+    let machine = world.entity(ctx.entity)
+        .get::<RecipeOutputSlot>()
+        .expect("on_add runs after insertion")
+        .machine;
+    world.commands().trigger(MachineRecipeChanged { entity: machine });
+}
+
+pub fn build_recipe_output_slot(machine: Entity) -> impl Bundle {
+    (Node {
+            width:  OUTPUT_GHOST_SLOT_SIZE,
+            height: OUTPUT_GHOST_SLOT_SIZE,
+            border: UiRect::all(UI_BORDER_THICKN),
+            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_PANEL_COLOR),
+        RecipeOutputSlot { machine },
+        Pickable { should_block_lower: true, is_hoverable: true },
+    )
+}
+
+/// MachineOutputChanged → redraw every ghost slot viewing that machine.
+pub fn recipe_output_sync_obs(
+    event: On<MachineRecipeChanged>,
+    mut commands: Commands,
+    machines: Query<&CurrentRecipe>,
+    slots: Query<(Entity, &RecipeOutputSlot)>,
+    item_registry: Res<ItemRegistry>,
+) {
+    let Ok(current) = machines.get(event.entity) else { return };
+
+    for (slot_entity, slot) in slots.iter() {
+        if slot.machine != event.entity { continue; }
+
+        commands.entity(slot_entity).despawn_related::<Children>();
+
+        if let Some(m) = &current.0 {
+            let icon = commands.spawn(build_ui_item_display(
+                &item_registry.get(m.result.id).display,
+                m.result.count,
+            )).id();
+            commands.entity(slot_entity).add_child(icon);
+        }
+    }
+}
+
+/// Clicks on the ghost slot become craft requests. Acceptance logic lives
+/// entirely on the data side.
+pub fn recipe_output_click_obs(
+    mut click: On<Pointer<Click>>,
+    mut commands: Commands,
+    slots: Query<&RecipeOutputSlot>,
+) {
+    let Ok(slot) = slots.get(click.entity) else { return };
+    click.propagate(false);
+    commands.trigger(CraftRequest { entity: slot.machine });
 }

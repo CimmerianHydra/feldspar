@@ -148,7 +148,7 @@ pub struct InventoryClickedEvent {
 }
 
 pub fn inventory_ui_click_obs(
-    mut click: On<Pointer<Click>>,
+    click: On<Pointer<Click>>,
     mut commands: Commands,
     available_slots: Query<&InventorySlot>,
 ) {
@@ -158,7 +158,6 @@ pub fn inventory_ui_click_obs(
         let entity = slot_data.source_entity;
         let slot_index = slot_data.slot_index;
         commands.trigger(InventoryClickedEvent{ entity, slot_index, button });
-        click.propagate(false);
     }
 }
 
@@ -217,6 +216,9 @@ pub fn inventory_sync_obs(
     }
 }
 
+/// When an inventory changed event is registered, this observer triggers a UI sync request.
+/// The UI sync requests makes it so that if there's any UI sesssion involving this inventory
+/// currently open, it'll be updated (see inventory_sync_obs).
 pub fn inventory_changed_to_ui_sync_obs(
     event: On<InventoryChangedEvent>,
     mut commands: Commands,

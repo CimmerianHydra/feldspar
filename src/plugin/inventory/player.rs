@@ -1,14 +1,21 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::controller::player::{SelectItem, HotbarSelection};
-
+use crate::plugin::crafting::main::CurrentRecipe;
+use crate::plugin::crafting::main::Machine;
+use crate::plugin::crafting::spatial::InventorySpatialCraftingMachine;
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::cursor::*;
 
+use crate::plugin::controller::player::{SelectItem, HotbarSelection};
 use crate::plugin::controller::main::MouseScrollEvent;
 use crate::plugin::controller::player::Player;
+use crate::plugin::inventory::spatial::SpatialInventory;
 use crate::plugin::ui::hotbar::HotbarUISpawnRequest;
+
+
+const SPATIAL_CRAFTING_PANEL_WIDTH: f32 = 520.0;
+const SPATIAL_CRAFTING_PANEL_HEIGHT: f32 = 260.0;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // HOTBAR EVENTS
@@ -102,7 +109,7 @@ pub fn append_player_inventory_sys(
     player_query: Query<Entity, Added<Player>>,
 ) {
     for new_player in player_query.iter() {
-        let new_inventory = commands.spawn((
+        let new_inventory: Entity = commands.spawn((
                 PlayerInventory,
                 Inventory::new(27),
         )).id();
@@ -121,11 +128,27 @@ pub fn append_player_inventory_sys(
             PlayerEquipment { right_hand: None },
         )).id();
 
+
+        // The player is given a special kind of machine entity, performing instant
+        // spatial recipes with instant processing speed.
+        // This is essentially Minecraft's grid crafting, but for Feldspar.
+
+        let new_spatial_inventory = commands.spawn((
+            SpatialInventory::new(SPATIAL_CRAFTING_PANEL_WIDTH, SPATIAL_CRAFTING_PANEL_HEIGHT),
+        )).id();
+
+        let new_crafting_machine = commands.spawn((
+            Machine,
+            CurrentRecipe::default(),
+            InventorySpatialCraftingMachine { input_entity : new_spatial_inventory },
+        )).id();
+
         commands.entity(new_player).add_children(&[
             new_inventory,
             new_hotbar,
             new_cursor_inventory,
-            new_equipment
+            new_equipment,
+            new_crafting_machine,
         ]);
 
         commands.trigger(HotbarUISpawnRequest {
