@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::plugin::{crafting::spatial::InventorySpatialCraftingMachine, ui::main::*};
+use crate::plugin::{crafting::spatial::InventoryMachine, ui::main::*};
 use crate::plugin::ui::item::build_ui_item_display;
 use crate::plugin::loader::item_registry::ItemRegistry;
 use crate::plugin::inventory::spatial::*;

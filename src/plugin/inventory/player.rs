@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
 use crate::plugin::crafting::main::CurrentRecipe;
+use crate::plugin::crafting::main::InputOf;
 use crate::plugin::crafting::main::Machine;
-use crate::plugin::crafting::spatial::InventorySpatialCraftingMachine;
+use crate::plugin::crafting::spatial::InventoryMachine;
 use crate::plugin::inventory::main::*;
 use crate::plugin::inventory::cursor::*;
 
@@ -133,14 +134,15 @@ pub fn append_player_inventory_sys(
         // spatial recipes with instant processing speed.
         // This is essentially Minecraft's grid crafting, but for Feldspar.
 
-        let new_spatial_inventory = commands.spawn((
-            SpatialInventory::new(SPATIAL_CRAFTING_PANEL_WIDTH, SPATIAL_CRAFTING_PANEL_HEIGHT),
-        )).id();
-
         let new_crafting_machine = commands.spawn((
             Machine,
+            InventoryMachine,
             CurrentRecipe::default(),
-            InventorySpatialCraftingMachine { input_entity : new_spatial_inventory },
+        )).id();
+
+        commands.spawn((
+            SpatialInventory::new(SPATIAL_CRAFTING_PANEL_WIDTH, SPATIAL_CRAFTING_PANEL_HEIGHT),
+            InputOf { machine_entity : new_crafting_machine }
         )).id();
 
         commands.entity(new_player).add_children(&[

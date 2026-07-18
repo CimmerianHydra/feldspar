@@ -17,46 +17,53 @@ use crate::plugin::inventory::spatial::*;
 /// analogue is the MetaTileEntity class; the components alongside it
 /// (SpatialInventory, CurrentRecipe) are its handlers and recipe logic.
 #[derive(Component)]
-pub struct InventorySpatialCraftingMachine {
-    pub input_entity : Entity,
-}
+pub struct InventoryMachine;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TRIGGERS AND EVENTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Input changed → re-search the RecipeMap, update the cache, notify UIs.
-pub fn inventory_recompute_recipe_obs(
+pub fn spatial_inventory_change_recompute_recipe_obs(
     event: On<SpatialInventoryChangedEvent>,
-    spatial: Query<(Entity, &SpatialInventory)>,
+    spatial_inventory_q: Query<(&SpatialInventory, &InputOf)>,
     mut commands: Commands,
-    mut machines: Query<(Entity, &InventorySpatialCraftingMachine, &mut CurrentRecipe)>,
+    mut machines: Query<(Entity, &mut CurrentRecipe)>,
     recipes: Res<SpatialRecipeRegistry>,
 ) {
-    let Ok((input_entity, input_data)) = spatial.get(event.entity) else { return };
-    for (machine, machine_data, mut current) in machines.iter_mut() {
-        if machine_data.input_entity != input_entity { continue; }
-        current.0 = recipes.match_inventory(input_data);
-        commands.trigger(MachineRecipeChanged { entity: machine });
-    }
+    let Ok((inv_data, input_of)) = spatial_inventory_q.get(event.entity) else { return };
+    let Ok((machine, mut current)) = machines.get_mut(input_of.machine_entity) else { return };
+
+    current.0 = recipes.match_inventory(inv_data);
+    commands.trigger(MachineRecipeChanged { entity: machine });
 }
 
 /// Execute a craft from the inventory crafting machine: validate cursor acceptance,
 /// re-validate ingredients against LIVE data, consume, deliver. The consumption's
 /// own change events re-trigger the recompute above, so the ghost slot refreshes (or
 /// empties) automatically — repeat-crafting costs zero extra code.
-pub fn inventory_spatial_craft_request_obs(
+pub fn inventory_machine_craft_request_obs(
     event: On<CraftRequest>,
     mut commands: Commands,
-    machines: Query<(&InventorySpatialCraftingMachine, &CurrentRecipe)>,
+    machines: Query<(&CurrentRecipe, &Inputs), With<InventoryMachine>>,
     mut spatial: Query<&mut SpatialInventory>,
     mut cursor_q: Query<(Entity, &mut Inventory), With<CursorInventory>>,
     item_registry: Res<ItemRegistry>,
 ) {
-    let Ok((machine, current)) = machines.get(event.entity) else { return };
-    let Some(recipe) = current.0.clone() else { return };
-    let Ok(mut input_inventory) = spatial.get_mut(machine.input_entity) else { return };
+    // Machines with no recipe and no inputs can't craft.
+    let Ok((current_recipe, inputs)) = machines.get(event.entity) else { return };
+
+    // Return early if no recipe is set in the machine.
+    let Some(recipe) = current_recipe.0.clone() else { return };
+
+    // No cursor? No craft. This is a special machine that only ever sends items to the cursor.
     let Ok((cursor_entity, mut cursor_inv)) = cursor_q.single_mut() else { return };
+
+    // For every available inventory of this crafting machine (there's going to be only one), craft the recipe.
+    let Some(inv_entity) = inputs.first() else { return; };
+    let inv_entity = *inv_entity;
+
+    let Ok(mut input_inventory) = spatial.get_mut(inv_entity) else { return };
 
     // The cursor must be able to accept the WHOLE result.
     let max_stack = item_registry.get(recipe.result.id).max_stack;
@@ -87,7 +94,7 @@ pub fn inventory_spatial_craft_request_obs(
         } else {
             SpatialChange::Removed(pid)
         };
-        commands.trigger(SpatialInventoryChangedEvent { entity: machine.input_entity, change });
+        commands.trigger(SpatialInventoryChangedEvent { entity: inv_entity, change });
     }
 
     cursor_inv.insert_at_slot(recipe.result.id, recipe.result.count, 0, &item_registry);

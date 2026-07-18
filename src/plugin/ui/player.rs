@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::crafting::spatial::InventorySpatialCraftingMachine;
+use crate::plugin::crafting::main::Inputs;
+use crate::plugin::crafting::spatial::InventoryMachine;
 use crate::plugin::ui::crafting::build_inventory_crafting_ui;
 use crate::plugin::ui::inventory::*;
 use crate::plugin::ui::cursor::*;
@@ -69,15 +70,15 @@ pub fn open_inventory_player_input_action_obs(
     mut commands: Commands,
     player_hotbar_query: Query<(Entity, &Inventory), (With<PlayerHotbar>, Without<PlayerInventory>)>,
     player_inventory_query: Query<(Entity, &Inventory), (With<PlayerInventory>, Without<PlayerHotbar>)>,
-    player_crafting_machine_query: Query<(Entity, &InventorySpatialCraftingMachine)>,
+    player_inv_craft_machine_query: Query<(Entity, &Inputs), With<InventoryMachine>>,
     player_spatial_inventory_query: Query<&SpatialInventory>,
 ) {
     let Ok(hotbar_data) = player_hotbar_query.single() else { return; };
     let Ok(player_data) = player_inventory_query.single() else { return; };
 
-    let Ok((inventory_crafting_entity, inventory_crafting_data)) = player_crafting_machine_query.single() else { return; };
-    let spatial_inventory_entity = inventory_crafting_data.input_entity;
-    let Ok(spatial_inventory_data) = player_spatial_inventory_query.get(spatial_inventory_entity) else { return; };
+    let Ok((inv_craft_entity, inv_craft_inputs)) = player_inv_craft_machine_query.single() else { return; };
+    let Some(spatial_inventory_entity) = inv_craft_inputs.first() else { return; };
+    let Ok(spatial_inventory_data) = player_spatial_inventory_query.get(*spatial_inventory_entity) else { return; };
 
 
     commands.spawn(
@@ -85,11 +86,11 @@ pub fn open_inventory_player_input_action_obs(
             hotbar_data,
             player_data,
             build_inventory_crafting_ui(
-                inventory_crafting_entity, 
-                spatial_inventory_entity,
+                inv_craft_entity, 
+                *spatial_inventory_entity,
                 spatial_inventory_data
             ),
-            Some(inventory_crafting_entity)),
+            Some(inv_craft_entity)),
         );
     commands.trigger(CursorLockRequest::Unlock);
 }

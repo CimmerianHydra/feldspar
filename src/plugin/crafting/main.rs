@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::plugin::crafting::spatial::{inventory_spatial_craft_request_obs, inventory_recompute_recipe_obs};
+use crate::plugin::crafting::spatial::{inventory_machine_craft_request_obs, spatial_inventory_change_recompute_recipe_obs};
 use crate::plugin::inventory::main::ItemStack;
 use crate::plugin::loader::recipe_maps::MatchedRecipe;
 
@@ -13,8 +13,8 @@ pub struct CraftingPlugin;
 impl Plugin for CraftingPlugin {
     fn build(&self, app: &mut App) {
         app
-        .add_observer(inventory_recompute_recipe_obs)
-        .add_observer(inventory_spatial_craft_request_obs)
+        .add_observer(spatial_inventory_change_recompute_recipe_obs)
+        .add_observer(inventory_machine_craft_request_obs)
         ;
     }
 }
@@ -57,3 +57,23 @@ pub struct CraftExecuted {
     pub entity: Entity,
     pub result: ItemStack,
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RELATIONSHIPS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Machines require entities as their inputs and outputs. This can be modeled
+/// as a relationship within Bevy.
+
+/// Input → machine. This IS the relationship (source of truth).
+#[derive(Component)]
+#[relationship(relationship_target = Inputs)]
+pub struct InputOf {
+    pub machine_entity: Entity,
+}
+
+/// Machine → inputs. Auto-maintained inverse; never insert or mutate this
+/// yourself — Bevy does, whenever the component above is added/removed.
+#[derive(Component, Deref)]
+#[relationship_target(relationship = InputOf)]
+pub struct Inputs(Vec<Entity>);

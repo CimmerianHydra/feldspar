@@ -7,10 +7,10 @@ use serde::Deserialize;
 /// recognizer is blind to translation, rotation, reflection, and scale.
 
 /// Relative tolerances (dimensionless), tunable in one place.
-const LINE_TOLERANCE:     f32 = 0.10; // perpendicular deviation / span
-const TRIANGLE_TOLERANCE: f32 = 0.12; // (max_side - min_side) / max_side
+const LINE_TOLERANCE:     f32 = 0.20; // perpendicular deviation / span
+const TRIANGLE_TOLERANCE: f32 = 0.20; // (max_side - min_side) / max_side
 #[allow(dead_code)]
-const ANGLE_TOLERANCE:    f32 = 0.10; // radians; reserved for L4 / Y4
+const ANGLE_TOLERANCE:    f32 = 0.20; // radians; reserved for L4 / Y4
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "snake_case")]
