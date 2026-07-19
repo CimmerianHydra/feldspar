@@ -1,0 +1,8 @@
+{
+    "shape": "line2",
+    "vertices": [
+        { "item": "barrel" },
+        { "item": "barrel" }
+    ],
+    "result": { "item": "slate", "count": 4 }
+}

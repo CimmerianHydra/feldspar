@@ -43,6 +43,7 @@ impl Plugin for UIPlugin {
 
         .add_observer(recipe_output_click_obs)
         .add_observer(recipe_output_sync_obs)
+        .add_observer(recipe_shape_overlay_sync_obs)
 
         .add_observer(open_inventory_player_input_action_obs)
         .add_observer(close_inventory_player_input_action_obs)

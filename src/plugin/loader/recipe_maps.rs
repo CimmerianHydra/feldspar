@@ -51,6 +51,7 @@ pub struct RecipeEntry {
 /// much to drain from which physical placement.
 #[derive(Clone, Debug)]
 pub struct MatchedRecipe {
+    pub shape:   CraftShape,
     pub result:  ItemStack,
     pub consume: Vec<(PlacementID, u16)>,
 }
@@ -119,6 +120,7 @@ impl SpatialRecipeRegistry {
                 canon.iter().zip(&entry.counts).all(|((_, have, _), need)| have >= need)
             })
             .map(|entry| MatchedRecipe {
+                shape,
                 result:  entry.result,
                 consume: canon.iter().zip(&entry.counts)
                     .map(|((_, _, pid), &need)| (*pid, need))

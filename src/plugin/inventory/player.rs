@@ -143,7 +143,7 @@ pub fn append_player_inventory_sys(
         commands.spawn((
             SpatialInventory::new(SPATIAL_CRAFTING_PANEL_WIDTH, SPATIAL_CRAFTING_PANEL_HEIGHT),
             InputOf { machine_entity : new_crafting_machine }
-        )).id();
+        ));
 
         commands.entity(new_player).add_children(&[
             new_inventory,

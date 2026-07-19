@@ -1,0 +1,7 @@
+{
+    "shape": "dot",
+    "vertices": [
+        { "item": "dirt" }
+    ],
+    "result": { "item": "grass", "count": 1 }
+}

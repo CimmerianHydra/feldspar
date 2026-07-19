@@ -53,7 +53,7 @@ pub fn build_inventory_crafting_ui(
 
         // Once this bundle is spawned, this will automatically spawn as many children as needed.
         children![
-            build_spatial_inventory_panel(spatial_entity, spatial_data),
+            build_spatial_inventory_panel(machine_entity, spatial_entity, spatial_data),
             build_recipe_output_slot(machine_entity)
             ]
     )
@@ -63,7 +63,8 @@ pub fn build_inventory_crafting_ui(
 /// Build the crafting area panel. Items will be added as absolutely-
 /// positioned children by the sync observer as placements happen.
 pub fn build_spatial_inventory_panel(
-    source_entity: Entity,
+    machine_entity: Entity,
+    spatial_entity: Entity,
     spatial_data:  &SpatialInventory,
 ) -> impl Bundle {
     (Node {
@@ -77,8 +78,9 @@ pub fn build_spatial_inventory_panel(
         },
         BorderColor::all(UI_BORDER_COLOR),
         BackgroundColor(UI_SLOT_COLOR),
-        SpatialInventoryNode { source_entity },
+        SpatialInventoryNode { source_entity: spatial_entity },
         Pickable { should_block_lower: true, is_hoverable: true },
+        children![build_recipe_shape_overlay(machine_entity)]
     )
 }
 
@@ -309,4 +311,146 @@ pub fn recipe_output_click_obs(
     let Ok(slot) = slots.get(click.entity) else { return };
     click.propagate(false);
     commands.trigger(CraftRequest { entity: slot.machine });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RECIPE SHAPE OVERLAY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+use crate::plugin::crafting::main::Inputs;
+
+/// Slightly larger than the icons so the disks read as rings around them.
+const OVERLAY_DISK_SIZE:      f32 = SPATIAL_ITEM_ICON_SIZE * 1.2;
+const OVERLAY_LINE_THICKNESS: f32 = 8.0;
+
+/// Panel-chrome colour, pulled a bit toward black so it doesn't blend
+/// with item icons. Not a const because colour mixing isn't const fn.
+fn overlay_color() -> Color {
+    UI_BORDER_COLOR.mix(&Color::BLACK, 0.3)
+}
+
+/// Full-panel canvas for the matched recipe's shape. A pure VIEW of the
+/// machine's CurrentRecipe, same as the ghost output slot: it stores
+/// nothing, only its children churn.
+#[derive(Component)]
+#[component(on_add = recipe_shape_overlay_on_add)]
+pub struct RecipeShapeOverlay {
+    pub machine: Entity,
+}
+
+/// Freshly spawned overlay requests its own first sync — same pattern
+/// as RecipeOutputSlot. A duplicate trigger is harmless.
+fn recipe_shape_overlay_on_add(mut world: DeferredWorld, ctx: HookContext) {
+    let machine = world.entity(ctx.entity)
+        .get::<RecipeShapeOverlay>()
+        .expect("on_add runs after insertion")
+        .machine;
+    world.commands().trigger(MachineRecipeChanged { entity: machine });
+}
+
+fn build_recipe_shape_overlay(machine: Entity) -> impl Bundle {
+    (Node {
+            position_type: PositionType::Absolute,
+            left:   Val::Px(0.0),
+            top:    Val::Px(0.0),
+            width:  percent(100),
+            height: percent(100),
+            ..default()
+        },
+        RecipeShapeOverlay { machine },
+        Pickable::IGNORE,
+    )
+}
+
+/// A filled disk centred on a placement position. Same centre-offset
+/// math as build_placement_node, so it sits exactly under the icon.
+fn build_overlay_disk(pos: Vec2) -> impl Bundle {
+    let half = OVERLAY_DISK_SIZE * 0.5;
+    (Node {
+            position_type: PositionType::Absolute,
+            left:   Val::Px(pos.x - half),
+            top:    Val::Px(pos.y - half),
+            width:  Val::Px(OVERLAY_DISK_SIZE),
+            height: Val::Px(OVERLAY_DISK_SIZE),
+            border_radius: BorderRadius::MAX, // square node → circle
+            ..default()
+        },
+        BackgroundColor(overlay_color()),
+        Pickable::IGNORE,
+    )
+}
+
+/// A thick segment between two placement centres: a node of
+/// width = distance, positioned so its centre is the midpoint, then
+/// rotated around that centre by the segment's angle.
+fn build_overlay_line(a: Vec2, b: Vec2) -> impl Bundle {
+    let delta  = b - a;
+    let length = delta.length();
+    let mid    = (a + b) * 0.5;
+
+    (Node {
+            position_type: PositionType::Absolute,
+            left:   Val::Px(mid.x - length * 0.5),
+            top:    Val::Px(mid.y - OVERLAY_LINE_THICKNESS * 0.5),
+            width:  Val::Px(length),
+            height: Val::Px(OVERLAY_LINE_THICKNESS),
+            border_radius: BorderRadius::MAX, // rounded end caps
+            ..default()
+        },
+        // UI rotation happens around the node's centre. Both delta and the
+        // rotation live in the same y-down UI frame, so to_angle() is used
+        // directly — if lines ever appear mirrored, negate the angle here.
+        UiTransform {
+            rotation: Rot2::radians(delta.to_angle()),
+            ..default()
+        },
+        BackgroundColor(overlay_color()),
+        Pickable::IGNORE,
+    )
+}
+
+/// MachineRecipeChanged → redraw every shape overlay viewing that machine.
+/// Positions are looked up LIVE from the spatial inventory at sync time;
+/// since the recompute observer fires this event after every spatial
+/// change, the overlay can never show stale geometry.
+pub fn recipe_shape_overlay_sync_obs(
+    event: On<MachineRecipeChanged>,
+    mut commands: Commands,
+    machines: Query<(&CurrentRecipe, &Inputs)>,
+    overlays: Query<(Entity, &RecipeShapeOverlay)>,
+    spatial_q: Query<&SpatialInventory>,
+) {
+    let Ok((current, inputs)) = machines.get(event.entity) else { return };
+
+    // This loop is okay because we won't have a million overlays active at once
+    for (overlay_entity, overlay) in overlays.iter() {
+        if overlay.machine != event.entity { continue; }
+
+        commands.entity(overlay_entity).despawn_related::<Children>();
+
+        let Some(recipe) = &current.0 else { continue };
+
+        let Some(&inv_entity) = inputs.first() else { continue };
+        let Ok(spatial) = spatial_q.get(inv_entity) else { continue };
+
+        // `consume` is in canonical vertex order, which is still a valid
+        // conventional-order labelling under the shape's symmetry group —
+        // so edges() indices point at the right vertices. Any dead
+        // PlacementID means the cache is one event behind: draw nothing,
+        // the follow-up recompute will resync us.
+        let positions: Option<Vec<Vec2>> = recipe.consume.iter()
+            .map(|&(pid, _)| spatial.get(pid).map(|p| p.pos))
+            .collect();
+        let Some(positions) = positions else { continue };
+
+        // Lines first, disks second, so the disks cap the line ends.
+        for &(a, b) in recipe.shape.edges() {
+            let line = commands.spawn(build_overlay_line(positions[a], positions[b])).id();
+            commands.entity(overlay_entity).add_child(line);
+        }
+        for &pos in &positions {
+            let disk = commands.spawn(build_overlay_disk(pos)).id();
+            commands.entity(overlay_entity).add_child(disk);
+        }
+    }
 }

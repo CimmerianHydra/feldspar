@@ -1,0 +1,13 @@
+{
+    "name": "planksOak",
+    "display_name": "Oak Planks",
+    "shape": "Cube",
+    "appearance": {
+        "kind": "uniform",
+        "texture":   { "kind": "simple", "texture": "oak_planks" }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}

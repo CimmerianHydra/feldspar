@@ -1,0 +1,9 @@
+{
+    "shape": "line3",
+    "vertices": [
+        { "item": "barrel" },
+        { "item": "barrel" },
+        { "item": "barrel" }
+    ],
+    "result": { "item": "grass", "count": 3 }
+}

@@ -37,6 +37,19 @@ impl CraftShape {
         }
     }
 
+    /// Edges between conventional vertex indices — pure UI topology.
+    /// Extend together with `arity` and `symmetry_perms` when adding
+    /// the 4-point shapes.
+    pub fn edges(self) -> &'static [(usize, usize)] {
+        match self {
+            CraftShape::Dot      => &[],
+            CraftShape::Line2    => &[(0, 1)],
+            CraftShape::Line3    => &[(0, 1), (1, 2)],
+            CraftShape::Triangle => &[(0, 1), (1, 2), (2, 0)],
+            _ => &[], // 4-point shapes: next pass
+        }
+    }
+
     /// The shape's symmetry group as permutations of vertex indices in
     /// conventional vertex order. Used identically at recipe registration
     /// and at match time — sharing these tables is what guarantees rotated

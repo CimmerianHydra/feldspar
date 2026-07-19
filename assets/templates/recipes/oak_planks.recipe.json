@@ -1,0 +1,7 @@
+{
+    "shape": "dot",
+    "vertices": [
+        { "item": "logOak" }
+    ],
+    "result": { "item": "planksOak", "count": 4 }
+}
