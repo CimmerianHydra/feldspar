@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 mod plugin;
-use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
 use plugin::block::interaction::BlockInteractionPlugin;
 use plugin::ui::main::UIPlugin;
@@ -29,7 +28,7 @@ use plugin::state::GameState;
 
 use plugin::block::prelude::BlockPlugin;
 use plugin::chunk::{NeedsRemeshing, VoxelChunk};
-use plugin::dimension::DimensionID;
+use plugin::space::prelude::DimensionID;
 use plugin::loader::texture_assets::VoxelMaterialHandle;
 use plugin::space::prelude::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};

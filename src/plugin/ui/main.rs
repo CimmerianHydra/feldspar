@@ -36,7 +36,7 @@ impl Plugin for UIPlugin {
         .add_observer(inventory_sync_obs)
         .add_observer(inventory_changed_to_ui_sync_obs)
         .add_observer(show_requested_inventory_obs)
-        .add_observer(close_requested_inventory_obs)
+        .add_observer(entity_ui_session_end_obs)
 
         .add_observer(spatial_inventory_click_obs)
         .add_observer(spatial_inventory_changed_to_ui_sync_obs)

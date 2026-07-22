@@ -265,7 +265,7 @@ pub fn show_requested_inventory_obs(
     }
 }
 
-pub fn close_requested_inventory_obs(
+pub fn entity_ui_session_end_obs(
     close_requests: On<EntityUISessionEndRequest>,
     mut commands: Commands,
     session_query: Query<(Entity, &EntityUISession)>,

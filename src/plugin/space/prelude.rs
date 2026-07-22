@@ -5,7 +5,6 @@ use bevy::{
 use std::collections::HashMap;
 
 use crate::plugin::chunk::{NeedsRemeshing, VoxelChunk, CHUNK_SIZE};
-use crate::plugin::dimension::DimensionID;
 use crate::plugin::voxel::{Direction, Voxel};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -115,6 +114,16 @@ pub fn to_space_pos(chunk: IVec3, local: UVec3) -> IVec3 {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – SPACES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, Reflect)]
+pub struct DimensionID(pub u8);
+
+impl DimensionID {
+    pub const OVERWORLD:    Self = Self(0);
+    pub const UNDERWORLD:   Self = Self(1);
+    pub const LUA:          Self = Self(2);
+    pub const MARS:         Self = Self(3);
+}
 
 /// Chunk index for one space. The moving-grid twin of the old global
 /// `StaticWorld` resource, except it's a component, so every space gets one

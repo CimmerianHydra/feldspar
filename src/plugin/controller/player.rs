@@ -120,6 +120,14 @@ enum PlayerMovementState {
     Airborne,
 }
 
+#[derive(Default, PartialEq)]
+enum PlayerUIState {
+    #[default]
+    InGame,
+    InUISession,
+    InPauseMenu
+}
+
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
 fn spawn_player_controller(mut commands: Commands) {

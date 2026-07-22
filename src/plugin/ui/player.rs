@@ -19,7 +19,7 @@ pub const MAX_PLAYER_INVENTORY_UI_COLS: usize = 9;
 /// Builds a full UI for the player: a top panel (whatever machine/chest/etc the
 /// caller wants to show), the player's main inventory, and the player's hotbar,
 /// stacked vertically over a dimmed fullscreen background (the typical root).
-fn build_player_ui_with_top_panel(
+pub fn build_player_ui_with_top_panel(
     hotbar_data:  (Entity, &Inventory),
     player_data:  (Entity, &Inventory),
     top_panel:    impl Bundle,

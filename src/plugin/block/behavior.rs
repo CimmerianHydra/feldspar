@@ -160,7 +160,7 @@ impl BlockBehaviorRegistry {
     pub fn register(&mut self, name: impl Into<String>, spawner: Arc<dyn BlockEntitySpawner>) {
         let name = name.into();
         if self.spawners.insert(name.clone(), spawner).is_some() {
-            warn!("block behavior '{name}' registered twice — the later one wins");
+            warn!("block behavior '{name}' registered twice. Selecting the later one.");
         }
     }
 
