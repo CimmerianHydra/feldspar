@@ -3,8 +3,7 @@ use bevy::prelude::*;
 mod plugin;
 use plugin::controller::freecamera::{FreeCameraPlugin, FreeCamera};
 use plugin::geometry::meshing::MeshingPlugin;
-use plugin::block_interaction::BlockInteractionPlugin;
-use plugin::chunk::ChunkPlugin;
+use plugin::block::interaction::BlockInteractionPlugin;
 use plugin::ui::main::UIPlugin;
 use plugin::weather::WeatherPlugin;
 use plugin::state::StatePlugin;
@@ -17,10 +16,25 @@ use plugin::audio::block::BlockAudioPlugin;
 use plugin::crafting::main::CraftingPlugin;
 use plugin::loader::main::AssetLoaderPlugin;
 
+use plugin::inventory::main::*;
+use plugin::inventory::player::*;
+use plugin::loader::item_registry::*;
+use plugin::state::GameUpdate;
+use plugin::ui::cursor::CursorLockRequest;
+
 use bevy::{input::common_conditions::input_toggle_active};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
 use plugin::state::GameState;
+
+use plugin::block::prelude::BlockPlugin;
+use plugin::chunk::{NeedsRemeshing, VoxelChunk};
+use plugin::dimension::DimensionID;
+use plugin::loader::texture_assets::VoxelMaterialHandle;
+use plugin::space::prelude::SpacePlugin;
+use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
+
+
 
 
 fn main() {
@@ -34,8 +48,9 @@ fn main() {
         .add_plugins(ControlsPlugin)
         .add_plugins(VoxelMaterialPlugin)
         .add_plugins(AssetLoaderPlugin)
+        .add_plugins(SpacePlugin)
+        .add_plugins(BlockPlugin)
         .add_plugins(MeshingPlugin)
-        .add_plugins(ChunkPlugin)
         .add_plugins(UIPlugin)
         .add_plugins(InventoryPlugin)
         .add_plugins(BlockInteractionPlugin)
@@ -55,16 +70,9 @@ fn main() {
         .add_systems(Update, enable_game.after(setup_dev_chunks))
 
         .add_systems(Update, dev_populate_player_inventory)
-        .add_systems(Update, dev_populate_player_hotbar)
 
         .run();
 }
-
-use crate::plugin::inventory::main::*;
-use crate::plugin::inventory::player::*;
-use crate::plugin::loader::item_registry::*;
-use crate::plugin::state::GameUpdate;
-use crate::plugin::ui::cursor::CursorLockRequest;
 
 fn enable_game(
     mut commands: Commands,
@@ -75,42 +83,26 @@ fn enable_game(
 /// Hardcoded function to spawn some items into the player's inventory.
 /// Since I hardcoded a few blocks in the block registry, I'll add them here.
 pub fn dev_populate_player_inventory(
-    mut commands: Commands,
-    mut player_inventory_query: Query<(Entity, &mut Inventory), Added<PlayerInventory>>,
-    item_registry: Res<ItemRegistry>,
-) {
-    for (entity, mut inventory) in player_inventory_query.iter_mut() {
-        for slot in 0..3 {
-            let item_id = ItemID(1);
-            let result = inventory.insert_at_slot(item_id, 40, slot, &item_registry);
-
-            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, result.transferred);
-            commands.trigger(InventoryChangedEvent {
-                entity,
-                index: slot,
-            });
-        };
-    }
-}
-
-/// Hardcoded function to spawn some items into the player's inventory.
-/// Since I hardcoded a few blocks in the block registry, I'll add them here.
-pub fn dev_populate_player_hotbar(
-    mut commands: Commands,
-    mut player_hotbar_query: Query<(Entity, &mut Inventory), Added<PlayerHotbar>>,
+    mut player_hotbar_query: Query<(Entity, &mut Inventory), Added<PlayerInventory>>,
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((entity, mut inventory)) = player_hotbar_query.single_mut() {
         for id in 1..7 {
             let item_id = ItemID(id as u16);
-            let result = inventory.insert(item_id, 1, &item_registry);
+            let result = inventory.insert(item_id, 10, &item_registry);
 
-            bevy::log::info!("Added [{}]x{} to player hotbar.", item_registry.get(item_id).name, result.transferred);
-            commands.trigger(InventoryChangedEvent {
-                entity,
-                index: id - 1,
-            });
+            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, result.transferred);
         };
+
+        for name in [
+            "iron_metal_ingot", "iron_metal_plate", "iron_metal_gear", "iron_metal_rod",
+            "copper_metal_ingot", "copper_metal_plate", "copper_metal_gear", "copper_metal_rod",
+            ] {
+            let Some(item_id) = item_registry.by_name(name.to_string()) else { continue ;};
+            let result = inventory.insert(item_id, 10, &item_registry);
+
+            bevy::log::info!("Added [{}]x{} to player inventory.", name.to_string(), result.transferred);
+        }
     }
 }
 
@@ -121,11 +113,8 @@ pub fn dev_lock_cursor(
     commands.trigger(CursorLockRequest::Lock);
 }
 
-
-use crate::plugin::chunk::{StaticChunk, NeedsRemeshing, VoxelChunk};
-use crate::plugin::dimension::DimensionID;
-use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
-use crate::plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
+use crate::plugin::space::prelude::DimensionRegistry;
+use crate::plugin::space::prelude::ChunkSlot;
 
 /// How many chunks out from origin to pre-spawn on each axis.
 /// Total chunk count = (2*R + 1)^3 — with R=8 that's 4913 chunks.
@@ -137,6 +126,7 @@ fn setup_dev_chunks(
     mut commands:                   Commands,
     terrain_material_handle_res:    Res<VoxelMaterialHandle>,
     worldgen:                       Res<ActiveWorldGenerator>,
+    dimensions:                     Res<DimensionRegistry>,
 ) {
     // ── chunk generation + spawn ──────────────────────────────────────────
     let dim_id = DimensionID::OVERWORLD;
@@ -148,11 +138,13 @@ fn setup_dev_chunks(
 
                 let mut chunk_data = VoxelChunk::empty();
                 worldgen.generate_chunk(chunk_pos, &mut chunk_data);
-
+                
                 bevy::log::debug!("Generating static chunk at position ({}, {}, {})", cx, cy, cz);
 
+                let chunk_slot = ChunkSlot { space: dimensions.overworld(), coord: chunk_pos };
+
                 commands.spawn((
-                    StaticChunk { dimension: dim_id, position: chunk_pos },
+                    chunk_slot.clone(),
                     chunk_data.clone(),
                     MeshMaterial3d(terrain_material_handle_res.0.clone()),
                     NeedsRemeshing,

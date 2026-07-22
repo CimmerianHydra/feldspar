@@ -1,0 +1,7 @@
+{
+   "profile": "ore",
+   "parts": [
+     { "name": "raw_ore",       "pattern": "Raw {} Ore",        "sprite": "icons/parts/ingot.png" },
+     { "name": "crushed_ore",   "pattern": "Crushed {} Ore",    "sprite": "icons/parts/ingot.png" }
+   ]
+}

@@ -4,8 +4,9 @@ use bevy::prelude::*;
 use bevy::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
-use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, StaticChunk, NeedsRemeshing};
+use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, NeedsRemeshing};
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
+use crate::plugin::space::prelude::ChunkSlot;
 use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Direction};
 use crate::plugin::geometry::quads::{Quad, shape_quads};
@@ -13,8 +14,6 @@ use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 
 use bevy::mesh::MeshVertexAttribute;
 use bevy::render::render_resource::VertexFormat;
-
-use avian3d::prelude::Position;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -27,8 +26,7 @@ impl Plugin for MeshingPlugin {
         // Add systems related to block meshing here
         app
         .add_systems(Update, (
-            add_components_to_static_chunk_sys,
-            sync_static_chunk_transform_sys,
+            add_physics_to_chunk_sys,
             update_dirty_mesh_sys
         ).run_if(in_state(GameState::InGame)))
         ;
@@ -312,31 +310,12 @@ fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Coll
 // SYSTEMS AT STARTUP PHASE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-fn sync_static_chunk_transform_sys(
-    mut query: Query<(&StaticChunk, &mut Transform), Changed<StaticChunk>>,
-) {
-    for (chunk, mut transform) in &mut query {
-        transform.translation =
-            (chunk.position * CHUNK_SIZE as i32).as_vec3();
-    }
-}
 
-fn add_components_to_static_chunk_sys(
+fn add_physics_to_chunk_sys(
     mut commands: Commands,
-    query: Query<(Entity, &StaticChunk), Added<StaticChunk>>,
+    query: Query<Entity, (Added<ChunkSlot>, With<VoxelChunk>)>,
 ) {
-    for (entity, chunk) in &query {
-        let translation =
-            (chunk.position * CHUNK_SIZE as i32).as_vec3();
-
-        commands.entity(entity).insert(
-            Transform::from_translation(translation)
-        );
-        commands.entity(entity).insert(
-            (
-                RigidBody::Static,
-                Position::from(translation)
-            )
-        );
+    for entity in &query {
+        commands.entity(entity).insert(RigidBody::Static);
     }
 }

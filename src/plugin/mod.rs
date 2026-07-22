@@ -1,6 +1,5 @@
 pub mod audio;
 pub mod block;
-pub mod block_interaction;
 pub mod chunk;
 pub mod controller;
 pub mod crafting;
@@ -9,6 +8,7 @@ pub mod geometry;
 pub mod graphics;
 pub mod inventory;
 pub mod loader;
+pub mod space;
 pub mod state;
 pub mod ui;
 pub mod voxel;

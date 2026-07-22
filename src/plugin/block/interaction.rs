@@ -2,64 +2,48 @@ use bevy::{
     prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef,
 };
 use bevy::mesh::{Mesh, PrimitiveTopology};
-use bevy::asset::{RenderAssetUsages};
+use bevy::asset::RenderAssetUsages;
 use bevy_enhanced_input::prelude::*;
 
+use crate::plugin::block::behavior::InteractsOnUse;
+use crate::plugin::block::entities::{BlockEntityEvent, Interactable};
+use crate::plugin::controller::player::{AltFire, PrimaryFire, SecondaryFire};
+use crate::plugin::geometry::meshing::BLOCK_SIZE;
+use crate::plugin::inventory::player::*;
 use crate::plugin::loader::block_registry::*;
 use crate::plugin::loader::item_registry::*;
-
-use crate::plugin::chunk::{StaticWorldAccess, StaticWorldAccessMut};
-use crate::plugin::inventory::player::*;
+use crate::plugin::space::prelude::*;
 use crate::plugin::state::GameState;
-use crate::plugin::voxel::{Voxel, Direction};
-use crate::plugin::geometry::meshing::{BLOCK_SIZE};
-use crate::plugin::dimension::DimensionID;
-use crate::plugin::controller::player::{PrimaryFire, SecondaryFire, AltFire};
-
+use crate::plugin::voxel::{Direction, Voxel};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 1 – Plugin and Component Definitions
+// SECTION 1 – PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub struct BlockInteractionPlugin;
 
 impl Plugin for BlockInteractionPlugin {
     fn build(&self, app: &mut App) {
-        // Add systems related to block interaction here
         app
         .add_plugins(MaterialPlugin::<LineMaterial>::default())
 
-        // Keeps track of which block or other entity is being looked at right now
-        // Figured out from the combo of all raycasting systems (currently just DDA)
-        .insert_resource(PlayerLookTarget{ target: None })
+        .insert_resource(PlayerLookTarget { target: None })
         .insert_resource(PlayerHeldItems::default())
 
         .add_systems(PreStartup, spawn_block_highlight_sys)
 
         .add_systems(Update, (
-                cast_static_dda_ray_sys,
-                update_block_highlight_sys
-            ).run_if(in_state(GameState::InGame))
+                update_look_target_sys,
+                update_block_highlight_sys,
+            ).chain().run_if(in_state(GameState::InGame))
         )
 
-        .add_observer(update_look_target_obs)
         .add_observer(handle_primary_fire_obs)
         .add_observer(handle_secondary_fire_obs)
-        .add_observer(static_voxel_write_obs)
+        .add_observer(voxel_write_obs)
         ;
     }
 }
-
-/// Current situation:
-/// A FreeCamera has a DDARay component attached to it. Every frame we send out a DDARayResult event.
-/// This event is used to update the position and visibility of the BlockHighlight entity as well as
-/// establish which block is gong to be affected by right clicks or left clicks.
-/// 
-/// In the future, we need to have multiple different types of raycasting:
-///  - To check if the player is looking at a mob
-///  - If not, if the player is looking at a moving grid
-///  - If not, check the static world.
-/// Then we need to send out an event with the result. This will inform the highlight, any tooltips, and so on.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 2 – Raycasting
@@ -165,7 +149,7 @@ fn cast_static_dda_ray_sys(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 3 – Block Highlighting
+// SECTION 2 – Block Highlighting
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub const HIGHLIGHT_EPSILON: f32 = 1.01; // Keeping highlight block slightly larger than the block size to avoid z-fighting.
@@ -255,201 +239,235 @@ pub fn spawn_block_highlight_sys(
 
 
 pub fn update_block_highlight_sys(
-    mut highlight_query: Query<(&mut Transform, &mut Visibility), With<BlockHighlight>>,
-    player_look_target: Res<PlayerLookTarget>,
+    mut highlight: Query<(&mut Transform, &mut Visibility), With<BlockHighlight>>,
+    look_target: Res<PlayerLookTarget>,
+    voxel_world: VoxelWorld,
 ) {
-    if let Ok((mut transform, mut visibility)) = highlight_query.single_mut() {
-        match &player_look_target.target {
-            Some(LookTarget::StaticVoxel { pos, .. }) => {
-                transform.translation = pos.as_vec3() - Vec3::splat(0.5 * (HIGHLIGHT_EPSILON - 1.0)) ;
-                *visibility = Visibility::Visible;
-            },
-            _ => {
-                *visibility = Visibility::Hidden;
-            }
+    let Ok((mut transform, mut visibility)) = highlight.single_mut() else { return };
+
+    let Some(LookTarget::Block { at, .. }) = look_target.target else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    let Some(mut world_tf) = voxel_world.world_transform(at) else {
+        *visibility = Visibility::Hidden;
+        return;
+    };
+
+    // Nudge outward along the space's own axes so the wireframe doesn't
+    // z-fight, then re-center on the block.
+    let offset = Vec3::splat(0.5 * (1.0 - HIGHLIGHT_EPSILON));
+    world_tf.translation += world_tf.rotation * offset;
+    world_tf.scale *= HIGHLIGHT_EPSILON;
+
+    *transform = world_tf;
+    *visibility = Visibility::Visible;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 3 – LOOK TARGET  (was sections 3 + 5)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// One variant for voxels, whatever space they're in. The old
+/// `StaticVoxel` / `MovingGridVoxel` split is gone — `BlockPos` carries the
+/// distinction, and no consumer downstream has to branch on it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum LookTarget {
+    Block { at: BlockPos, voxel: Voxel, face: Direction },
+    Mob   { entity: Entity },
+}
+
+#[derive(Resource, Default)]
+pub struct PlayerLookTarget {
+    pub target: Option<LookTarget>,
+}
+
+/// Fired when the look target changes, for tooltips and anything else that
+/// shouldn't re-raycast.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct LookTargetChanged(pub Option<LookTarget>);
+
+/// Casts into every voxel space and keeps the nearest hit.
+///
+/// The trick that makes moving grids nearly free: instead of writing a
+/// second raycaster, transform the *ray* into each space's local frame and
+/// run the identical DDA. A ship rotated 40 degrees is just a ray pointing
+/// somewhere else as far as the algorithm is concerned.
+pub fn update_look_target_sys(
+    mut commands: Commands,
+    mut look_target: ResMut<PlayerLookTarget>,
+    rays: Query<(&DDARay, &GlobalTransform)>,
+    spaces: Query<(Entity, &GlobalTransform), With<ChunkMap>>,
+    voxel_world: VoxelWorld,
+) {
+    let Ok((ray, ray_tf)) = rays.single() else { return };
+
+    let origin = ray_tf.translation();
+    let forward = ray_tf.forward().as_vec3();
+
+    let mut best: Option<(f32, LookTarget)> = None;
+
+    for (space, space_tf) in spaces.iter() {
+        // World ray -> space-local ray. Uniform scale is assumed; with
+        // non-uniform scale the direction would need rescaling per axis.
+        let inverse = space_tf.affine().inverse();
+        let local_origin = inverse.transform_point3(origin) / BLOCK_SIZE;
+        let local_dir = (inverse.matrix3 * forward).normalize_or_zero();
+        if local_dir == Vec3::ZERO { continue; }
+
+        let hits = digital_differential_analysis(local_origin, local_dir, ray.max_distance);
+
+        let Some((pos, face)) = hits.into_iter().find(|(coord, _)| {
+            !voxel_world.get_voxel(BlockPos::new(space, *coord)).is_air()
+        }) else { continue };
+
+        let at = BlockPos::new(space, pos);
+        let voxel = voxel_world.get_voxel(at);
+
+        // Compare in world space so hits in different frames are commensurable.
+        let Some(world_pos) = voxel_world.world_position(at) else { continue };
+        let distance = world_pos.distance(origin);
+
+        if best.map_or(true, |(d, _)| distance < d) {
+            best = Some((distance, LookTarget::Block { at, voxel, face }));
         }
+    }
+
+    // Mob raycasting slots in here: cast once in world space, and if the
+    // hit is nearer than `best`, replace it with LookTarget::Mob.
+
+    let new_target = best.map(|(_, t)| t);
+    if new_target != look_target.target {
+        look_target.target = new_target;
+        commands.trigger(LookTargetChanged(new_target));
+    }
+}
+
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 5 – VOXEL WRITES  (the authoritative path)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Renamed from `StaticVoxelWriteRequest` — it was never really static.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct VoxelWriteRequest {
+    pub at:    BlockPos,
+    pub voxel: Voxel,
+}
+
+/// The one place in the codebase that decides a block was placed or broken.
+///
+/// Every writer — input, worldgen, machines, explosions, save-loading —
+/// funnels through here, in any space, so block-entities can never fall out
+/// of sync with the voxel grid.
+fn voxel_write_obs(
+    event: On<VoxelWriteRequest>,
+    mut commands: Commands,
+    mut voxel_world: VoxelWorldMut,
+) {
+    let at  = event.at;
+    let new = event.voxel;
+
+    // `None` means the chunk isn't loaded: nothing written, so emit nothing.
+    let Some(old) = voxel_world.set_voxel(at, new) else { return };
+    if old == new { return; }
+
+    // Break first, then place. A replace-in-place therefore tears down the
+    // old block-entity before building the new one, which is the only order
+    // that leaves the chunk index consistent.
+    if !old.is_air() {
+        commands.trigger(BlockEvent::Break { block_id: BlockID(old.id()), at, voxel: old });
+    }
+    if !new.is_air() {
+        commands.trigger(BlockEvent::Place { block_id: BlockID(new.id()), at, voxel: new });
     }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 – Remove/Place Block TEMPORARY
+// SECTION 6 – BLOCK EVENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Carries a `BlockPos`, not an `IVec3`. Consumers that need world-space
+/// geometry (audio, particles) call `VoxelWorld::world_position`.
+#[derive(Event, Clone, Copy, Debug)]
+pub enum BlockEvent {
+    Place    { block_id: BlockID, at: BlockPos, voxel: Voxel },
+    Break    { block_id: BlockID, at: BlockPos, voxel: Voxel },
+    /// Only for blocks with no entity — see `InteractsOnUse`.
+    Interact { block_id: BlockID, at: BlockPos, voxel: Voxel, player: Entity },
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 7 – FIRE HANDLERS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn handle_primary_fire_obs(
-    event: On<Start<PrimaryFire>>,
+    _event: On<Start<PrimaryFire>>,
     mut commands: Commands,
     look_target: Res<PlayerLookTarget>,
-    held_item: Res<PlayerHeldItems>,
-    block_registry: Res<BlockRegistry>,
-    item_registry: Res<ItemRegistry>,
 ) {
-    match look_target.target {
-            Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
-                let block_id = BlockID(voxel.id());
+    let Some(LookTarget::Block { at, .. }) = look_target.target else { return };
 
-                let event = StaticVoxelWriteRequest {
-                    block_coord: pos,
-                    dimension: DimensionID::OVERWORLD,
-                    voxel: Voxel::AIR,
-                };
-                commands.trigger(event);
-
-                // This is fine here for now, but it needs to be moved so that it only triggers if the
-                // voxel is successfully broken
-                commands.trigger(BlockEvent::Break { block_id, world_pos: pos.as_vec3() });
-            },
-            _ => { return }
-        }
+    // No BlockEvent::Break here any more — the write observer owns that, so
+    // a failed break no longer lies to the audio system.
+    commands.trigger(VoxelWriteRequest { at, voxel: Voxel::AIR });
 }
 
+/// Priority chain: entity-backed interaction, then entity-less
+/// interaction, then placement. Mirrors Minecraft's rule that using a block
+/// beats using the item.
 fn handle_secondary_fire_obs(
     event: On<Start<SecondaryFire>>,
     mut commands: Commands,
-    look_target: Res<PlayerLookTarget>,
-    held_item: Res<PlayerHeldItems>,
+    look_target:    Res<PlayerLookTarget>,
+    held_item:      Res<PlayerHeldItems>,
     block_registry: Res<BlockRegistry>,
-    item_registry: Res<ItemRegistry>,
+    item_registry:  Res<ItemRegistry>,
+    voxel_world:    VoxelWorld,
+    interactables:  Query<(), With<Interactable>>,
 ) {
-    match look_target.target {
-        Some(LookTarget::StaticVoxel { voxel, pos, face }) => {
-            let neighbor_pos = pos + face.as_ivec3();
+    let Some(LookTarget::Block { at, voxel, face }) = look_target.target else { return };
 
-            if let Some(held_item_right) = held_item.right_hand {
-                let held_item_kind = item_registry.get(held_item_right.id).kind.clone();
-                match held_item_kind {
-                    ItemKind::Block { block_id } => {
-                        let block_data = block_registry.get(block_id);
-                        let shape = block_data.shape.clone();
+    let player   = event.context;
+    let block_id = BlockID(voxel.id());
 
-                        let event = StaticVoxelWriteRequest {
-                            block_coord: neighbor_pos,
-                            dimension: DimensionID::OVERWORLD,
-                            voxel: Voxel::new(block_id.0, shape, face),
-                        };
-
-                        commands.trigger(event);
-
-                        // This is fine here for now, but it needs to be moved so that it only triggers if the
-                        // voxel is successfully placed
-                        commands.trigger(BlockEvent::Place { block_id, world_pos: neighbor_pos.as_vec3() });
-                    }
-                    _ => { return }
-                }
-            }
-
-
-        },
-        _ => { return }
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 5 – Player Look Target
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// This section deals with creating and mantaining the "look target" of a player
-/// as a Resource. Systems can draw upon this Resource to display tooltips and
-/// update the block highlight.
-
-#[derive(Resource, Default)]
-pub struct PlayerLookTarget{
-    target: Option<LookTarget>
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub enum LookTarget {
-    StaticVoxel {
-        voxel:          Voxel,
-        pos:            IVec3,
-        face:           Direction,
-    },
-    MovingGridVoxel {
-        grid_entity:    Entity,
-        voxel:          Voxel,
-        local_pos:      IVec3,
-        face:           Direction,
-    },
-    Mob {
-        entity:         Entity,
-    },
-}
-
-// Will need to be able to edit PlayerLookTarget with the correct data, by analyzing the
-// result from all raycasters and declaring which "thing" the player is definitely looking at.
-// Currently only capable of telling which static world voxel the player is looking at.
-
-fn update_look_target_obs(
-    dda_event: On<DDAResult>,
-    mut looktarget_resource:  ResMut<PlayerLookTarget>,
-    static_world_access: StaticWorldAccess,
-) {
-    let dda_hit_voxels = dda_event.hits.clone();
-    
-    looktarget_resource.target = looktarget_from_dda(dda_hit_voxels, static_world_access);
-}
-
-fn looktarget_from_dda(
-    dda_hits: Vec<(IVec3, Direction)>,
-    static_world_access: StaticWorldAccess<'_, '_>
-    ) -> Option<LookTarget> {
-    
-    // Find the first non-air block in the DDA hits array.
-    // If one could be found, return all relevant looktarget information.
-    // If none could be found, then return none.
-    if let Some((block_coord, face, voxel)) = dda_hits.into_iter().find_map(|(coord, face)| {
-        let voxel = static_world_access.get_voxel(coord, DimensionID::OVERWORLD);
-        if !voxel.is_air() {
-            Some((coord, face, voxel))
-        } else {
-            None
+    // ── 1. Entity-backed interaction wins ────────────────────────────────
+    // Add a sneak check here later: `if !sneaking { ... }`.
+    if let Some(block_entity) = voxel_world.block_entity_at(at) {
+        if interactables.contains(block_entity) {
+            commands.trigger(BlockEntityEvent { entity: block_entity, player, at, face });
+            return;
         }
-    }) {
-        Some(LookTarget::StaticVoxel {
-            voxel,
-            pos: block_coord,
-            face
-        })
-    } else {
-        None
     }
-}
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 6 – Voxel Writing Events
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-// This should probably be turned into a Message instead
-// Since Messages are pull-based instead of push-based
-#[derive(Event)]
-pub struct StaticVoxelWriteRequest {
-    block_coord: IVec3,
-    dimension: DimensionID,
-    voxel: Voxel,
-}
-
-fn static_voxel_write_obs(
-    event: On<StaticVoxelWriteRequest>,
-    mut static_world_access: StaticWorldAccessMut,
-) {
-    static_world_access.set_voxel(event.block_coord, event.dimension, event.voxel);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 7 – Block-specific Events
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-#[derive(Event)]
-pub enum BlockEvent{
-    Place {
-        block_id: BlockID,
-        world_pos: Vec3
-    },
-    Break {
-        block_id: BlockID,
-        world_pos: Vec3
-    },
-    Interact {
-        block_id: BlockID,
-        world_pos: Vec3
+    // ── 2. Entity-less interaction: levers, doors, buttons ───────────────
+    if block_registry.get(block_id).components.has::<InteractsOnUse>() {
+        commands.trigger(BlockEvent::Interact { block_id, at, voxel, player });
+        return;
     }
+
+    // ── 3. Otherwise place whatever the held item places ─────────────────
+    let Some(held) = held_item.right_hand else { return };
+    let ItemKind::Block { block_id: placed } = item_registry.get(held.id).kind else { return };
+
+    let shape = block_registry.get(placed).shape.clone();
+
+    // `at.neighbor(face)` stays inside the same space, so right-clicking the
+    // hull of a ship builds onto the ship, not into the air behind it.
+    commands.trigger(VoxelWriteRequest {
+        at:    at.neighbor(face),
+        voxel: Voxel::new(placed.0, shape, face),
+    });
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// When the item component bag lands, step 3's two lines become:
+//
+//   let def = item_registry.get(held.id);
+//   let Some(&PlacesBlock { block_id: placed }) =
+//       def.components.get::<PlacesBlock>() else { return };
+//
+// Nothing else changes.
+// ─────────────────────────────────────────────────────────────────────────

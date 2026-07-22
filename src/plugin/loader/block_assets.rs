@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use serde::Deserialize;
 use bevy_asset_loader::prelude::*;
 
+use crate::plugin::block::behavior::{BlockBehaviorRegistry, BlockComponents, InteractsOnUse};
 use crate::plugin::voxel::BlockShape;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::block::material::BlockMaterial;
@@ -35,6 +36,9 @@ pub struct BlockDefinitionAsset {
     pub has_collision: bool,
     #[serde(default)] pub material:      BlockMaterialAsset,
     #[serde(default)] pub sound_profile: SoundProfileAsset,
+    /// Names resolved against `BlockBehaviorRegistry` at load time.
+    #[serde(default)] pub behaviors:     Vec<String>,
+    #[serde(default)] pub interactable:  bool,
 }
 
 fn default_true() -> bool { true }
@@ -100,6 +104,7 @@ pub fn populate_block_registry_sys(
     asset_server:   Res<AssetServer>,
     mut registry:   ResMut<BlockRegistry>,
     tex:            Res<TextureRegistry>,
+    behaviors:      Res<BlockBehaviorRegistry>,
 ) {
     // Deterministic order = deterministic in-memory IDs across runs (handy for debugging).
     // Save files should still serialize names, not IDs — see register_block warning on dupes.
@@ -109,6 +114,15 @@ pub fn populate_block_registry_sys(
     defs.sort_by(|a, b| a.name.cmp(&b.name));
 
     for src in defs {
+
+        let mut components = BlockComponents::default();
+        if let Some(spawns) = behaviors.resolve(&src.behaviors, &src.name) {
+            components = components.with(spawns);
+        }
+        if src.interactable {
+            components = components.with(InteractsOnUse);
+        }
+
         let def = BlockDefinition {
             id:            BlockID(0), // overwritten inside register_block
             name:          src.name.clone(),
@@ -118,6 +132,7 @@ pub fn populate_block_registry_sys(
             has_collision: src.has_collision,
             material:      resolve_material(&src.material),
             sound_profile: resolve_sound_profile(&src.sound_profile, &asset_server),
+            components,
         };
         registry.register_block(def);
     }

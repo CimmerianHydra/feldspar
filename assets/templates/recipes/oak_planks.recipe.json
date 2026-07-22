@@ -1,7 +1,7 @@
 {
     "shape": "dot",
     "vertices": [
-        { "item": "logOak" }
+        { "item": "oak_log" }
     ],
-    "result": { "item": "planksOak", "count": 4 }
+    "result": { "item": "oak_planks", "count": 4 }
 }

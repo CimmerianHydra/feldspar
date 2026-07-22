@@ -1,8 +1,9 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
+use crate::plugin::block::behavior::BlockComponents;
 use crate::plugin::voxel::BlockShape;
-use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
+use crate::plugin::graphics::block_textures::BlockAppearance;
 use crate::plugin::block::material::BlockMaterial;
 use crate::plugin::audio::block::SoundProfile;
 
@@ -26,6 +27,7 @@ pub struct BlockDefinition {
     pub has_collision:  bool,
     pub material:       BlockMaterial,
     pub sound_profile:  SoundProfile,
+    pub components:     BlockComponents,
 }
 
 impl BlockDefinition {
@@ -49,6 +51,7 @@ impl Default for BlockDefinition {
             has_collision: true,
             material: BlockMaterial::default(),
             sound_profile: SoundProfile::default(),
+            components: BlockComponents::default(),
         }
     }
 }

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use avian3d::prelude::*;
 use bevy_enhanced_input::prelude::*;
-use crate::plugin::{block_interaction::DDARay, state::{GameState, GameUpdate}};
+use crate::plugin::{block::interaction::DDARay, state::GameState};
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
 
@@ -83,15 +83,15 @@ pub struct Player;
 
 /// Set of inputs available to the player when they're in the game.
 #[derive(Component)]
-struct GameInput;
+pub struct GameInput;
 
 /// Set of inputs available to the player when they're browsing the pause menu.
 #[derive(Component)]
-struct PauseMenuInput;
+pub struct PauseMenuInput;
 
 /// Set of inputs available to the player when they're browsing their inventory.
 #[derive(Component)]
-struct InventoryInput;
+pub struct InventoryInput;
 
 /// Helper component for the "select n-th hotbar slot" action, to retrieve which hotbar index is selected by the action
 #[derive(Component)]

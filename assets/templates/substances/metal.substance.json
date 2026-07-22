@@ -1,0 +1,11 @@
+[
+   { "name": "iron",   "display_name": "Iron",   "color": "#D8D8D8",
+     "tier": 2, "durability": 250, "mining_speed": 6.0, "damage": 2.0,
+     "profiles": ["metal"] },
+   { "name": "copper", "display_name": "Copper", "color": "#FF8A50",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] },
+   { "name": "tin", "display_name": "Tin", "color": "#9fa0a1",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] }
+]

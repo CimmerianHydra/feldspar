@@ -1,0 +1,9 @@
+{
+    "shape": "line3",
+    "vertices": [
+        { "item": "iron_metal_ingot" },
+        { "item": "iron_metal_ingot" },
+        { "item": "iron_metal_ingot" }
+    ],
+    "result": { "item": "iron_metal_rod", "count": 1 }
+}

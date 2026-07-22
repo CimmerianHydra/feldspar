@@ -1,0 +1,9 @@
+{
+   "profile": "gem",
+   "parts": [
+     { "name": "gem_rod",       "pattern": "{} Rod",   "sprite": "icons/parts/ingot.png" },
+     { "name": "gem_plate",     "pattern": "{} Plate", "sprite": "icons/parts/ingot.png" },
+     { "name": "gem",       "pattern": "{}",       "sprite": "icons/parts/ingot.png" },
+     { "name": "cut_gem",       "pattern": "Cut {}",   "sprite": "icons/parts/ingot.png" }
+   ]
+ }

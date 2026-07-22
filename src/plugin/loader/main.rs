@@ -11,11 +11,14 @@ use crate::plugin::state::GameState;
 use crate::plugin::loader::texture_registry::*;
 use crate::plugin::loader::block_registry::*;
 use crate::plugin::loader::item_registry::*;
+use crate::plugin::loader::substance_registry::*;
 
-use crate::plugin::loader::block_assets::*;
 use crate::plugin::loader::texture_assets::*;
+use crate::plugin::loader::block_assets::*;
+use crate::plugin::loader::item_assets::*;
 
 use crate::plugin::loader::recipe_maps::*;
+
 
 pub struct AssetLoaderPlugin;
 
@@ -32,6 +35,8 @@ impl Plugin for AssetLoaderPlugin {
         .insert_resource(TextureRegistry::new())
         .insert_resource(BlockRegistry::new())
         .insert_resource(ItemRegistry::new())
+        .insert_resource(SubstanceRegistry::new())
+        .insert_resource(PartRegistry::new())
         .insert_resource(SpatialRecipeRegistry::new())
 
         .insert_resource(VoxelMaterialHandle::default())
@@ -39,12 +44,18 @@ impl Plugin for AssetLoaderPlugin {
         // Parser for *.json block definition files
         .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["json"]))
         .add_plugins(JsonAssetPlugin::<RecipeDefinitionAsset>::new(&["recipe.json"]))
+        .add_plugins(JsonAssetPlugin::<ItemDefinitionAsset>::new(&["item.json"]))
+        .add_plugins(JsonAssetPlugin::<SubstanceFileAsset>::new(&["substance.json"]))
+        .add_plugins(JsonAssetPlugin::<PartProfileAsset>::new(&["part.json"]))
 
         // Gate Loading -> Running on every block file being parsed
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading)
                 .load_collection::<BlockDefinitionAssets>()
                 .load_collection::<BlockTextureAssets>()
+                .load_collection::<ItemDefinitionAssets>()
+                .load_collection::<SubstanceDefinitionAssets>()
+                .load_collection::<PartProfileAssets>()
                 .load_collection::<SpatialRecipeAssets>()
         )
 
@@ -70,6 +81,9 @@ impl Plugin for AssetLoaderPlugin {
                 assemble_texture_arrays_sys,
                 populate_block_registry_sys,
                 populate_item_registry_sys,
+                load_item_definitions_sys,          // explicit JSON items
+                populate_substance_registries_sys,  // substances + parts
+                generate_substance_items_sys,       // the cross product
                 populate_spatial_recipe_registry_sys,
             ).chain(),
         )
