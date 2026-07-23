@@ -197,8 +197,7 @@ impl DimensionRegistry {
         self.by_id.get(&id).copied()
     }
 
-    /// Shorthand for the common case. Panics only if `SpacePlugin` wasn't
-    /// added, which is a setup error rather than a runtime condition.
+    /// Shorthand for the common case. Panics only if `SpacePlugin` wasn't added.
     #[inline]
     pub fn overworld(&self) -> Entity {
         self.get(DimensionID::OVERWORLD)

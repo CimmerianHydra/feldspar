@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use avian3d::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::controller::player::{OpenPauseMenu, ClosePauseMenu};
+use crate::plugin::controller::player::{UiOpenPauseMenu, UiCloseAll};
 
 pub struct StatePlugin;
 
@@ -17,25 +17,8 @@ impl Plugin for StatePlugin {
         .add_systems(OnEnter(GameUpdate::Enabled), resume_physics_sys)
         .add_systems(OnEnter(GameUpdate::Disabled), pause_physics_sys)
 
-        .add_observer(open_pause_menu_action_obs)
-        .add_observer(close_pause_menu_action_obs)
         ;
     }
-}
-
-// Toggles between pause and unpause.
-fn open_pause_menu_action_obs(
-    event: On<Start<OpenPauseMenu>>,
-    mut commands: Commands,
-) {
-    commands.set_state(GameUpdate::Disabled);
-}
-
-fn close_pause_menu_action_obs(
-    event: On<Start<ClosePauseMenu>>,
-    mut commands: Commands,
-) {
-    commands.set_state(GameUpdate::Enabled);
 }
 
 fn pause_physics_sys(

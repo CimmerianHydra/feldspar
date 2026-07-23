@@ -1,15 +1,19 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::controller::player::{Player, ClosePauseMenu, OpenPauseMenu};
+use crate::plugin::controller::player::Player;
+use crate::plugin::controller::player::UiOpenPauseMenu;
 
 use crate::plugin::state::GameState;
+use crate::plugin::state::GameUpdate;
+
 use crate::plugin::ui::crafting::*;
 use crate::plugin::ui::hotbar::*;
 use crate::plugin::ui::compass::*;
 use crate::plugin::ui::cursor::*;
 use crate::plugin::ui::inventory::*;
 use crate::plugin::ui::player::*;
+use crate::plugin::ui::screen::*;
 
 pub struct UIPlugin;
 
@@ -25,8 +29,11 @@ impl Plugin for UIPlugin {
         .add_systems(Update, button_sys)
         .add_systems(Update, sync_ui_compass_sys)
 
+        .add_observer(ui_back_obs)
+        .add_observer(ui_close_all_obs)
+        .add_systems(Update, reconcile_ui_stack_sys)
+
         .add_observer(spawn_pause_menu_obs)
-        .add_observer(despawn_pause_menu_obs)
         .add_observer(pause_menu_actions_obs)
 
         .add_observer(cursor_lock_request_obs)
@@ -35,7 +42,6 @@ impl Plugin for UIPlugin {
         .add_observer(inventory_ui_click_obs)
         .add_observer(inventory_sync_obs)
         .add_observer(inventory_changed_to_ui_sync_obs)
-        .add_observer(show_requested_inventory_obs)
         .add_observer(entity_ui_session_end_obs)
 
         .add_observer(spatial_inventory_click_obs)
@@ -45,8 +51,7 @@ impl Plugin for UIPlugin {
         .add_observer(recipe_output_sync_obs)
         .add_observer(recipe_shape_overlay_sync_obs)
 
-        .add_observer(open_inventory_player_input_action_obs)
-        .add_observer(close_inventory_player_input_action_obs)
+        .add_observer(open_player_inventory_obs)
 
         .add_observer(show_requested_hotbar_obs)
         .add_observer(sync_hotbar_highlight_sys)
@@ -81,36 +86,35 @@ pub const SLOT_GAP: Val = Val::Px(6.0);
 // BUTTON BUILDER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-fn spawn_button(
-    parent: &mut ChildSpawnerCommands,
+fn build_button(
     text: &str,
     with_bundle: impl Bundle,
-) {
-    parent
-        .spawn((
-            Button,
-            Node {
-                width: px(220),
-                height: px(50),
-
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-
-                ..default()
-            },
-            BackgroundColor(BUTTON_NORMAL),
-            with_bundle,
-        ))
-        .with_children(|button| {
-            button.spawn((
+) -> impl Bundle {
+    (
+        Button,
+        Node {
+            width: px(220),
+            height: px(50),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border_radius: BorderRadius::all(UI_PANEL_RADIUS),
+            border: UiRect::all(UI_BORDER_THICKN),
+            ..default()
+        },
+        BorderColor::all(UI_BORDER_COLOR),
+        BackgroundColor(UI_SLOT_COLOR),
+        with_bundle,
+        children![
+            (
                 Text::new(text),
                 TextFont {
                     font_size: BUTTON_FONT_SIZE,
                     ..default()
                 },
                 TextColor(Color::WHITE),
-            ));
-        });
+            )
+        ]
+    )
 }
 
 #[derive(Event)]
@@ -157,6 +161,16 @@ pub struct PauseMenuButton {
 }
 
 pub fn build_pause_menu() -> impl Bundle {
+
+    let pause_text_bundle = (
+            Text::new("Game Paused"),
+            TextFont {
+                font_size: 40.0,
+                ..default()
+            },
+            TextColor::default(),
+        );
+
     let pause_menu_root = (
         Node {
             width: percent(100),
@@ -166,46 +180,31 @@ pub fn build_pause_menu() -> impl Bundle {
             flex_direction: FlexDirection::Column,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
         PauseMenu,
         ZIndex(100),
         Pickable::IGNORE,
+        children![
+            pause_text_bundle,
+            build_button("Resume", PauseMenuButton { action: MenuActions::RESUME }),
+            build_button("Quit Game", PauseMenuButton { action: MenuActions::QUIT }),
+        ]
     );
+
     return pause_menu_root
 }
 
 fn spawn_pause_menu_obs(
-    event: On<Start<OpenPauseMenu>>,
+    event: On<Start<UiOpenPauseMenu>>,
     mut commands: Commands,
 ) {
-    let pause_text_bundle = (
-        Text::new("Game Paused"),
-        TextFont {
-            font_size: 40.0,
-            ..default()
-        },
-        TextColor::default(),
-    );
+    let panel = build_pause_menu();
     
-    // Spawn the parent node and then the text as its child.
-    commands.spawn(build_pause_menu())
-        .with_children(|parent| {
-            parent.spawn(pause_text_bundle);
-            spawn_button(parent, "Resume", PauseMenuButton { action: MenuActions::RESUME });
-            spawn_button(parent, "Quit Game", PauseMenuButton { action: MenuActions::QUIT });
-    });
-    commands.trigger(CursorLockRequest::Unlock);
-}
-
-fn despawn_pause_menu_obs(
-    event: On<Start<ClosePauseMenu>>,
-    mut commands: Commands,
-   pause_menu_query: Query<Entity, With<PauseMenu>>,
-) {
-    for entity in pause_menu_query {
-        commands.entity(entity).despawn();
-    }
-    commands.trigger(CursorLockRequest::Lock);
+    // Spawn the pause menu and immediately set the world to not update
+    commands.push_ui_screen(
+        event.context, 
+        UiPushOptions { dim: true, sources: Vec::new() },
+        panel);
+    commands.set_state(GameUpdate::Disabled);
 }
 
 fn pause_menu_actions_obs(
@@ -219,15 +218,8 @@ fn pause_menu_actions_obs(
     let Ok(button_data) = interaction_query.get(pressed_button_entity) else { return; };
     let Ok(player_entity) = player_query.single() else { return; };
 
-    let resume_event = Start::<ClosePauseMenu> {
-        context: player_entity,
-        action: pressed_button_entity,
-        value: true,
-        state: TriggerState::Fired,
-    };
-
     match button_data.action {
         MenuActions::QUIT => { app_exit_writer.write(AppExit::Success); },
-        MenuActions::RESUME => { commands.trigger(resume_event); }
+        MenuActions::RESUME => { commands.pop_ui_screen(player_entity); }
     }
 }

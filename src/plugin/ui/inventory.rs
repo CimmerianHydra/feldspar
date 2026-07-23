@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::plugin::ui::main::*;
+use crate::plugin::ui::{main::*, screen::{UiScreen, UiScreenCommandsExt}};
 use crate::plugin::ui::item::build_ui_item_display;
 
 use crate::plugin::inventory::main::{Inventory, InventoryChangedEvent, ItemStack};
@@ -93,11 +93,6 @@ pub struct EntityUISessionEndRequest {
     #[event_target]
     pub context: Entity,
     pub source_entity: Entity,
-}
-
-#[derive(Event)]
-pub struct InventoryUISpawnRequest {
-    pub source_entity: Entity, // The inventory entity we would like to view
 }
 
 #[derive(Event)]
@@ -231,51 +226,19 @@ pub fn inventory_changed_to_ui_sync_obs(
     });
 }
 
-pub fn show_requested_inventory_obs(
-    view_requests: On<InventoryUISpawnRequest>,
-    mut commands: Commands,
-    inventory_q: Query<(Entity, &Inventory)>,
-) {
-    let entity_to_spawn_ui_for = view_requests.source_entity;
-    if let Ok((source_entity, inventory)) = inventory_q.get(entity_to_spawn_ui_for) {
-
-        let ui_bundle = build_inventory_ui(source_entity, inventory.capacity(), 9);
-
-        let root_bundle = (
-            Node {
-                width: percent(100),
-                height: percent(100),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-            EntityUISession { source_entities: vec![entity_to_spawn_ui_for] },
-            ZIndex(100),
-            Pickable::IGNORE,
-            children![
-                ui_bundle,
-            ]
-        );
-
-        commands.spawn(root_bundle);
-
-        // Every item slot, once it's added as a component to an entity, will send a sync event.
-        // This enables us to make sure that we don't need to sync the items the first time a slot is added.
-    }
-}
-
 pub fn entity_ui_session_end_obs(
     close_requests: On<EntityUISessionEndRequest>,
     mut commands: Commands,
-    session_query: Query<(Entity, &EntityUISession)>,
+    sessions: Query<(Entity, &EntityUISession, Has<UiScreen>)>,
 ) {
-    let entity_to_close_ui_for = close_requests.source_entity;
+    let source = close_requests.source_entity;
 
-    for (ui_entity, session) in session_query {
-        if session.source_entities.contains(&entity_to_close_ui_for) {
-            commands.entity(ui_entity).despawn()
-        }
+    for (ui_entity, session, is_screen) in sessions.iter() {
+        if !session.source_entities.contains(&source) { continue; }
+        // Never despawn a screen behind the stack's back, or the derived
+        // cursor/context state drifts.
+        if is_screen { commands.close_ui_screen(ui_entity); }
+        else         { commands.entity(ui_entity).despawn(); }
     }
 }
 

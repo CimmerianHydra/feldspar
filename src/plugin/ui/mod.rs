@@ -1,3 +1,4 @@
+pub mod screen;
 pub mod hotbar;
 pub mod inventory;
 pub mod compass;

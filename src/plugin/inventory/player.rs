@@ -1,3 +1,4 @@
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
@@ -86,16 +87,65 @@ pub fn sync_hotbar_on_input_action_obs(
 #[derive(Component)]
 pub struct PlayerInventory;
 
-/// Marks an entity as "the player's hotbar".
-/// This hooks into the hotbar display and update system (TODO).
-/// In the future, the UI hooks will be changed, as the system will be able to display ANY
-/// inventory as the player's UI hotbar.
+/// Marks an entity as "the player's hotbar". This hooks into the hotbar display 
+/// and update system.
 #[derive(Component)]
 pub struct PlayerHotbar {
     pub highlighted_slot: usize,
 }
 
+/// Typed lookup for everything hanging off a player.
+#[derive(Component, Clone, Copy, Debug)]
+pub struct PlayerInventories {
+    pub main:             Entity,
+    pub hotbar:           Entity,
+    pub cursor:           Entity,
+    pub equipment:        Entity,
+    pub crafting_machine: Entity,
+    pub crafting_grid:    Entity,
+}
 
+/// SystemParam to access inventory information of players.
+#[derive(SystemParam)]
+pub struct PlayerInventoryAccess<'w, 's> {
+    sets:        Query<'w, 's, &'static PlayerInventories>,
+    inventories: Query<'w, 's, &'static Inventory>,
+    spatial:     Query<'w, 's, &'static SpatialInventory>,
+}
+
+impl PlayerInventoryAccess<'_, '_> {
+    pub fn get_from_player(&self, player: Entity) -> Option<&PlayerInventories> {
+        self.sets.get(player).ok()
+    }
+
+    fn inventory(&self, entity: Entity) -> Option<&Inventory> {
+        self.inventories.get(entity).ok().map(|inv| inv)
+    }
+
+    pub fn main(&self, player: Entity) -> Option<&Inventory> {
+        self.inventory(self.get_from_player(player)?.main)
+    }
+
+    pub fn hotbar(&self, player: Entity) -> Option<&Inventory> {
+        self.inventory(self.get_from_player(player)?.hotbar)
+    }
+
+    pub fn cursor(&self, player: Entity) -> Option<&Inventory> {
+        self.inventory(self.get_from_player(player)?.cursor)
+    }
+
+    pub fn crafting_grid(&self, player: Entity) -> Option<&SpatialInventory> {
+        let grid = self.get_from_player(player)?.crafting_grid;
+        self.spatial.get(grid).ok().map(|s| s)
+    }
+
+    /// The entities any player-inventory screen is a view of. Feed this to
+    /// `ScreenSpec::viewing`, then chain whatever the caller is showing on top.
+    pub fn ui_sources(&self, player: Entity) -> Option<[Entity; 2]> {
+        let set = self.get_from_player(player)?;
+        Some([set.main, set.hotbar])
+    }
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SYSTEMS
@@ -140,10 +190,10 @@ pub fn append_player_inventory_sys(
             CurrentRecipe::default(),
         )).id();
 
-        commands.spawn((
+        let new_crafting_spatial_inventory = commands.spawn((
             SpatialInventory::new(SPATIAL_CRAFTING_PANEL_WIDTH, SPATIAL_CRAFTING_PANEL_HEIGHT),
             InputOf { machine_entity : new_crafting_machine }
-        ));
+        )).id();
 
         commands.entity(new_player).add_children(&[
             new_inventory,
@@ -152,6 +202,15 @@ pub fn append_player_inventory_sys(
             new_equipment,
             new_crafting_machine,
         ]);
+        
+        commands.entity(new_player).insert(PlayerInventories {
+            main:             new_inventory,
+            hotbar:           new_hotbar,
+            cursor:           new_cursor_inventory,
+            equipment:        new_equipment,
+            crafting_machine: new_crafting_machine,
+            crafting_grid:    new_crafting_spatial_inventory,
+        });
 
         commands.trigger(HotbarUISpawnRequest {
         source_entity: new_hotbar,

@@ -1,110 +1,102 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::crafting::main::Inputs;
-use crate::plugin::crafting::spatial::InventoryMachine;
 use crate::plugin::ui::crafting::build_inventory_crafting_ui;
 use crate::plugin::ui::inventory::*;
-use crate::plugin::ui::cursor::*;
 
-use crate::plugin::inventory::main::Inventory;
 use crate::plugin::inventory::player::*;
-use crate::plugin::inventory::spatial::SpatialInventory;
 
-use crate::plugin::controller::player::{OpenPlayerInventory, ClosePlayerInventory};
+use crate::plugin::controller::player::UiOpenPlayerInventory;
+use crate::plugin::ui::screen::UiPushOptions;
+use crate::plugin::ui::screen::UiScreenCommandsExt;
 
 
 pub const MAX_PLAYER_INVENTORY_UI_COLS: usize = 9;
 
-/// Builds a full UI for the player: a top panel (whatever machine/chest/etc the
-/// caller wants to show), the player's main inventory, and the player's hotbar,
-/// stacked vertically over a dimmed fullscreen background (the typical root).
-pub fn build_player_ui_with_top_panel(
-    hotbar_data:  (Entity, &Inventory),
-    player_data:  (Entity, &Inventory),
-    top_panel:    impl Bundle,
-    top_entity:   Option<Entity>,
-) -> impl Bundle {
-    let (hotbar_entity, hotbar_inv) = hotbar_data;
-    let (player_entity, player_inv) = player_data;
-    let mut involved_entities = vec![player_entity, hotbar_entity];
-    if let Some(ui_entity) = top_entity { involved_entities.push(ui_entity); };
+/// The standard player screen layout: caller's panel on top, player's main
+/// inventory beneath it, hotbar at the bottom.
+///
+/// Returns `None` if the player has no `PlayerInventorySet` yet, or if one of
+/// its handles points at a despawned entity — callers just `else { return }`.
+///
+/// Pass `()` as `top_panel` for a bare inventory screen.
 
-    (
+pub fn build_player_ui_with_top_panel(
+    player: Entity,
+    player_inv_access: &PlayerInventoryAccess<'_, '_>,
+    top_panel: impl Bundle,
+) -> Option<impl Bundle> {
+    // Both borrows end here — only the capacities and entity ids escape,
+    // so the returned bundle owns everything it needs.
+    let set = player_inv_access.get_from_player(player)?;
+
+    let (main_entity, main_capacity) = {
+        let inv = player_inv_access.main(player)?;
+        (set.main, inv.capacity())
+    };
+    
+    let (hotbar_entity, hotbar_capacity) = {
+        let inv = player_inv_access.hotbar(player)?;
+        (set.hotbar, inv.capacity())
+    };
+
+    Some((
         Node {
-            width: percent(100),
-            height: percent(100),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             flex_direction: FlexDirection::Column,
             ..default()
         },
-        BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.5)),
-        ZIndex(100),
         Pickable::IGNORE,
-        EntityUISession {
-            source_entities: involved_entities,
-        },
         children![
             top_panel,
-            build_inventory_ui(player_entity, player_inv.capacity(), MAX_PLAYER_INVENTORY_UI_COLS),
-            build_inventory_ui(hotbar_entity, hotbar_inv.capacity(), MAX_PLAYER_INVENTORY_UI_COLS),
+            build_inventory_ui(main_entity,   main_capacity,   MAX_PLAYER_INVENTORY_UI_COLS),
+            build_inventory_ui(hotbar_entity, hotbar_capacity, MAX_PLAYER_INVENTORY_UI_COLS),
         ],
-    )
+    ))
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// PLAYER INVENTORY - redo for multiplayer in the future
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
-// Since actions are now children of the player entity, we can leverage that
-// in the future to specifically grab the caller's PlayerInventory and PlayerHotbar.
-// It'll help for multiplayer, eventually.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PLAYER INVENTORY
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // For now, by default, the player's "open inventory" action simply opens the inventory
 // with the spatial crafting interface.
 
-pub fn open_inventory_player_input_action_obs(
-    _action: On<Start<OpenPlayerInventory>>,
+pub fn open_player_inventory_obs(
+    event: On<Start<UiOpenPlayerInventory>>,
     mut commands: Commands,
-    player_hotbar_query: Query<(Entity, &Inventory), (With<PlayerHotbar>, Without<PlayerInventory>)>,
-    player_inventory_query: Query<(Entity, &Inventory), (With<PlayerInventory>, Without<PlayerHotbar>)>,
-    player_inv_craft_machine_query: Query<(Entity, &Inputs), With<InventoryMachine>>,
-    player_spatial_inventory_query: Query<&SpatialInventory>,
+    player_inv_access: PlayerInventoryAccess,
 ) {
-    let Ok(hotbar_data) = player_hotbar_query.single() else { return; };
-    let Ok(player_data) = player_inventory_query.single() else { return; };
+    let player = event.context;
 
-    let Ok((inv_craft_entity, inv_craft_inputs)) = player_inv_craft_machine_query.single() else { return; };
-    let Some(spatial_inventory_entity) = inv_craft_inputs.first() else { return; };
-    let Ok(spatial_inventory_data) = player_spatial_inventory_query.get(*spatial_inventory_entity) else { return; };
+    let Some(set)          = player_inv_access.get_from_player(player).copied() else { return };
+    let Some(spatial)      = player_inv_access.crafting_grid(player) else { return };
 
+    let main_entity = set.main;
+    let hotbar_entity = set.hotbar;
+    let spatial_entity = set.crafting_grid;
 
-    commands.spawn(
-            build_player_ui_with_top_panel(
-            hotbar_data,
-            player_data,
-            build_inventory_crafting_ui(
-                inv_craft_entity, 
-                *spatial_inventory_entity,
-                spatial_inventory_data
-            ),
-            Some(inv_craft_entity)),
-        );
-    commands.trigger(CursorLockRequest::Unlock);
-}
+    let involved_entities = vec![main_entity, hotbar_entity, spatial_entity];
 
-pub fn close_inventory_player_input_action_obs(
-    _action: On<Start<ClosePlayerInventory>>,
-    mut commands: Commands,
-    player_inventory_query: Query<Entity, With<PlayerInventory>>,
-) {
-    let Ok(player_inventory_entity) = player_inventory_query.single() else { return; };
+    let top_panel = build_inventory_crafting_ui(set.crafting_machine, spatial_entity, spatial);
 
-    commands.trigger(EntityUISessionEndRequest {
-        context: player_inventory_entity,
-        source_entity: player_inventory_entity,
-    });
-    commands.trigger(CursorLockRequest::Lock);
+    let ui_options = UiPushOptions {
+        dim: true,
+        sources: involved_entities,
+    };
+
+    let Some(panel) = build_player_ui_with_top_panel(
+            player,
+            &player_inv_access,
+            top_panel,
+        ) else { error!("There was a problem opening the player's inventory."); return; };
+
+    commands.push_ui_screen(
+        player,
+        ui_options,
+        panel
+    );
 }

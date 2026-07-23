@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use avian3d::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use crate::plugin::{block::interaction::DDARay, state::GameState};
+use crate::plugin::ui::screen::UiStack;
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
 
@@ -51,30 +52,30 @@ pub struct SecondaryFire;
 #[action_output(bool)]
 pub struct AltFire;
 
-/// Action corresponding to key I in the standard layout.
-#[derive(InputAction)]
-#[action_output(bool)]
-pub struct OpenPlayerInventory;
-
-/// Action corresponding to key I in the standard layout.
-#[derive(InputAction)]
-#[action_output(bool)]
-pub struct ClosePlayerInventory;
-
 /// Actions corresponding to numbers 1-9 in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
 pub struct SelectItem;
 
-/// Action corresponding to Escape in the standard layout.
+/// Action corresponding to backspace in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-pub struct OpenPauseMenu;
+pub struct UiBack;
 
-/// Action corresponding to Escape in the standard layout.
+/// Action corresponding to ESC in the standard layout.
 #[derive(InputAction)]
 #[action_output(bool)]
-pub struct ClosePauseMenu;
+pub struct UiCloseAll;
+
+/// Action corresponding to backspace in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct UiOpenPauseMenu;
+
+/// Action corresponding to backspace in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct UiOpenPlayerInventory;
 
 // ── Components ────────────────────────────────────────────────────────────────
 
@@ -85,13 +86,9 @@ pub struct Player;
 #[derive(Component)]
 pub struct GameInput;
 
-/// Set of inputs available to the player when they're browsing the pause menu.
+/// Set of inputs available whenever the player's UI stack is non-empty.
 #[derive(Component)]
-pub struct PauseMenuInput;
-
-/// Set of inputs available to the player when they're browsing their inventory.
-#[derive(Component)]
-pub struct InventoryInput;
+pub struct UiInput;
 
 /// Helper component for the "select n-th hotbar slot" action, to retrieve which hotbar index is selected by the action
 #[derive(Component)]
@@ -120,14 +117,6 @@ enum PlayerMovementState {
     Airborne,
 }
 
-#[derive(Default, PartialEq)]
-enum PlayerUIState {
-    #[default]
-    InGame,
-    InUISession,
-    InPauseMenu
-}
-
 // ── Spawn ─────────────────────────────────────────────────────────────────────
 
 fn spawn_player_controller(mut commands: Commands) {
@@ -143,12 +132,12 @@ fn spawn_player_controller(mut commands: Commands) {
             Friction::new(0.0),
             Transform::from_xyz(0.0, 20.0, 0.0),
 
+
+            UiStack::default(), // Defaults to locking the cursor on startup
             build_game_input_actions(),
-            build_pause_menu_input_actions(),
-            build_player_inventory_menu_input_actions(),
+            build_ui_input_actions(),
             ContextActivity::<GameInput>::ACTIVE,
-            ContextActivity::<PauseMenuInput>::INACTIVE,
-            ContextActivity::<InventoryInput>::INACTIVE,
+            ContextActivity::<UiInput>::INACTIVE,
 
             children![(
                 FPSCamera { sensitivity: DEFAULT_SENSITIVITY },
@@ -162,10 +151,6 @@ fn spawn_player_controller(mut commands: Commands) {
         .observe(on_move_fire)
         .observe(on_move_complete)
         .observe(on_jump_start)
-        .observe(on_open_player_inventory)
-        .observe(on_close_player_inventory)
-        .observe(on_open_pause_menu)
-        .observe(on_close_pause_menu)
 
     ;
 }
@@ -186,7 +171,7 @@ fn build_game_input_actions() -> impl Bundle
             (Action::<Move>::new(), DeadZone::default(), Bindings::spawn(Cardinal::wasd_keys())),
             (Action::<Jump>::new(), bindings![KeyCode::Space]),
             (
-                Action::<OpenPauseMenu>::new(),
+                Action::<UiOpenPauseMenu>::new(),
                 ActionSettings {
                     require_reset: true,
                     ..Default::default()
@@ -194,7 +179,7 @@ fn build_game_input_actions() -> impl Bundle
                 bindings![KeyCode::Escape],
             ),
             (
-                Action::<OpenPlayerInventory>::new(),
+                Action::<UiOpenPlayerInventory>::new(),
                 // We set `require_reset` to `true` because `CloseInventory` action uses the same input,
                 // and we want it to be triggerable only after the button is released.
                 ActionSettings {
@@ -216,36 +201,24 @@ fn build_game_input_actions() -> impl Bundle
     )
 }
 
-fn build_pause_menu_input_actions() -> impl Bundle
-{
-    (PauseMenuInput,
-    actions!(PauseMenuInput[
-            (
-                Action::<ClosePauseMenu>::new(),
-                ActionSettings {
-                    require_reset: true,
-                    ..Default::default()
-                },
-                bindings![KeyCode::Escape],
-            ),
-        ]),
-    )
-}
 
-fn build_player_inventory_menu_input_actions() -> impl Bundle
-{
-    (InventoryInput,
-    actions!(InventoryInput[
-            (
-                Action::<ClosePlayerInventory>::new(),
-                ActionSettings {
-                    require_reset: true,
-                    ..Default::default()
-                },
-                bindings![KeyCode::KeyI, KeyCode::Escape],
-            ),
-        ]),
-    )
+
+fn build_ui_input_actions() -> impl Bundle {
+    (UiInput,
+    actions!(UiInput[
+        (
+            Action::<UiBack>::new(),
+            ActionSettings { require_reset: true, ..Default::default() },
+            bindings![KeyCode::Backspace],
+        ),
+        (
+            // Escape and I both bail out entirely. Escape is contextual for
+            // free: in GameInput it opens the pause menu, here it closes.
+            Action::<UiCloseAll>::new(),
+            ActionSettings { require_reset: true, ..Default::default() },
+            bindings![KeyCode::Escape, KeyCode::KeyI],
+        ),
+    ]))
 }
 
 
@@ -272,34 +245,6 @@ fn on_jump_start(start: On<Start<Jump>>, mut players: Query<&mut PlayerMovementD
         mv.jump_queued = true;
         mv.time_since_jump_q = 0.0;
     }
-}
-
-fn on_open_player_inventory(
-    start: On<Start<OpenPlayerInventory>>,
-    mut commands: Commands,
-) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<InventoryInput>::ACTIVE));
-}
-
-fn on_close_player_inventory(
-    start: On<Start<ClosePlayerInventory>>,
-    mut commands: Commands,
-) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<InventoryInput>::INACTIVE));
-}
-
-fn on_open_pause_menu(
-    start: On<Start<OpenPauseMenu>>,
-    mut commands: Commands,
-) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::INACTIVE, ContextActivity::<PauseMenuInput>::ACTIVE));
-}
-
-fn on_close_pause_menu(
-    start: On<Start<ClosePauseMenu>>,
-    mut commands: Commands,
-) {
-    commands.entity(start.context).insert((ContextActivity::<GameInput>::ACTIVE, ContextActivity::<PauseMenuInput>::INACTIVE));
 }
 
 // ── Look ──────────────────────────────────────────────────────────────────────
@@ -451,8 +396,7 @@ impl Plugin for PlayerControllerPlugin {
         app
         .add_plugins(EnhancedInputPlugin)
         .add_input_context::<GameInput>()
-        .add_input_context::<PauseMenuInput>()
-        .add_input_context::<InventoryInput>()
+        .add_input_context::<UiInput>()
 
         .add_systems(OnEnter(GameState::InGame), spawn_player_controller)
         .add_systems(FixedUpdate, step)
