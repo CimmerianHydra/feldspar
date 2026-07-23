@@ -6,6 +6,7 @@ pub mod crafting;
 pub mod geometry;
 pub mod graphics;
 pub mod inventory;
+pub mod item;
 pub mod loader;
 pub mod space;
 pub mod state;

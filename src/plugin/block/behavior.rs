@@ -97,7 +97,7 @@ impl SpawnsBlockEntities {
 /// Entity-backed blocks don't need this; they use the `Interactable` ECS
 /// marker instead, which is strictly more precise.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct InteractsOnUse;
+pub struct InteractsOnSecondary;
 
 /// The twin of `ItemComponents`. A product of optionals, not a sum type: a
 /// block participates in each capability independently.
@@ -107,7 +107,7 @@ pub struct InteractsOnUse;
 #[derive(Clone, Default)]
 pub struct BlockComponents {
     spawns_entities:  Option<SpawnsBlockEntities>,
-    interacts_on_use: Option<InteractsOnUse>,
+    interacts_on_use: Option<InteractsOnSecondary>,
 }
 
 /// Uniform typed accessor. Identical call signature to a future
@@ -140,7 +140,7 @@ macro_rules! block_component {
 }
 
 block_component!(SpawnsBlockEntities, spawns_entities);
-block_component!(InteractsOnUse, interacts_on_use);
+block_component!(InteractsOnSecondary, interacts_on_use);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – NAME -> SPAWNER REGISTRY  (the JSON bridge)

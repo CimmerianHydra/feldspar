@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use serde::Deserialize;
 use bevy_asset_loader::prelude::*;
 
-use crate::plugin::block::behavior::{BlockBehaviorRegistry, BlockComponents, InteractsOnUse};
+use crate::plugin::block::behavior::{BlockBehaviorRegistry, BlockComponents, InteractsOnSecondary};
 use crate::plugin::voxel::BlockShape;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::block::material::BlockMaterial;
@@ -120,7 +120,7 @@ pub fn populate_block_registry_sys(
             components = components.with(spawns);
         }
         if src.interactable {
-            components = components.with(InteractsOnUse);
+            components = components.with(InteractsOnSecondary);
         }
 
         let def = BlockDefinition {

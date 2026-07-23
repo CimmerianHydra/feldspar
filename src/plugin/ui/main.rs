@@ -99,6 +99,7 @@ fn build_button(
             align_items: AlignItems::Center,
             border_radius: BorderRadius::all(UI_PANEL_RADIUS),
             border: UiRect::all(UI_BORDER_THICKN),
+            margin: UiRect::all(SLOT_GAP),
             ..default()
         },
         BorderColor::all(UI_BORDER_COLOR),

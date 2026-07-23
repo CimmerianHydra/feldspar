@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
+use crate::plugin::item::components::*;
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::loader::substance_registry::{SubstanceID, PartID};
 use crate::plugin::ui::item::ItemDisplay;
@@ -43,6 +44,7 @@ pub struct ItemDefinition {
     pub max_stack:    u16,       // e.g. 99 for ore, 1 for unique tools
     pub kind:         ItemKind,
     pub display:      ItemDisplay,
+    pub components:   ItemComponents,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -89,6 +91,11 @@ impl ItemRegistry {
             self.block_to_item.insert(block_id, id);
         }
 
+        // WIP: we're currently moving over to ItemComponents
+        if let Some(pb) = def.components.get::<PlacesBlock>() {
+            self.block_to_item.insert(pb.block_id, id);
+        }
+
         self.items.push(ItemDefinition { id, ..def });
         self.name_to_item.insert(name, id);
         id
@@ -103,14 +110,13 @@ impl ItemRegistry {
 // Loading Systems
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Hardcoded block registry initialization.
-/// In the future we need to have helpers that take this information from JSON files
-/// and use it to build the registry for the actual game, as well as building any custom
-/// object that only exists in a world in the registry (such as custom tools).
-/// The custom objects will need to be loaded at world-load time, so this function will
-/// probably be accompanied by a similar one that loads these things at world-load.
+/// Hardcoded block-placing item registry initialization.
+/// Scans the entire block registry and generates a suitable item from the block
+/// definition that is capable of placing the block in the world.
+/// TODO: add a "Placeable" tag on blocks we want to turn into such items.
+/// TODO: add a way to inject additional item components on the item from block def.
 
-pub fn populate_item_registry_sys(
+pub fn populate_item_registry_from_blocks_sys(
     block_registry: Res<BlockRegistry>,
     mut item_registry: ResMut<ItemRegistry>,
     asset_server: Res<AssetServer>,
@@ -135,6 +141,8 @@ pub fn populate_item_registry_sys(
                         _ => "icons\\items\\cube.png",
                     }
                 )},
+                components: ItemComponents::default()
+                    .with(PlacesBlock { block_id: BlockID(id as u16) }),
             }
         );
     }

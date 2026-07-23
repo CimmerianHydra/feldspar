@@ -5,11 +5,12 @@ use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::RenderAssetUsages;
 use bevy_enhanced_input::prelude::*;
 
-use crate::plugin::block::behavior::InteractsOnUse;
+use crate::plugin::block::behavior::InteractsOnSecondary;
 use crate::plugin::block::entities::{BlockEntityEvent, Interactable};
 use crate::plugin::controller::player::{AltFire, PrimaryFire, SecondaryFire};
 use crate::plugin::geometry::meshing::BLOCK_SIZE;
 use crate::plugin::inventory::player::*;
+use crate::plugin::item::components::*;
 use crate::plugin::loader::block_registry::*;
 use crate::plugin::loader::item_registry::*;
 use crate::plugin::space::prelude::*;
@@ -443,31 +444,23 @@ fn handle_secondary_fire_obs(
     }
 
     // ── 2. Entity-less interaction: levers, doors, buttons ───────────────
-    if block_registry.get(block_id).components.has::<InteractsOnUse>() {
+    if block_registry.get(block_id).components.has::<InteractsOnSecondary>() {
         commands.trigger(BlockEvent::Interact { block_id, at, voxel, player });
         return;
     }
 
     // ── 3. Otherwise place whatever the held item places ─────────────────
     let Some(held) = held_item.right_hand else { return };
-    let ItemKind::Block { block_id: placed } = item_registry.get(held.id).kind else { return };
+    let def = item_registry.get(held.id);
 
-    let shape = block_registry.get(placed).shape.clone();
+    let Some(PlacesBlock { block_id }) = def.components.get::<PlacesBlock>().copied() else { return };
+
+    let shape = block_registry.get(block_id).shape.clone();
 
     // `at.neighbor(face)` stays inside the same space, so right-clicking the
     // hull of a ship builds onto the ship, not into the air behind it.
     commands.trigger(VoxelWriteRequest {
         at:    at.neighbor(face),
-        voxel: Voxel::new(placed.0, shape, face),
+        voxel: Voxel::new(block_id.0, shape, face),
     });
 }
-
-// ─────────────────────────────────────────────────────────────────────────
-// When the item component bag lands, step 3's two lines become:
-//
-//   let def = item_registry.get(held.id);
-//   let Some(&PlacesBlock { block_id: placed }) =
-//       def.components.get::<PlacesBlock>() else { return };
-//
-// Nothing else changes.
-// ─────────────────────────────────────────────────────────────────────────

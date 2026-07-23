@@ -3,6 +3,7 @@ use bevy_asset_loader::prelude::*;
 use serde::Deserialize;
 
 use crate::plugin::inventory::main::MAX_STACK;
+use crate::plugin::item::components::ItemComponents;
 use crate::plugin::loader::block_registry::BlockRegistry;
 use crate::plugin::loader::item_registry::{ItemDefinition, ItemID, ItemKind, ItemRegistry};
 use crate::plugin::ui::item::{DisplayLayer, ItemDisplay};
@@ -183,6 +184,7 @@ pub fn load_item_definitions_sys(
                 max_stack:    def.max_stack,
                 kind,
                 display:      resolve_display(&def.display, &asset_server),
+                components: ItemComponents::default(), // WIP: need to parse item components from JSON
             });
             loaded += 1;
         }

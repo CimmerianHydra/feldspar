@@ -3,6 +3,7 @@ use bevy_asset_loader::prelude::*;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
+use crate::plugin::item::components::ItemComponents;
 use crate::plugin::loader::item_assets::parse_hex_color;
 use crate::plugin::loader::item_registry::{ItemDefinition, ItemID, ItemKind, ItemRegistry};
 use crate::plugin::ui::item::{DisplayLayer, ItemDisplay};
@@ -99,7 +100,7 @@ pub struct SubstanceDefinition {
     pub id:           SubstanceID,
     pub name:         String,       // "iron"
     pub display_name: String,       // "Iron"
-    pub color:        Color,        // the tint applied to grayscale part sprites
+    pub color:        Color,        // the tint applied to grayscale sprites
     pub tier:         u8,           // gates what a tool of this substance can mine
     pub durability:   u32,
     pub mining_speed: f32,
@@ -404,6 +405,7 @@ pub fn generate_substance_items_sys(
                 max_stack:    part.max_stack,
                 kind:         ItemKind::SubstancePart { part: part_id, substance: sub.id },
                 display:      ItemDisplay::Layered { layers },
+                components:   ItemComponents::default(),
             });
         }
     }
