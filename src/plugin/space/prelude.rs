@@ -1,40 +1,48 @@
+use avian3d::prelude::*;
 use bevy::{
     ecs::{lifecycle::HookContext, system::SystemParam, world::DeferredWorld},
     prelude::*,
 };
 use std::collections::HashMap;
 
-use crate::plugin::chunk::{NeedsRemeshing, VoxelChunk, CHUNK_SIZE};
+use crate::plugin::{chunk::{CHUNK_SIZE, NeedsRemeshing, VoxelChunk}, geometry::collision::NeedsColliderRebuild};
 use crate::plugin::voxel::{Direction, Voxel};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Owns the concept of a *voxel space*: any entity that holds a `ChunkMap`
-/// and defines a coordinate frame. Dimensions and moving grids are the same
-/// kind of thing here, which is the entire point — everything downstream of
-/// addressing stops caring which one it's talking to.
+/// Owns the concept of a *voxel space*: an entity that holds a `ChunkMap`,
+/// defines a coordinate frame, and owns a rigid body.
+///
+/// Dimensions and moving grids are the same kind of thing here, differing
+/// only in which `RigidBody` variant they carry. Chunks are never bodies —
+/// they contribute collision shape to whatever space they belong to. One
+/// rule, no exceptions, and no entity has two authorities writing its
+/// transform.
 pub struct SpacePlugin;
 
 impl Plugin for SpacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DimensionRegistry>();
 
-        // Spawned directly against the World, not via a startup system, so
-        // the overworld entity is guaranteed to exist before *any* system
-        // runs — including anything that spawns chunks.
+        // Spawned directly against the World, not from a startup system, so
+        // the overworld exists before any system can try to put a chunk in it.
         spawn_dimension(app.world_mut(), DimensionID::OVERWORLD, "Overworld");
     }
 }
 
 /// Spawn a dimension space. The `Dimension` hook registers it in
 /// `DimensionRegistry` automatically.
+///
+/// It's a static body: terrain doesn't move, and its chunks attach their
+/// colliders to it through the hierarchy exactly the way a ship's do.
 pub fn spawn_dimension(world: &mut World, id: DimensionID, name: &str) -> Entity {
     world
         .spawn((
             Dimension(id),
             ChunkMap::default(),
+            RigidBody::Static,
             // Identity frame. Present so the same transform math works for
             // dimensions and grids without a special case.
             Transform::default(),
@@ -44,6 +52,33 @@ pub fn spawn_dimension(world: &mut World, id: DimensionID, name: &str) -> Entity
         .id()
 }
 
+/// Bundle for a movable voxel construct - ship, vehicle, station.
+///
+/// Mass, inertia, and center of mass are all derived from the colliders its
+/// chunks contribute, so don't set them by hand; set `ColliderDensity` on
+/// the chunks instead (see `CHUNK_COLLIDER_DENSITY` in the mesher).
+pub fn build_moving_grid(transform: Transform, name: &str) -> impl Bundle {
+    (
+        MovingGrid,
+        ChunkMap::default(),
+        RigidBody::Dynamic,
+        transform,
+        Visibility::default(),
+        Name::new(format!("Grid<{name}>")),
+    )
+}
+
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, Reflect)]
+pub struct DimensionID(pub u8);
+
+impl DimensionID {
+    pub const OVERWORLD:    Self = Self(0);
+    pub const UNDERWORLD:   Self = Self(1);
+    pub const LUA:          Self = Self(2);
+    pub const MARS:         Self = Self(3);
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 2 – ADDRESSING
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -51,8 +86,8 @@ pub fn spawn_dimension(world: &mut World, id: DimensionID, name: &str) -> Entity
 /// How the rest of the codebase *names* a block: a coordinate frame plus a
 /// position inside it.
 ///
-/// `space` is an entity carrying a `ChunkMap` — a dimension or a moving
-/// grid, indistinguishably. `pos` is absolute block coordinates within that
+/// `space` is an entity carrying a `ChunkMap` — a dimension or a grid,
+/// indistinguishably. `pos` is absolute block coordinates within that
 /// frame, so for a ship it's ship-local and stays constant while the ship
 /// flies around.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -65,27 +100,23 @@ impl BlockPos {
     #[inline]
     pub fn new(space: Entity, pos: IVec3) -> Self { Self { space, pos } }
 
-    /// Offset within the same space. Never crosses a space boundary —
-    /// that's deliberate, see the note on neighbor queries below.
+    /// Offset within the same space. Never crosses a space boundary.
     #[inline]
     pub fn offset(self, delta: IVec3) -> Self {
         Self { space: self.space, pos: self.pos + delta }
     }
 
     #[inline]
-    pub fn neighbor(self, dir: Direction) -> Self {
-        self.offset(dir.as_ivec3())
-    }
+    pub fn neighbor(self, dir: Direction) -> Self { self.offset(dir.as_ivec3()) }
 }
 
 /// How the engine *files* a block: which chunk entity owns it, and where
 /// inside that chunk.
 ///
-/// This is the canonical form, and it's what gets stored on long-lived
-/// components. The reason is grid surgery: when a ship splits, chunk
-/// entities get reassigned to a new space, but their identity and their
-/// contents don't change. Anything holding a `VoxelAddress` survives a
-/// split or a dock untouched; anything holding a `BlockPos` would go stale.
+/// This is the canonical form, stored on long-lived components. When a ship
+/// splits, chunk entities get reassigned to a new space but their identity
+/// and contents don't change — so anything holding a `VoxelAddress`
+/// survives the surgery untouched, where a `BlockPos` would go stale.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VoxelAddress {
     pub chunk: Entity,
@@ -95,9 +126,8 @@ pub struct VoxelAddress {
 // ---- pure coordinate math ------------------------------------------------
 
 /// Split an in-space block position into `(chunk coord, local position)`.
-///
-/// Euclidean division, so negatives behave: block `(-1, 0, 0)` is chunk
-/// `(-1, 0, 0)`, local `(15, 0, 0)`.
+/// Euclidean division, so negatives behave: block `(-1,0,0)` is chunk
+/// `(-1,0,0)`, local `(15,0,0)`.
 #[inline]
 pub fn to_chunk_local(block: IVec3) -> (IVec3, UVec3) {
     let s = CHUNK_SIZE as i32;
@@ -115,21 +145,8 @@ pub fn to_space_pos(chunk: IVec3, local: UVec3) -> IVec3 {
 // SECTION 3 – SPACES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Component, Reflect)]
-pub struct DimensionID(pub u8);
-
-impl DimensionID {
-    pub const OVERWORLD:    Self = Self(0);
-    pub const UNDERWORLD:   Self = Self(1);
-    pub const LUA:          Self = Self(2);
-    pub const MARS:         Self = Self(3);
-}
-
-/// Chunk index for one space. The moving-grid twin of the old global
-/// `StaticWorld` resource, except it's a component, so every space gets one
-/// and there's no dimension key in the map.
-///
-/// Never edited by hand — `ChunkSlot`'s hooks keep it in sync.
+/// Chunk index for one space. Never edited by hand — `ChunkSlot`'s hooks
+/// keep it in sync.
 #[derive(Component, Default, Debug)]
 pub struct ChunkMap {
     chunks: HashMap<IVec3, Entity>,
@@ -137,52 +154,29 @@ pub struct ChunkMap {
 
 impl ChunkMap {
     #[inline]
-    pub fn get(&self, coord: IVec3) -> Option<Entity> {
-        self.chunks.get(&coord).copied()
-    }
-
+    pub fn get(&self, coord: IVec3) -> Option<Entity> { self.chunks.get(&coord).copied() }
     #[inline]
     pub fn contains(&self, coord: IVec3) -> bool { self.chunks.contains_key(&coord) }
 
-    pub fn coords(&self) -> impl Iterator<Item = IVec3> + '_ {
-        self.chunks.keys().copied()
-    }
-
+    pub fn coords(&self) -> impl Iterator<Item = IVec3> + '_ { self.chunks.keys().copied() }
     pub fn iter(&self) -> impl Iterator<Item = (IVec3, Entity)> + '_ {
         self.chunks.iter().map(|(c, e)| (*c, *e))
     }
-
     pub fn len(&self) -> usize { self.chunks.len() }
     pub fn is_empty(&self) -> bool { self.chunks.is_empty() }
 
-    // Crate-internal: only the ChunkSlot hooks should call these.
     fn insert(&mut self, coord: IVec3, chunk: Entity) { self.chunks.insert(coord, chunk); }
     fn remove(&mut self, coord: IVec3) { self.chunks.remove(&coord); }
 }
 
-/// Marks a space as a dimension (the non-moving kind).
+/// Marks a space as a dimension — the kind that doesn't move.
 #[derive(Component, Reflect, Clone, Copy, Debug)]
 #[component(on_add = dimension_on_add, on_remove = dimension_on_remove)]
 pub struct Dimension(pub DimensionID);
 
-/// Marks a space as a movable voxel construct — ship, vehicle, station.
-///
-/// Pair with `ChunkMap`, `Transform`, and your physics body. Chunks
-/// belonging to it are `ChildOf` this entity, so they inherit its motion
-/// and so does everything attached to them.
+/// Marks a space as a movable voxel construct.
 #[derive(Component, Reflect, Default, Debug)]
 pub struct MovingGrid;
-
-/// Convenience bundle for spawning a grid space.
-pub fn moving_grid(transform: Transform, name: &str) -> impl Bundle {
-    (
-        MovingGrid,
-        ChunkMap::default(),
-        transform,
-        Visibility::default(),
-        Name::new(format!("Grid<{name}>")),
-    )
-}
 
 /// Stable-ID lookup for dimensions. Save files reference `DimensionID`,
 /// which survives across runs; `Entity` does not.
@@ -193,11 +187,10 @@ pub struct DimensionRegistry {
 
 impl DimensionRegistry {
     #[inline]
-    pub fn get(&self, id: DimensionID) -> Option<Entity> {
-        self.by_id.get(&id).copied()
-    }
+    pub fn get(&self, id: DimensionID) -> Option<Entity> { self.by_id.get(&id).copied() }
 
-    /// Shorthand for the common case. Panics only if `SpacePlugin` wasn't added.
+    /// Panics only if `SpacePlugin` wasn't added, which is a setup error
+    /// rather than a runtime condition.
     #[inline]
     pub fn overworld(&self) -> Entity {
         self.get(DimensionID::OVERWORLD)
@@ -230,14 +223,17 @@ fn dimension_on_remove(mut world: DeferredWorld, ctx: HookContext) {
 
 /// Says which space a chunk belongs to and where it sits in that space.
 ///
-/// This one component does four jobs, all through its hooks:
+/// One component, four jobs, all through its hooks:
 ///   1. registers the chunk in the space's `ChunkMap`
-///   2. parents it to the space, so grid chunks inherit grid motion
+///   2. parents it to the space, which is also how avian finds the rigid
+///      body its colliders belong to
 ///   3. positions it via a local `Transform`
 ///   4. unregisters cleanly on removal or despawn
 ///
 /// Spawning a chunk is therefore just
-/// `commands.spawn((ChunkSlot { space, coord }, VoxelChunk::empty()))`.
+/// `commands.spawn((ChunkSlot { space, coord }, VoxelChunk::empty()))`,
+/// and cutting one loose to become a ship is a change to `space` plus a
+/// re-parent — no rigid body bookkeeping, because the chunk never had one.
 #[derive(Component, Reflect, Clone, Copy, Debug)]
 #[component(on_add = chunk_slot_on_add, on_remove = chunk_slot_on_remove)]
 pub struct ChunkSlot {
@@ -256,7 +252,6 @@ fn chunk_slot_on_add(mut world: DeferredWorld, ctx: HookContext) {
     let Some(&ChunkSlot { space, coord }) = world.entity(entity).get::<ChunkSlot>() else { return };
 
     world.commands().queue(move |world: &mut World| {
-        // 1. Index it in the owning space.
         let Ok(mut space_ref) = world.get_entity_mut(space) else {
             warn!("chunk at {coord} points at a space entity that doesn't exist");
             return;
@@ -267,8 +262,9 @@ fn chunk_slot_on_add(mut world: DeferredWorld, ctx: HookContext) {
         };
         map.insert(coord, entity);
 
-        // 2 & 3. Parent + place. Transform is local to the space, so a grid
-        // chunk needs no per-frame syncing: Bevy's propagation does it.
+        // Parent + place. The transform is local to the space, so a grid
+        // chunk needs no per-frame syncing — Bevy's propagation does it,
+        // and it's the only writer, because chunks aren't rigid bodies.
         if let Ok(mut chunk_ref) = world.get_entity_mut(entity) {
             chunk_ref.insert((
                 ChildOf(space),
@@ -285,8 +281,7 @@ fn chunk_slot_on_remove(mut world: DeferredWorld, ctx: HookContext) {
     world.commands().queue(move |world: &mut World| {
         let Ok(mut space_ref) = world.get_entity_mut(space) else { return };
         let Some(mut map) = space_ref.get_mut::<ChunkMap>() else { return };
-        // Only clear the slot if it still points at us — guards a
-        // replace-in-place where the new chunk registered first.
+        // Only clear the slot if it still points at us.
         if map.get(coord) == Some(entity) {
             map.remove(coord);
         }
@@ -297,12 +292,12 @@ fn chunk_slot_on_remove(mut world: DeferredWorld, ctx: HookContext) {
 // SECTION 5 – BLOCK-ENTITY INDEX
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Sparse map of local block positions -> block-entities, living on the
-/// chunk entity beside `VoxelChunk`.
+/// Sparse map of local block positions -> block-entities, on the chunk
+/// entity beside `VoxelChunk`.
 ///
 /// Chunk-relative by construction, so it works identically for terrain and
-/// for ships without knowing the difference. Only present on chunks that
-/// actually contain block-entities, so plain terrain pays nothing.
+/// ships. Only present on chunks that contain block-entities, so plain
+/// terrain pays nothing.
 #[derive(Component, Default, Debug)]
 pub struct ChunkBlockEntities {
     map: HashMap<UVec3, Entity>,
@@ -325,14 +320,14 @@ impl ChunkBlockEntities {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Space-agnostic read access to voxels, block-entities, and world-space
-/// geometry. Replaces `StaticWorldAccess`; the only difference at the call
+/// geometry. The only difference from the old `StaticWorldAccess` at a call
 /// site is passing a `BlockPos` instead of `(IVec3, DimensionID)`.
 #[derive(SystemParam)]
 pub struct VoxelWorld<'w, 's> {
-    spaces:  Query<'w, 's, (&'static ChunkMap, &'static GlobalTransform)>,
-    slots:   Query<'w, 's, &'static ChunkSlot>,
-    chunks:  Query<'w, 's, &'static VoxelChunk>,
-    tables:  Query<'w, 's, &'static ChunkBlockEntities>,
+    spaces: Query<'w, 's, (&'static ChunkMap, &'static GlobalTransform)>,
+    slots:  Query<'w, 's, &'static ChunkSlot>,
+    chunks: Query<'w, 's, &'static VoxelChunk>,
+    tables: Query<'w, 's, &'static ChunkBlockEntities>,
 }
 
 impl<'w, 's> VoxelWorld<'w, 's> {
@@ -355,7 +350,7 @@ impl<'w, 's> VoxelWorld<'w, 's> {
 
     // ---- voxels ----------------------------------------------------------
 
-    /// Unloaded chunks read as air, matching the old behavior.
+    /// Unloaded chunks read as air.
     pub fn get_voxel(&self, at: BlockPos) -> Voxel {
         self.resolve(at)
             .and_then(|a| self.chunks.get(a.chunk).ok().map(|c| c.get_local(a.local)))
@@ -363,9 +358,9 @@ impl<'w, 's> VoxelWorld<'w, 's> {
     }
 
     /// Neighbor lookup stays strictly inside one space. A block on the edge
-    /// of a ship has air outside it, not whatever terrain happens to overlap
-    /// — cross-space interaction should be an explicit mechanic, never an
-    /// accident of coordinate math.
+    /// of a ship has air outside it, not whatever terrain happens to
+    /// overlap — cross-space interaction should be a deliberate mechanic,
+    /// never an accident of coordinate math.
     #[inline]
     pub fn get_neighbor(&self, at: BlockPos, dir: Direction) -> Voxel {
         self.get_voxel(at.neighbor(dir))
@@ -385,7 +380,7 @@ impl<'w, 's> VoxelWorld<'w, 's> {
     // ---- geometry --------------------------------------------------------
 
     /// World-space center of a block, wherever its space happens to be.
-    /// This is what spatial audio, particles, and tooltips want.
+    /// What spatial audio, particles, and tooltips want.
     pub fn world_position(&self, at: BlockPos) -> Option<Vec3> {
         let (_, space_tf) = self.spaces.get(at.space).ok()?;
         Some(space_tf.transform_point(at.pos.as_vec3() + Vec3::splat(0.5)))
@@ -395,7 +390,7 @@ impl<'w, 's> VoxelWorld<'w, 's> {
     /// Use this to orient a highlight or a block-mounted model on a ship.
     pub fn world_transform(&self, at: BlockPos) -> Option<Transform> {
         let (_, space_tf) = self.spaces.get(at.space).ok()?;
-        let (scale, rotation, translation) = space_tf.to_scale_rotation_translation();
+        let (scale, rotation, _) = space_tf.to_scale_rotation_translation();
         Some(Transform {
             translation: space_tf.transform_point(at.pos.as_vec3()),
             rotation,
@@ -411,9 +406,8 @@ impl<'w, 's> VoxelWorld<'w, 's> {
         Some(space_tf.affine().matrix3 * dir.as_vec3())
     }
 
-    /// World-space point -> block position in the given space. The inverse
-    /// of `world_position`, used when translating a physics hit or a
-    /// player's feet into grid coordinates.
+    /// World-space point -> block position in the given space. Used when
+    /// translating a physics hit or a player's feet into grid coordinates.
     pub fn world_to_block(&self, space: Entity, world_point: Vec3) -> Option<BlockPos> {
         let (_, space_tf) = self.spaces.get(space).ok()?;
         let local = space_tf.affine().inverse().transform_point3(world_point);
@@ -455,7 +449,7 @@ impl<'w, 's> VoxelWorldMut<'w, 's> {
         let mut chunk = self.chunks.get_mut(address.chunk).ok()?;
 
         let old = chunk.get_local(address.local);
-        if old == voxel { return Some(old); }   // no-op write, skip the remesh
+        if old == voxel { return Some(old); }   // no-op, skip the remesh
 
         chunk.set_local(address.local, voxel);
         self.commands.entity(address.chunk).insert(NeedsRemeshing);

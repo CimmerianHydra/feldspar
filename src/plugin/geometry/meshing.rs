@@ -1,12 +1,11 @@
 use avian3d::collision::collider::Collider;
-use avian3d::dynamics::rigid_body::RigidBody;
 use bevy::prelude::*;
 use bevy::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, NeedsRemeshing};
+use crate::plugin::geometry::collision::update_chunk_collider_sys;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
-use crate::plugin::space::prelude::ChunkSlot;
 use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Direction};
 use crate::plugin::geometry::quads::{Quad, shape_quads};
@@ -26,7 +25,7 @@ impl Plugin for MeshingPlugin {
         // Add systems related to block meshing here
         app
         .add_systems(Update, (
-            add_physics_to_chunk_sys,
+            update_chunk_collider_sys,
             update_dirty_mesh_sys
         ).run_if(in_state(GameState::InGame)))
         ;
@@ -303,19 +302,4 @@ fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Coll
     let collider = Collider::trimesh(collider_positions, collider_indices);
 
     (mesh, collider)
-}
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SYSTEMS AT STARTUP PHASE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-
-fn add_physics_to_chunk_sys(
-    mut commands: Commands,
-    query: Query<Entity, (Added<ChunkSlot>, With<VoxelChunk>)>,
-) {
-    for entity in &query {
-        commands.entity(entity).insert(RigidBody::Static);
-    }
 }

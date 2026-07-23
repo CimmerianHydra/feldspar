@@ -1,3 +1,5 @@
+
+use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 mod plugin;
@@ -19,16 +21,12 @@ use plugin::inventory::main::*;
 use plugin::inventory::player::*;
 use plugin::loader::item_registry::*;
 use plugin::state::GameUpdate;
-use plugin::ui::cursor::CursorLockRequest;
 
-use bevy::{input::common_conditions::input_toggle_active};
-use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use avian3d::PhysicsPlugins;
 use plugin::state::GameState;
 
 use plugin::block::prelude::BlockPlugin;
 use plugin::chunk::{NeedsRemeshing, VoxelChunk};
-use plugin::space::prelude::DimensionID;
 use plugin::loader::texture_assets::VoxelMaterialHandle;
 use plugin::space::prelude::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
@@ -57,18 +55,14 @@ fn main() {
         .add_plugins(WeatherPlugin)
         .add_plugins(BlockAudioPlugin)
         .add_plugins(CraftingPlugin)
-        
-        .add_plugins(EguiPlugin::default())
-        .add_plugins(
-            WorldInspectorPlugin::default().run_if(input_toggle_active(false, KeyCode::F3)),
-        )
 
         .add_systems(OnEnter(GameState::InGame), setup_dev_chunks)
-        .add_systems(OnEnter(GameState::InGame), dev_lock_cursor)
 
         .add_systems(Update, enable_game.after(setup_dev_chunks))
 
         .add_systems(Update, dev_populate_player_inventory)
+
+        .add_systems(Update, spawn_dev_ship.run_if(input_just_pressed(KeyCode::F4)))
 
         .run();
 }
@@ -105,15 +99,14 @@ pub fn dev_populate_player_inventory(
     }
 }
 
-/// Lock the cursor to the screen at the beginning of the game
-pub fn dev_lock_cursor(
-    mut commands: Commands,
-) {
-    commands.trigger(CursorLockRequest::Lock);
-}
-
+use crate::plugin::geometry::collision::NeedsColliderRebuild;
+use crate::plugin::loader::block_registry::BlockID;
+use crate::plugin::loader::block_registry::BlockRegistry;
 use crate::plugin::space::prelude::DimensionRegistry;
 use crate::plugin::space::prelude::ChunkSlot;
+use crate::plugin::space::prelude::build_moving_grid;
+use crate::plugin::voxel::Voxel;
+use avian3d::dynamics::rigid_body::*;
 
 /// How many chunks out from origin to pre-spawn on each axis.
 /// Total chunk count = (2*R + 1)^3 — with R=8 that's 4913 chunks.
@@ -126,9 +119,9 @@ fn setup_dev_chunks(
     terrain_material_handle_res:    Res<VoxelMaterialHandle>,
     worldgen:                       Res<ActiveWorldGenerator>,
     dimensions:                     Res<DimensionRegistry>,
+    block_registry:                 Res<BlockRegistry>,
 ) {
     // ── chunk generation + spawn ──────────────────────────────────────────
-    let dim_id = DimensionID::OVERWORLD;
 
     for cx in -DEV_CHUNK_RADIUS..=DEV_CHUNK_RADIUS {
         for cy in -DEV_CHUNK_HEIGHT..=DEV_CHUNK_HEIGHT {
@@ -151,4 +144,66 @@ fn setup_dev_chunks(
             }
         }
     }
+}
+
+fn spawn_dev_ship(
+    mut commands:       Commands,
+    registry:           Res<BlockRegistry>,
+) {
+    let Some(barrel_id) = registry.by_name("barrel".to_string()) else {
+        error!("dev grid: no 'barrel' block in the registry — check barrel.json");
+        return;
+    };
+    let hull_id = resolve_hull_block(&registry);
+ 
+    // ---- author the chunk contents -------------------------------------
+    let mut chunk = VoxelChunk::empty();
+    for x in 0..2u32 {
+        for y in 0..2u32 {
+            for z in 0..2u32 {
+                let local = UVec3::new(x, y, z);
+                // One barrel, so there's exactly one thing to right-click.
+                let id = if local == UVec3::new(1, 1, 1) { barrel_id } else { hull_id };
+                chunk.set_local(local, Voxel::full(id.0));
+            }
+        }
+    }
+ 
+    // ---- the space owns the body ----------------------------------------
+    let spawn_transform = Transform::from_translation(Vec3::new(0.0, 16.0, 0.0))
+        .with_rotation(Quat::from_euler(EulerRot::XYZ, 0.3, 0.6, 0.15));
+ 
+    let grid = commands
+        .spawn((
+            build_moving_grid(spawn_transform, "TestBarrelCrate"),
+            Friction::new(0.5),
+            Restitution::new(0.05),
+            // A shove, so it tumbles instead of settling flat.
+            LinearVelocity(Vec3::new(0.0, 0.0, 3.0)),
+            AngularVelocity(Vec3::new(1.2, 0.4, 0.0)),
+        ))
+        .id();
+ 
+    // ---- the chunk supplies geometry -------------------------------------
+    // ChunkSlot's hook parents it, places it, and registers it in the grid's
+    // ChunkMap. Hydration gives the barrel voxel its entity, since no
+    // BlockEvent::Place ever fires for a prefabricated chunk.
+    commands.spawn((
+        Name::new("TestBarrelCrate/chunk"),
+        ChunkSlot { space: grid, coord: IVec3::ZERO },
+        chunk,
+        NeedsRemeshing,
+    ));
+ 
+    info!("dev grid spawned at {}", spawn_transform.translation);
+}
+ 
+/// Pick a solid block for the hull, tolerating an unknown name.
+fn resolve_hull_block(registry: &BlockRegistry) -> BlockID {
+    if let Some(id) = registry.by_name("slate".to_string()) {
+        return id;
+    }
+    warn!("dev grid: block not found, falling back to the first registered block");
+    // Index 0 is always air, so 1 is the first real block.
+    BlockID(1.min(registry.size().saturating_sub(1) as u16))
 }
