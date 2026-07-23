@@ -452,7 +452,7 @@ impl<'w, 's> VoxelWorldMut<'w, 's> {
         if old == voxel { return Some(old); }   // no-op, skip the remesh
 
         chunk.set_local(address.local, voxel);
-        self.commands.entity(address.chunk).insert(NeedsRemeshing);
+        self.commands.entity(address.chunk).insert((NeedsRemeshing, NeedsColliderRebuild));
         Some(old)
     }
 }

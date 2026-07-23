@@ -1,10 +1,9 @@
-use avian3d::collision::collider::Collider;
 use bevy::prelude::*;
 use bevy::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, NeedsRemeshing};
-use crate::plugin::geometry::collision::update_chunk_collider_sys;
+use crate::plugin::geometry::collision::{update_dirty_collider_sys, wake_sleeping_grids_on_voxel_change_sys};
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
 use crate::plugin::space::prelude::ChunkSlot;
@@ -20,16 +19,16 @@ use bevy::render::render_resource::VertexFormat;
 // PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-pub struct MeshingPlugin;
+pub struct GeometryPlugin;
 
-impl Plugin for MeshingPlugin {
+impl Plugin for GeometryPlugin {
     fn build(&self, app: &mut App) {
         // Add systems related to block meshing here
         app
         .add_systems(Update, (
             add_material_to_chunk_sys,
-            update_chunk_collider_sys,
-            update_dirty_mesh_sys
+            wake_sleeping_grids_on_voxel_change_sys,
+            (update_dirty_mesh_sys, update_dirty_collider_sys).chain(),
         ).run_if(in_state(GameState::InGame)))
         ;
     }
@@ -68,22 +67,22 @@ pub const ATTRIBUTE_OVERLAY_TINT: MeshVertexAttribute =
 
 fn update_dirty_mesh_sys(
     mut commands: Commands,
-    chunk_query: Query<(Entity, &VoxelChunk, Option<&Mesh3d>, Option<&Collider>), With<NeedsRemeshing>>,
+    chunk_query: Query<(Entity, &VoxelChunk, &ChunkSlot, Option<&Mesh3d>), With<NeedsRemeshing>>,
     mut meshes: ResMut<Assets<Mesh>>,
     block_registry: Res<BlockRegistry>,
 ) {
     for (
         entity,
         voxel_chunk,
+        _chunk_slot,
         existing_mesh,
-        existing_collider,
     ) in chunk_query.iter() {
         let mut e = commands.entity(entity);
 
         // Quirk of Bevy: an empty mesh kinda breaks the system.
         // So if the chunk is all air, we need to remove the mesh entirely.
         // is_all_air is short circuiting, so we shouldn't be afraid to use it: we won't be
-        // looping over every chunk. Especially the chunks that are completely full only add one operation.
+        // looping over every block on average. Especially chunks that are completely full only add one operation.
 
         // Note to self: removing the mesh and the collider, or adding them, is very slow.
         // this causes some desyncs when the mesh needs to be generated from empty and added to the chunk entity.
@@ -94,15 +93,13 @@ fn update_dirty_mesh_sys(
         if voxel_chunk.is_all_air() {
             // No geometry; drop any stale mesh handle.
             if existing_mesh.is_some() {
+                e.insert(Visibility::Hidden);
                 e.remove::<Mesh3d>();
             }
-            if existing_collider.is_some() {
-                e.remove::<Collider>();
-            }
         } else {
-            let (new_mesh, new_collider) = build_chunk_data(voxel_chunk, &block_registry);
+            let new_mesh = build_chunk_data(voxel_chunk, &block_registry);
+            e.insert(Visibility::Inherited);
             e.insert(Mesh3d(meshes.add(new_mesh)));
-            e.insert((new_collider));
         }
 
         e.remove::<NeedsRemeshing>();
@@ -213,27 +210,10 @@ fn is_visible(quad: &Quad, chunk: &VoxelChunk, pos: UVec3) -> bool {
     visible
 }
 
-/// Helper struct to pass around data exclusively related to meshing.
-struct MeshingData {
-    indices: Vec<u32>,
-    positions: Vec<[f32; 3]>,
-    normals: Vec<[f32; 3]>,
-    uvs: Vec<[f32; 2]>,
-    texture_layers: Vec<u32>,
-    overlay_layers: Vec<u32>,
-    overlay_tints: Vec<[f32; 4]>,
-}
-
-/// Helper struct to pass around data exclusively related to colliders.
-struct ColliderData {
-    indices: Vec<u32>,
-    positions: Vec<[f32; 3]>,
-}
-
 
 // TODO: Implement greedy meshing and face culling to optimize block rendering, making use of the shapes and blockstates.
 // TODO: Separate rendering and physics pipelines in a smarter way
-fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Collider) {
+fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> Mesh {
     let mut positions      = Vec::<[f32; 3]>::new();
     let mut normals        = Vec::<[f32; 3]>::new();
     let mut uvs            = Vec::<[f32; 2]>::new();
@@ -243,15 +223,11 @@ fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Coll
     let mut overlay_tints  = Vec::<[f32; 4]>::new();
     let mut index_offset   = 0u32;
 
-    let mut collider_indices   = Vec::<[u32; 3]>::new();
-    let mut collider_positions     = Vec::<Vec3>::new();
-
 
     for (pos, voxel) in chunk.iter_non_air() {
         let block_id = BlockID(voxel.id());
         let block_def  = registry.get(block_id);
         let appearance = &block_def.appearance;
-        let has_collision = block_def.has_collision;
 
         let quads      = shape_quads(voxel.shape(), voxel.facing());
 
@@ -279,25 +255,6 @@ fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Coll
                 index_offset,     index_offset + 2, index_offset + 3,
             ]);
 
-
-            // ── Push all collision data ────────────────────────────────────────
-            if has_collision {
-                for &vert in quad.verts.iter() {
-                    collider_positions.push(vert + pos.as_vec3());
-                }
-                collider_indices.push([
-                    index_offset,     index_offset + 1, index_offset + 2,
-                ]);
-
-                // Skip the degenerate triangle for the collider — Parry's trimesh
-                // builder doesn't need it and zero-area faces can confuse contact normals.
-                if quad.verts[2] != quad.verts[3] {
-                        collider_indices.push([
-                        index_offset,     index_offset + 1, index_offset + 2,
-                    ]);
-                }
-            }
-
             index_offset += 4;
         }
     }
@@ -311,7 +268,5 @@ fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> (Mesh, Coll
     mesh.insert_attribute(ATTRIBUTE_OVERLAY_TINT,     overlay_tints);
     mesh.insert_indices(Indices::U32(mesh_indices));
 
-    let collider = Collider::trimesh(collider_positions, collider_indices);
-
-    (mesh, collider)
+    mesh
 }

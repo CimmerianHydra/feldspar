@@ -1,9 +1,10 @@
+use avian3d::parry::transformation::voxelization::Voxel;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::plugin::chunk::{VoxelChunk, CHUNK_SIZE};
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
-use crate::plugin::space::prelude::ChunkSlot;
+use crate::plugin::space::prelude::{ChunkSlot, MovingGrid};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIG
@@ -30,13 +31,13 @@ pub struct NeedsColliderRebuild;
 /// Gives every chunk a collision shape appropriate to the body it belongs
 /// to. Dimension-owned chunks build a trimesh, which is good for static objects
 /// while MovingGrid-owned chunks build using a greedy algo.
-pub fn update_chunk_collider_sys(
+pub fn update_dirty_collider_sys(
     mut commands: Commands,
     meshes: Res<Assets<Mesh>>,
     registry: Res<BlockRegistry>,
     chunks: Query<
         (Entity, &ChunkSlot, &VoxelChunk, Option<&Mesh3d>),
-        Or<(Changed<VoxelChunk>, With<NeedsColliderRebuild>)>,
+        With<NeedsColliderRebuild>,
     >,
     bodies: Query<&RigidBody>,
 ) {
@@ -69,6 +70,21 @@ pub fn update_chunk_collider_sys(
         }
     }
 }
+
+
+/// Grids tend to have no clue what's going on in their children from the point of view of voxel data.
+/// By default, Avian puts moving grids that have been inactive for a bit to sleep; however, even if
+/// the collider is rebuilt, they won't start acting again unless they are nudged by something.
+/// So, we add zero velocity to them to wake them up, if data in any of their chunks changes.
+pub fn wake_sleeping_grids_on_voxel_change_sys(
+    chunks: Query<&ChunkSlot, Changed<VoxelChunk>>,
+    mut sleepy_grids: Query<&mut LinearVelocity, With<MovingGrid>>,
+) {
+    for slot in chunks.iter() {
+        let Ok(mut velocity) = sleepy_grids.get_mut(slot.space) else { continue; };
+        velocity.0 += Vec3::ZERO;
+    }
+}   
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // VOXELS -> BOXES

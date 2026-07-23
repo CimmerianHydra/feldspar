@@ -4,7 +4,7 @@ use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 mod plugin;
-use plugin::geometry::meshing::MeshingPlugin;
+use plugin::geometry::meshing::GeometryPlugin;
 use plugin::block::interaction::BlockInteractionPlugin;
 use plugin::ui::main::UIPlugin;
 use plugin::weather::WeatherPlugin;
@@ -28,7 +28,6 @@ use plugin::state::GameState;
 
 use plugin::block::prelude::BlockPlugin;
 use plugin::chunk::{NeedsRemeshing, VoxelChunk};
-use plugin::loader::texture_assets::VoxelMaterialHandle;
 use plugin::space::prelude::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
 
@@ -48,7 +47,7 @@ fn main() {
         .add_plugins(AssetLoaderPlugin)
         .add_plugins(SpacePlugin)
         .add_plugins(BlockPlugin)
-        .add_plugins(MeshingPlugin)
+        .add_plugins(GeometryPlugin)
         .add_plugins(UIPlugin)
         .add_plugins(InventoryPlugin)
         .add_plugins(BlockInteractionPlugin)
@@ -80,7 +79,7 @@ pub fn dev_populate_player_inventory(
     mut player_hotbar_query: Query<(Entity, &mut Inventory), Added<PlayerInventory>>,
     item_registry: Res<ItemRegistry>,
 ) {
-    if let Ok((entity, mut inventory)) = player_hotbar_query.single_mut() {
+    if let Ok((_entity, mut inventory)) = player_hotbar_query.single_mut() {
         for id in 1..7 {
             let item_id = ItemID(id as u16);
             let result = inventory.insert(item_id, 10, &item_registry);
@@ -101,6 +100,7 @@ pub fn dev_populate_player_inventory(
 }
 
 
+use crate::plugin::geometry::collision::NeedsColliderRebuild;
 use crate::plugin::geometry::collision::box_collider_from_chunk;
 use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
 use crate::plugin::loader::block_registry::BlockID;
@@ -140,6 +140,7 @@ fn setup_dev_chunks(
                     chunk_slot.clone(),
                     chunk_data.clone(),
                     NeedsRemeshing,
+                    NeedsColliderRebuild,
                 ));
             }
         }
@@ -192,6 +193,7 @@ fn spawn_dev_ship(
         ChunkSlot { space: grid, coord: IVec3::ZERO },
         chunk,
         NeedsRemeshing,
+        NeedsColliderRebuild,
         collider,
         ColliderDensity(CHUNK_COLLIDER_DENSITY),
     ));
