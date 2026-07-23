@@ -32,6 +32,7 @@ impl ItemComponents {
 // Basic Definitions
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+
 #[derive(Clone, Copy, Debug)]
 pub struct PlacesBlock { pub block_id: BlockID }
 
@@ -43,20 +44,28 @@ pub struct Fuel { pub value: u32 }
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ItemComponent Implementation for each Component
+// Macro-based Implementation for each Component
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-impl ItemComponent for PlacesBlock {
-    fn get(bag: &ItemComponents) -> Option<&Self> { bag.places_block.as_ref() }
-    fn set(bag: &mut ItemComponents, v: Self) { bag.places_block = Some(v); }
+/// Stamps out the two-line impl. Adding a capability is one field in the struct and
+/// one line here.
+macro_rules! item_component {
+    ($ty:ty, $field:ident) => {
+        impl ItemComponent for $ty {
+            fn get(bag: &ItemComponents) -> Option<&Self> { bag.$field.as_ref() }
+            fn set(bag: &mut ItemComponents, v: Self) { bag.$field = Some(v); }
+        }
+    };
 }
+// I fucking love Rust
 
-impl ItemComponent for Durability {
-    fn get(bag: &ItemComponents) -> Option<&Self> { bag.durability.as_ref() }
-    fn set(bag: &mut ItemComponents, v: Self) { bag.durability = Some(v); }
-}
+item_component!(PlacesBlock, places_block);
+// Expands into:
+//
+// impl ItemComponent for PlacesBlock {
+//     fn get(bag: &ItemComponents) -> Option<&Self> { bag.places_block.as_ref() }
+//     fn set(bag: &mut ItemComponents, v: Self) { bag.places_block = Some(v); }
+// }
 
-impl ItemComponent for Fuel {
-    fn get(bag: &ItemComponents) -> Option<&Self> { bag.fuel.as_ref() }
-    fn set(bag: &mut ItemComponents, v: Self) { bag.fuel = Some(v); }
-}
+item_component!(Durability, durability);
+item_component!(Fuel, fuel);

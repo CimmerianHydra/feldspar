@@ -6,12 +6,17 @@ use crate::plugin::inventory::main::Inventory;
 
 use crate::plugin::inventory::player:: PlayerInventoryAccess;
 use crate::plugin::ui::player::{MAX_PLAYER_INVENTORY_UI_COLS, build_player_ui_with_top_panel};
-use crate::plugin::ui::inventory::build_inventory_ui;
+use crate::plugin::ui::inventory::{EntityUISessionEndRequest, build_inventory_ui};
 use crate::plugin::ui::screen::{UiPushOptions, UiScreenCommandsExt};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BARREL
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Marker, so systems that care specifically about barrels (hoppers,
+/// filters, the future logistics network) can query for them.
+#[derive(Component, Debug)]
+pub struct Barrel;
 
 /// Everything the barrel is, in one place.
 ///
@@ -41,15 +46,17 @@ impl BlockEntitySpawner for BarrelSpawner {
         ctx.observe(on_barrel_interact);
     }
 
-    fn despawn(&self, _commands: &mut Commands, _root: Entity) {
-        // TODO: spill contents onto the floor once item entities exist.
+    fn despawn(&self, commands: &mut Commands, root: Entity) {
+        commands.trigger(
+            EntityUISessionEndRequest {
+                context: root,
+                source_entity: root,
+            }
+        );
+        // TODO: spill items on floor.
     }
 }
 
-/// Marker, so systems that care specifically about barrels (hoppers,
-/// filters, the future logistics network) can query for them.
-#[derive(Component, Debug)]
-pub struct Barrel;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INTERACTION
