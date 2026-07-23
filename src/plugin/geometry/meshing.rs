@@ -6,6 +6,8 @@ use bevy::asset::{RenderAssetUsages};
 use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, NeedsRemeshing};
 use crate::plugin::geometry::collision::update_chunk_collider_sys;
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
+use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
+use crate::plugin::space::prelude::ChunkSlot;
 use crate::plugin::state::GameState;
 use crate::plugin::voxel::{Direction};
 use crate::plugin::geometry::quads::{Quad, shape_quads};
@@ -25,6 +27,7 @@ impl Plugin for MeshingPlugin {
         // Add systems related to block meshing here
         app
         .add_systems(Update, (
+            add_material_to_chunk_sys,
             update_chunk_collider_sys,
             update_dirty_mesh_sys
         ).run_if(in_state(GameState::InGame)))
@@ -106,6 +109,15 @@ fn update_dirty_mesh_sys(
     }
 }
 
+fn add_material_to_chunk_sys(
+    mut commands: Commands,
+    material: Res<VoxelMaterialHandle>,
+    chunks: Query<Entity, (Added<ChunkSlot>, With<VoxelChunk>)>,
+) {
+    for entity in &chunks {
+        commands.entity(entity).insert(MeshMaterial3d(material.0.clone()));
+    }
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MESHING - CORE FUNCTIONS

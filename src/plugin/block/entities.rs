@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::plugin::space::prelude::*;
+use crate::plugin::space::prelude::{BlockPos, ChunkBlockEntities, VoxelAddress, VoxelWorld};
 use crate::plugin::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -39,6 +39,15 @@ impl BlockEntityTag {
     pub fn single(world: &VoxelWorld, at: BlockPos) -> Option<Self> {
         let origin = world.resolve(at)?;
         Some(Self { origin, cells: vec![origin] })
+    }
+
+    /// When the address is already known and no resolution is needed —
+    /// chunk hydration, deserialization. Cheaper and, more importantly,
+    /// usable before the chunk has been registered in its space's
+    /// `ChunkMap`, which matters when hydrating a chunk on the same frame
+    /// it was spawned.
+    pub fn at_address(address: VoxelAddress) -> Self {
+        Self { origin: address, cells: vec![address] }
     }
 
     /// Multiblock. `cells` are absolute positions in the same space as

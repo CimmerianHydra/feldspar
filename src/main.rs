@@ -1,4 +1,5 @@
 
+use avian3d::dynamics::rigid_body::mass_properties::components::ColliderDensity;
 use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
@@ -99,7 +100,9 @@ pub fn dev_populate_player_inventory(
     }
 }
 
-use crate::plugin::geometry::collision::NeedsColliderRebuild;
+
+use crate::plugin::geometry::collision::box_collider_from_chunk;
+use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
 use crate::plugin::loader::block_registry::BlockID;
 use crate::plugin::loader::block_registry::BlockRegistry;
 use crate::plugin::space::prelude::DimensionRegistry;
@@ -116,10 +119,8 @@ const DEV_CHUNK_HEIGHT: i32 = 4;
 
 fn setup_dev_chunks(
     mut commands:                   Commands,
-    terrain_material_handle_res:    Res<VoxelMaterialHandle>,
     worldgen:                       Res<ActiveWorldGenerator>,
     dimensions:                     Res<DimensionRegistry>,
-    block_registry:                 Res<BlockRegistry>,
 ) {
     // ── chunk generation + spawn ──────────────────────────────────────────
 
@@ -138,7 +139,6 @@ fn setup_dev_chunks(
                 commands.spawn((
                     chunk_slot.clone(),
                     chunk_data.clone(),
-                    MeshMaterial3d(terrain_material_handle_res.0.clone()),
                     NeedsRemeshing,
                 ));
             }
@@ -168,19 +168,18 @@ fn spawn_dev_ship(
             }
         }
     }
+
+    let collider = box_collider_from_chunk(&chunk, &registry)
+        .expect("prefab chunk is not empty");
  
     // ---- the space owns the body ----------------------------------------
-    let spawn_transform = Transform::from_translation(Vec3::new(0.0, 16.0, 0.0))
-        .with_rotation(Quat::from_euler(EulerRot::XYZ, 0.3, 0.6, 0.15));
+    let spawn_transform = Transform::from_translation(Vec3::new(16.0, 32.0, 16.0));
  
     let grid = commands
         .spawn((
             build_moving_grid(spawn_transform, "TestBarrelCrate"),
             Friction::new(0.5),
             Restitution::new(0.05),
-            // A shove, so it tumbles instead of settling flat.
-            LinearVelocity(Vec3::new(0.0, 0.0, 3.0)),
-            AngularVelocity(Vec3::new(1.2, 0.4, 0.0)),
         ))
         .id();
  
@@ -193,9 +192,11 @@ fn spawn_dev_ship(
         ChunkSlot { space: grid, coord: IVec3::ZERO },
         chunk,
         NeedsRemeshing,
+        collider,
+        ColliderDensity(CHUNK_COLLIDER_DENSITY),
     ));
  
-    info!("dev grid spawned at {}", spawn_transform.translation);
+    info!("Dev Grid spawned at: {}", spawn_transform.translation);
 }
  
 /// Pick a solid block for the hull, tolerating an unknown name.
