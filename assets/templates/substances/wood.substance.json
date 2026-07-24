@@ -1,0 +1,11 @@
+[
+   { "name": "oak",   "display_name": "Oak",   "color": "#C79870",
+     "tier": 1, "durability": 100, "mining_speed": 1.0, "damage": 1.0,
+     "profiles": ["wooden"] },
+   { "name": "spruce",   "display_name": "Spruce",   "color": "#A97D64",
+     "tier": 1, "durability": 100, "mining_speed": 1.0, "damage": 1.0,
+     "profiles": ["wooden"] },
+   { "name": "ebony",   "display_name": "Ebony",   "color": "#361B0E",
+     "tier": 1, "durability": 100, "mining_speed": 1.0, "damage": 1.0,
+     "profiles": ["wooden"] }
+]

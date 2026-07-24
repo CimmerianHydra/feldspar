@@ -5,6 +5,6 @@
      { "name": "metal_plate", "pattern": "{} Plate", "sprite": "icons/parts/plate.png" },
      { "name": "metal_gear",  "pattern": "{} Gear",  "sprite": "icons/parts/gear.png"  },
      { "name": "metal_rod",   "pattern": "{} Rod",   "sprite": "icons/parts/rod.png"   },
-     { "name": "metal_dust",  "pattern": "{} Dust",  "sprite": "icons/parts/ingot.png" }
+     { "name": "metal_dust",  "pattern": "{} Dust",  "sprite": "icons/parts/dust.png" }
    ]
 }

@@ -88,8 +88,9 @@ pub fn dev_populate_player_inventory(
         };
 
         for name in [
-            "iron_metal_ingot", "iron_metal_plate", "iron_metal_gear", "iron_metal_rod",
-            "copper_metal_ingot", "copper_metal_plate", "copper_metal_gear", "copper_metal_rod",
+            "iron_metal_ingot", "iron_metal_plate", "iron_metal_rod",
+            "copper_metal_ingot", "copper_metal_plate", "copper_metal_rod",
+            "oak_wood_plank", "spruce_wood_plank", "ebony_wood_plank"
             ] {
             let Some(item_id) = item_registry.by_name(name.to_string()) else { continue ;};
             let result = inventory.insert(item_id, 10, &item_registry);

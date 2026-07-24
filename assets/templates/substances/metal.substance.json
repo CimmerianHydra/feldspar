@@ -7,5 +7,17 @@
      "profiles": ["metal"] },
    { "name": "tin", "display_name": "Tin", "color": "#9fa0a1",
      "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] },
+   { "name": "bronze", "display_name": "Bronze", "color": "#9F7B0B",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] },
+   { "name": "silver", "display_name": "Silver", "color": "#B2BECA",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] },
+   { "name": "lead", "display_name": "Lead", "color": "#6C6787",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
+     "profiles": ["metal"] },
+   { "name": "gold", "display_name": "Gold", "color": "#F2C742",
+     "tier": 1, "durability": 180, "mining_speed": 4.0, "damage": 1.5,
      "profiles": ["metal"] }
 ]

@@ -2,8 +2,8 @@
    "profile": "wooden",
    "parts": [
      { "name": "wood_gear",     "pattern": "{} Gear",    "sprite": "icons/parts/gear.png"    },
-     { "name": "wood_rod",      "pattern": "{} Rod",     "sprite": "icons/parts/rod.png"     },
-     { "name": "wood_plank",    "pattern": "{} Planks",  "sprite": "icons/parts/ingot.png"   },
-     { "name": "wood_dust",     "pattern": "{} Sawdust", "sprite": "icons/parts/ingot.png"   }
+     { "name": "wood_rod",      "pattern": "{} Rod",     "sprite": "icons/parts/stick.png"     },
+     { "name": "wood_plank",    "pattern": "{} Planks",  "sprite": "icons/parts/plank.png"   },
+     { "name": "wood_dust",     "pattern": "{} Sawdust", "sprite": "icons/parts/dust.png"   }
    ]
  }

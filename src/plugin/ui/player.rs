@@ -7,7 +7,7 @@ use crate::plugin::ui::inventory::*;
 use crate::plugin::inventory::player::*;
 
 use crate::plugin::controller::player::UiOpenPlayerInventory;
-use crate::plugin::ui::screen::UiPushOptions;
+use crate::plugin::ui::screen::UIPushOptions;
 use crate::plugin::ui::screen::UiScreenCommandsExt;
 
 
@@ -83,7 +83,7 @@ pub fn open_player_inventory_obs(
 
     let top_panel = build_inventory_crafting_ui(set.crafting_machine, spatial_entity, spatial);
 
-    let ui_options = UiPushOptions {
+    let ui_options = UIPushOptions {
         dim: true,
         sources: involved_entities,
     };

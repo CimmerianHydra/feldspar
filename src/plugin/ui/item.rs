@@ -107,7 +107,7 @@ fn build_layer_node(layer: DisplayLayer) -> impl Bundle {
         },
         ImageNode {
             image:      layer.image,
-            color:      layer.tint,          // GPU multiply — the whole trick
+            color:      layer.tint,
             image_mode: NodeImageMode::Stretch,
             ..default()
         },

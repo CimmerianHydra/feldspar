@@ -41,18 +41,18 @@ impl UiStack {
 /// Everything a caller may say about a screen. Deliberately tiny: if a knob
 /// isn't here, the caller doesn't get to touch it.
 #[derive(Clone, Debug)]
-pub struct UiPushOptions {
+pub struct UIPushOptions {
     pub dim: bool,
     /// World entities this screen is a view of, if any. Feeds `EntityUISession`, so
     /// breaking a barrel closes the barrel's screen.
     pub sources: Vec<Entity>,
 }
 
-impl Default for UiPushOptions {
+impl Default for UIPushOptions {
     fn default() -> Self { Self { dim: true, sources: Vec::new() } }
 }
 
-impl UiPushOptions {
+impl UIPushOptions {
     pub fn new() -> Self { Self::default() }
     pub fn dimmed(mut self, dim: bool) -> Self { self.dim = dim; self }
     pub fn viewing(mut self, entities: impl IntoIterator<Item = Entity>) -> Self {
@@ -64,7 +64,7 @@ impl UiPushOptions {
 /// The one interstitial layer. `should_block_lower` makes the topmost screen
 /// swallow every click its own content doesn't consume, so lower screens and
 /// the 3D world are automatically inert.
-fn build_screen_backdrop(spec: &UiPushOptions) -> impl Bundle {
+fn build_screen_backdrop(spec: &UIPushOptions) -> impl Bundle {
     (
         Node {
             position_type: PositionType::Absolute,
@@ -87,7 +87,7 @@ fn build_screen_backdrop(spec: &UiPushOptions) -> impl Bundle {
 
 pub trait UiScreenCommandsExt {
     /// Spawns `content` inside a fresh screen root and stacks it on `player`.
-    fn push_ui_screen<B: Bundle>(&mut self, player: Entity, options: UiPushOptions, content: B) -> Entity;
+    fn push_ui_screen<B: Bundle>(&mut self, player: Entity, options: UIPushOptions, content: B) -> Entity;
     fn pop_ui_screen(&mut self, player: Entity);
     /// Closes this screen *and everything opened on top of it*.
     fn close_ui_screen(&mut self, screen: Entity);
@@ -95,7 +95,7 @@ pub trait UiScreenCommandsExt {
 }
 
 impl UiScreenCommandsExt for Commands<'_, '_> {
-    fn push_ui_screen<B: Bundle>(&mut self, player: Entity, options: UiPushOptions, content: B) -> Entity {
+    fn push_ui_screen<B: Bundle>(&mut self, player: Entity, options: UIPushOptions, content: B) -> Entity {
         let screen = self.spawn((
             build_screen_backdrop(&options),
             UiScreen { owner: player },

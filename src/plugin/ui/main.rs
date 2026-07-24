@@ -203,7 +203,7 @@ fn spawn_pause_menu_obs(
     // Spawn the pause menu and immediately set the world to not update
     commands.push_ui_screen(
         event.context, 
-        UiPushOptions { dim: true, sources: Vec::new() },
+        UIPushOptions { dim: true, sources: Vec::new() },
         panel);
     commands.set_state(GameUpdate::Disabled);
 }

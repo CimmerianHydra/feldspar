@@ -7,7 +7,7 @@ use crate::plugin::inventory::main::Inventory;
 use crate::plugin::inventory::player:: PlayerInventoryAccess;
 use crate::plugin::ui::player::{MAX_PLAYER_INVENTORY_UI_COLS, build_player_ui_with_top_panel};
 use crate::plugin::ui::inventory::{EntityUISessionEndRequest, build_inventory_ui};
-use crate::plugin::ui::screen::{UiPushOptions, UiScreenCommandsExt};
+use crate::plugin::ui::screen::{UIPushOptions, UiScreenCommandsExt};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // BARREL
@@ -82,7 +82,7 @@ fn on_barrel_interact(
 
     commands.push_ui_screen(
         player,
-        UiPushOptions::new().viewing(sources).viewing([barrel]),
+        UIPushOptions::new().viewing(sources).viewing([barrel]),
         ui,
     );
 }
