@@ -37,7 +37,7 @@ impl ItemComponents {
 pub struct PlacesBlock { pub block_id: BlockID }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Durability { pub max: u32 }
+pub struct Durability { pub max: u32, pub current: u32 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Fuel { pub value: u32 }

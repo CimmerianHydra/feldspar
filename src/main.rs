@@ -185,9 +185,8 @@ fn spawn_dev_ship(
     // We simulate BlockEvent::Place events (which are induced by VoxelWriteRequests) so that block
     // entities are spawned if the block needs it.
     // This step fails if no chunk entity exists containing the requested coords.
-    // This is fairly inefficient even for small grids, so we need to find better ways to spawn
-    // blocks with behavior.
-    // "Hydration" methods do work, but we need to be careful about applying them to very large grids.
+    // This is fairly inefficient even for small grids because VoxelWriteRequests induce remeshing and
+    // recolliding. Large amounts of VWRs should be handled more efficiently (explosions).
     for x in 0..2i32 {
         for y in 0..2i32 {
             for z in 0..2i32 {

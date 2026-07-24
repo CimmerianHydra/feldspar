@@ -1,8 +1,5 @@
 use bevy::prelude::*;
 use avian3d::prelude::*;
-use bevy_enhanced_input::prelude::*;
-
-use crate::plugin::controller::player::{UiOpenPauseMenu, UiCloseAll};
 
 pub struct StatePlugin;
 

@@ -106,7 +106,7 @@ pub struct InteractsOnSecondary;
 #[derive(Clone, Default)]
 pub struct BlockComponents {
     spawns_entities:  Option<SpawnsBlockEntities>,
-    interacts_on_use: Option<InteractsOnSecondary>,
+    interacts_on_secondary: Option<InteractsOnSecondary>,
 }
 
 /// Uniform typed accessor. Identical call signature to a future
@@ -139,7 +139,7 @@ macro_rules! block_component {
 }
 
 block_component!(SpawnsBlockEntities, spawns_entities);
-block_component!(InteractsOnSecondary, interacts_on_use);
+block_component!(InteractsOnSecondary, interacts_on_secondary);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – NAME -> SPAWNER REGISTRY  (the JSON bridge)
