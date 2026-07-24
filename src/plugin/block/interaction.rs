@@ -52,14 +52,11 @@ impl Plugin for BlockInteractionPlugin {
 
 /// DDARays are used for raycasting to determine which block the player is looking at.
 /// It does so by applying the DDA algorithm to step through the blocks in a cubic grid.
+/// This struct goes on whatever object needs to raycast into the world, and follows its
+/// transform. For example, it would be a component of the player's camera.
 #[derive(Debug, Component)]
 pub struct DDARay {
     pub max_distance: f32,
-}
-
-#[derive(Event)]
-pub struct DDAResult {
-    pub hits: Vec<(IVec3, Direction)>
 }
 
 fn digital_differential_analysis(origin: Vec3, direction: Vec3, max_distance: f32) -> Vec<(IVec3, Direction)> {
@@ -133,20 +130,6 @@ fn digital_differential_analysis(origin: Vec3, direction: Vec3, max_distance: f3
     };
 
     result
-}
-
-fn cast_static_dda_ray_sys(
-    mut commands: Commands,
-    query: Query<(Entity, &DDARay, &GlobalTransform)>,
-) {
-    if let Ok((entity, ray, g_transform)) = query.single() {
-        let origin = g_transform.translation();
-        let direction = g_transform.forward();
-        let hits = digital_differential_analysis(origin, direction.as_vec3(), ray.max_distance);
-        commands.trigger(DDAResult {
-            hits: hits
-        });
-    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -379,10 +362,10 @@ fn voxel_write_obs(
     // old block-entity before building the new one, which is the only order
     // that leaves the chunk index consistent.
     if !old.is_air() {
-        commands.trigger(BlockEvent::Break { block_id: BlockID(old.id()), at, voxel: old });
+        commands.trigger(BlockEvent::Break { block_id: BlockID(old.id()), at });
     }
     if !new.is_air() {
-        commands.trigger(BlockEvent::Place { block_id: BlockID(new.id()), at, voxel: new });
+        commands.trigger(BlockEvent::Place { block_id: BlockID(new.id()), at });
     }
 }
 
@@ -394,10 +377,10 @@ fn voxel_write_obs(
 /// geometry (audio, particles) call `VoxelWorld::world_position`.
 #[derive(Event, Clone, Copy, Debug)]
 pub enum BlockEvent {
-    Place    { block_id: BlockID, at: BlockPos, voxel: Voxel },
-    Break    { block_id: BlockID, at: BlockPos, voxel: Voxel },
+    Place    { block_id: BlockID, at: BlockPos },
+    Break    { block_id: BlockID, at: BlockPos },
     /// Only for blocks with no entity — see `InteractsOnUse`.
-    Interact { block_id: BlockID, at: BlockPos, voxel: Voxel, player: Entity },
+    Interact { block_id: BlockID, at: BlockPos, player: Entity },
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -445,7 +428,7 @@ fn handle_secondary_fire_obs(
 
     // ── 2. Entity-less interaction: levers, doors, buttons ───────────────
     if block_registry.get(block_id).components.has::<InteractsOnSecondary>() {
-        commands.trigger(BlockEvent::Interact { block_id, at, voxel, player });
+        commands.trigger(BlockEvent::Interact { block_id, at, player });
         return;
     }
 

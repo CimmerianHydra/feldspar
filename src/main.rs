@@ -100,11 +100,12 @@ pub fn dev_populate_player_inventory(
 }
 
 
+use crate::plugin::block::interaction::VoxelWriteRequest;
 use crate::plugin::geometry::collision::NeedsColliderRebuild;
-use crate::plugin::geometry::collision::box_collider_from_chunk;
 use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
 use crate::plugin::loader::block_registry::BlockID;
 use crate::plugin::loader::block_registry::BlockRegistry;
+use crate::plugin::space::prelude::BlockPos;
 use crate::plugin::space::prelude::DimensionRegistry;
 use crate::plugin::space::prelude::ChunkSlot;
 use crate::plugin::space::prelude::build_moving_grid;
@@ -157,24 +158,8 @@ fn spawn_dev_ship(
     };
     let hull_id = resolve_hull_block(&registry);
  
-    // ---- author the chunk contents -------------------------------------
-    let mut chunk = VoxelChunk::empty();
-    for x in 0..2u32 {
-        for y in 0..2u32 {
-            for z in 0..2u32 {
-                let local = UVec3::new(x, y, z);
-                // One barrel, so there's exactly one thing to right-click.
-                let id = if local == UVec3::new(1, 1, 1) { barrel_id } else { hull_id };
-                chunk.set_local(local, Voxel::full(id.0));
-            }
-        }
-    }
-
-    let collider = box_collider_from_chunk(&chunk, &registry)
-        .expect("prefab chunk is not empty");
- 
     // ---- the space owns the body ----------------------------------------
-    let spawn_transform = Transform::from_translation(Vec3::new(16.0, 32.0, 16.0));
+    let spawn_transform = Transform::from_translation(Vec3::new(0.0, 16.0, 0.0));
  
     let grid = commands
         .spawn((
@@ -185,18 +170,34 @@ fn spawn_dev_ship(
         .id();
  
     // ---- the chunk supplies geometry -------------------------------------
-    // ChunkSlot's hook parents it, places it, and registers it in the grid's
-    // ChunkMap. Hydration gives the barrel voxel its entity, since no
-    // BlockEvent::Place ever fires for a prefabricated chunk.
+    // We spawn an empty chunk in the ship's body. Later, we will simulate BlockEvent::Place events
+    // for every block so that it gets populated and block entities are spawned as they should be.
     commands.spawn((
         Name::new("TestBarrelCrate/chunk"),
         ChunkSlot { space: grid, coord: IVec3::ZERO },
-        chunk,
+        VoxelChunk::empty(),
         NeedsRemeshing,
         NeedsColliderRebuild,
-        collider,
         ColliderDensity(CHUNK_COLLIDER_DENSITY),
     ));
+
+    // ---- author the chunk contents -------------------------------------
+    // We simulate BlockEvent::Place events (which are induced by VoxelWriteRequests) so that block
+    // entities are spawned if the block needs it.
+    // This step fails if no chunk entity exists containing the requested coords.
+    for x in 0..2i32 {
+        for y in 0..2i32 {
+            for z in 0..2i32 {
+                let coords = IVec3::new(x, y, z);
+                // One barrel, so there's exactly one thing to right-click.
+                let id = if coords == IVec3::new(1, 1, 1) { barrel_id } else { hull_id };
+                commands.trigger(VoxelWriteRequest {
+                    at: BlockPos { space: grid, pos: coords },
+                    voxel: Voxel::full(id.0),
+                });
+            }
+        }
+    }
  
     info!("Dev Grid spawned at: {}", spawn_transform.translation);
 }

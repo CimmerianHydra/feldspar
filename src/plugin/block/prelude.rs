@@ -4,10 +4,9 @@ use crate::plugin::block::barrel::BarrelSpawner;
 use crate::plugin::block::behavior::*;
 use crate::plugin::block::entities::*;
 use crate::plugin::block::interaction::BlockEvent;
-use crate::plugin::chunk::VoxelChunk;
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::space::prelude::*;
-use crate::plugin::voxel::Voxel;
+use crate::plugin::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -26,9 +25,6 @@ impl Plugin for BlockPlugin {
             // ---- lifecycle ------------------------------------------------
             .add_observer(spawn_block_entities_on_place_obs)
             .add_observer(despawn_block_entities_on_break_obs)
-
-            // ---- hydration ------------------------------------------------
-            .add_systems(Update, hydrate_chunk_block_entities_sys)
         ;
     }
 }
@@ -50,7 +46,7 @@ pub fn build_block_entity(
     registry: &BlockRegistry,
     tag:      BlockEntityTag,
     at:       BlockPos,
-    voxel:    Voxel,
+    facing:   Direction,
     block_id: BlockID,
 ) -> Option<Entity> {
     let definition = registry.get(block_id);
@@ -61,7 +57,7 @@ pub fn build_block_entity(
         .spawn((tag, Name::new(format!("BlockEntity<{}>", definition.name))))
         .id();
 
-    let mut ctx = BlockSpawnContext { commands, root, at, voxel, block_id };
+    let mut ctx = BlockSpawnContext { commands, root, at, facing, block_id };
     for spawner in spawns.iter() {
         spawner.spawn(&mut ctx);
     }
@@ -85,14 +81,16 @@ fn spawn_block_entities_on_place_obs(
     registry: Res<BlockRegistry>,
     voxel_world: VoxelWorld,
 ) {
-    let BlockEvent::Place { block_id, at, voxel } = *event else { return };
+    let BlockEvent::Place { block_id, at } = *event else { return };
 
     let Some(tag) = BlockEntityTag::single(&voxel_world, at) else {
-        warn!("block placed at {at:?} but its chunk is gone");
+        warn!("BlockEvent recorded at {at:?}, but its chunk is nowhere to be found.");
         return;
     };
 
-    build_block_entity(&mut commands, &registry, tag, at, voxel, block_id);
+    let facing = voxel_world.get_voxel(at).facing();
+
+    build_block_entity(&mut commands, &registry, tag, at, facing, block_id);
 }
 
 /// Tears the entity down when the voxel goes away. `despawn` is recursive,
@@ -105,7 +103,7 @@ fn despawn_block_entities_on_break_obs(
     voxel_world: VoxelWorld,
     tags: Query<&BlockEntityTag>,
 ) {
-    let BlockEvent::Break { block_id, at, .. } = *event else { return };
+    let BlockEvent::Break { block_id, at } = *event else { return };
 
     let Some(root) = voxel_world.block_entity_at(at) else { return };
     if tags.get(root).is_err() { return; }
@@ -117,65 +115,4 @@ fn despawn_block_entities_on_break_obs(
     }
 
     commands.entity(root).despawn();
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 3 – HYDRATION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Force a rescan of a chunk that already contains voxels. Insert this when
-/// worldgen fills a chunk after spawning it, or after deserializing one.
-///
-/// Chunks spawned with their contents in the same bundle don't need it —
-/// `Added<ChunkSlot>` catches those.
-#[derive(Component, Default, Debug)]
-pub struct RehydrateBlockEntities;
-
-/// Gives block-entities to voxels that were never "placed": worldgen
-/// output, save-file contents, and prefabricated grids.
-///
-/// Deliberately addresses by `VoxelAddress { chunk: this entity, local }`
-/// rather than resolving a `BlockPos` through the space's `ChunkMap`. The
-/// chunk knows its own identity immediately, whereas its `ChunkMap` entry
-/// is written by a queued command — so this works on the very frame the
-/// chunk is spawned, with no ordering constraint to get wrong.
-fn hydrate_chunk_block_entities_sys(
-    mut commands: Commands,
-    registry: Res<BlockRegistry>,
-    new_chunks: Query<
-        (Entity, &ChunkSlot, &VoxelChunk),
-        Or<(Added<ChunkSlot>, With<RehydrateBlockEntities>)>,
-    >,
-) {
-    for (chunk_entity, slot, chunk) in new_chunks.iter() {
-        let mut spawned = 0usize;
-
-        for (local, voxel) in chunk.iter_non_air() {
-            let block_id = BlockID(voxel.id());
-
-            // Cheap gate: most voxels in most chunks are plain terrain.
-            if !registry.get(block_id).components.has::<SpawnsBlockEntities>() {
-                continue;
-            }
-
-            let address = VoxelAddress { chunk: chunk_entity, local };
-            let at = BlockPos::new(slot.space, to_space_pos(slot.coord, local));
-
-            build_block_entity(
-                &mut commands,
-                &registry,
-                BlockEntityTag::at_address(address),
-                at,
-                voxel,
-                block_id,
-            );
-            spawned += 1;
-        }
-
-        if spawned > 0 {
-            debug!("hydrated {spawned} block-entities in chunk at {}", slot.coord);
-        }
-
-        commands.entity(chunk_entity).remove::<RehydrateBlockEntities>();
-    }
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::plugin::loader::block_registry::BlockID;
 use crate::plugin::space::prelude::BlockPos;
-use crate::plugin::voxel::Voxel;
+use crate::plugin::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – THE SPAWNER TRAIT
@@ -26,9 +26,8 @@ pub struct BlockSpawnContext<'a, 'w, 's> {
     pub root:     Entity,
     /// Space-local position of the block that was placed.
     pub at:       BlockPos,
-    /// The voxel as written. Read `.facing()` here for oriented machines —
-    /// it's space-local, which is what you want.
-    pub voxel:    Voxel,
+    /// Directional information, retrieved from the voxel pipeline.
+    pub facing:   Direction,
     pub block_id: BlockID,
 }
 
@@ -187,7 +186,7 @@ impl BlockBehaviorRegistry {
 }
 
 /// Ergonomic registration from a plugin's `build()`.
-pub trait RegisterBlockBehaviorExt {
+pub trait RegisterBlockBehaviorExtension {
     fn register_block_behavior(
         &mut self,
         name: impl Into<String>,
@@ -195,7 +194,7 @@ pub trait RegisterBlockBehaviorExt {
     ) -> &mut Self;
 }
 
-impl RegisterBlockBehaviorExt for App {
+impl RegisterBlockBehaviorExtension for App {
     fn register_block_behavior(
         &mut self,
         name: impl Into<String>,
