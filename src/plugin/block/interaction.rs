@@ -418,7 +418,7 @@ fn handle_secondary_fire_obs(
     let block_id = BlockID(voxel.id());
 
     // ── 1. Entity-backed interaction wins ────────────────────────────────
-    // Add a sneak check here later: `if !sneaking { ... }`.
+    // TODO: add a sneak check here later.
     if let Some(block_entity) = voxel_world.block_entity_at(at) {
         if interactables.contains(block_entity) {
             commands.trigger(BlockEntityEvent { entity: block_entity, player, at, face });
@@ -432,10 +432,11 @@ fn handle_secondary_fire_obs(
         return;
     }
 
-    // ── 3. Otherwise place whatever the held item places ─────────────────
+    // ── 3. Otherwise do whatever the held item wants to do ─────────────────
     let Some(held) = held_item.right_hand else { return };
     let def = item_registry.get(held.id);
 
+    // -- 3.1 The item places a block
     let Some(PlacesBlock { block_id }) = def.components.get::<PlacesBlock>().copied() else { return };
 
     let shape = block_registry.get(block_id).shape.clone();

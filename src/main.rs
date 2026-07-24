@@ -56,12 +56,10 @@ fn main() {
         .add_plugins(BlockAudioPlugin)
         .add_plugins(CraftingPlugin)
 
+        // DEVELOPMENT & TEST SYSTEMS
         .add_systems(OnEnter(GameState::InGame), setup_dev_chunks)
-
         .add_systems(Update, enable_game.after(setup_dev_chunks))
-
         .add_systems(Update, dev_populate_player_inventory)
-
         .add_systems(Update, spawn_dev_ship.run_if(input_just_pressed(KeyCode::F4)))
 
         .run();
@@ -180,12 +178,16 @@ fn spawn_dev_ship(
         NeedsRemeshing,
         NeedsColliderRebuild,
         ColliderDensity(CHUNK_COLLIDER_DENSITY),
+        Visibility::Visible,
     ));
 
     // ---- author the chunk contents -------------------------------------
     // We simulate BlockEvent::Place events (which are induced by VoxelWriteRequests) so that block
     // entities are spawned if the block needs it.
     // This step fails if no chunk entity exists containing the requested coords.
+    // This is fairly inefficient even for small grids, so we need to find better ways to spawn
+    // blocks with behavior.
+    // "Hydration" methods do work, but we need to be careful about applying them to very large grids.
     for x in 0..2i32 {
         for y in 0..2i32 {
             for z in 0..2i32 {
