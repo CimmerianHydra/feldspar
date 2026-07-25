@@ -6,7 +6,7 @@ use crate::plugin::block::behavior::BlockComponents;
 use crate::plugin::geometry::variants::ModelTable;
 use crate::plugin::geometry::voxel::BlockShape;
 
-use crate::plugin::loader::block_assets::ResolvedSlot;
+use crate::plugin::loader::block_assets::TexureSlot;
 
 use crate::plugin::graphics::block_textures::BlockAppearance;
 use crate::plugin::block::material::BlockMaterial;
@@ -29,7 +29,7 @@ pub struct BlockDefinition {
     pub shape:          BlockShape,
     pub appearance:     BlockAppearance,
     pub models:         ModelTable,         // Resolved and baked models with all possible rotations
-    pub texture_slots:  Vec<ResolvedSlot>,  // Resolved and baked texture palette
+    pub texture_slots:  Vec<TexureSlot>,  // Resolved and baked texture palette
     pub has_collision:  bool,
     pub material:       BlockMaterial,
     pub sound_profile:  SoundProfile,

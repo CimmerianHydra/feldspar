@@ -6,6 +6,8 @@ use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use iyes_progress::{Progress, ProgressPlugin, ProgressReturningSystem, ProgressTracker};
 
 
+use crate::plugin::loader::block_icons::BlockIconPlugin;
+use crate::plugin::loader::block_icons::setup_block_icon_baking_sys;
 use crate::plugin::state::GameState;
 
 use crate::plugin::loader::texture_registry::*;
@@ -18,6 +20,7 @@ use crate::plugin::loader::block_assets::*;
 use crate::plugin::loader::item_assets::*;
 
 use crate::plugin::loader::recipe_maps::*;
+
 
 
 pub struct AssetLoaderPlugin;
@@ -34,6 +37,7 @@ impl Plugin for AssetLoaderPlugin {
 
         .insert_resource(TextureRegistry::new())
         .insert_resource(BlockRegistry::new())
+        .add_plugins(BlockIconPlugin)
         .insert_resource(ItemRegistry::new())
         .insert_resource(SubstanceRegistry::new())
         .insert_resource(PartRegistry::new())
@@ -74,13 +78,14 @@ impl Plugin for AssetLoaderPlugin {
                 .after(LoadingStateSet(GameState::AssetLoading)),
         )
 
-        // Gate Loading -> Running on every block file being parsed
+        // Gate Loading
         .add_systems(
             OnExit(GameState::AssetLoading),
             (
                 assemble_texture_arrays_sys,
                 populate_block_registry_sys,
                 bake_block_geometry,
+                setup_block_icon_baking_sys,
                 populate_item_registry_from_blocks_sys,
                 load_item_definitions_sys,          // explicit JSON items
                 populate_substance_registries_sys,  // substances + parts

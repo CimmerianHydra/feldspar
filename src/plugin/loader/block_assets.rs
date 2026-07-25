@@ -33,13 +33,13 @@ pub struct BlockDefinitionAssets {
 }
 
 #[derive(Clone, Copy)]
-pub struct ResolvedSlot {
+pub struct TexureSlot {
     pub base_layer:    u32,
     pub overlay_layer: u32,
     pub tint:          [f32; 4],
 }
 
-impl From<(u32, u32, [f32; 4])> for ResolvedSlot {
+impl From<(u32, u32, [f32; 4])> for TexureSlot {
     fn from((base_layer, overlay_layer, tint): (u32, u32, [f32; 4])) -> Self {
         Self { base_layer, overlay_layer, tint }
     }
@@ -332,14 +332,14 @@ fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4
     }
 }
 
-pub fn resolve_slots(appearance: &BlockAppearance, shape: &BlockShape) -> Vec<ResolvedSlot> {
+pub fn resolve_slots(appearance: &BlockAppearance, shape: &BlockShape) -> Vec<TexureSlot> {
     match shape {
         // Pipes: 3 slots (core, arm, cap). For now they all take the block's
         // one texture. If you later want a distinct cap, this is the only
         // place that changes.
         BlockShape::Pipe => {
             let ft = resolve_face_texture(appearance, Direction::Up, false);
-            let s: ResolvedSlot = resolve_texture_properties(ft).into();
+            let s: TexureSlot = resolve_texture_properties(ft).into();
             vec![s, s, s] // CORE, ARM, CAP  (indices 0,1,2)
         }
 
