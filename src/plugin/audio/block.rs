@@ -42,7 +42,7 @@ fn play_block_sound_obs(
             (at, block_registry.get(block_id).sound_profile.on_place.as_ref()),
         BlockEvent::Break { block_id, at, .. } =>
             (at, block_registry.get(block_id).sound_profile.on_break.as_ref()),
-        BlockEvent::Interact { .. } => return,
+        _ => return,
     };
 
     let Some(handle) = sound else { return; };

@@ -120,6 +120,19 @@ fn add_material_to_chunk_sys(
 // MESHING - CORE FUNCTIONS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+#[derive(Clone, Copy)]
+pub struct ResolvedSlot {
+    pub base_layer:    u32,
+    pub overlay_layer: u32,
+    pub tint:          [f32; 4],
+}
+
+impl From<(u32, u32, [f32; 4])> for ResolvedSlot {
+    fn from((base_layer, overlay_layer, tint): (u32, u32, [f32; 4])) -> Self {
+        Self { base_layer, overlay_layer, tint }
+    }
+}
+
 /// Helper function to figure out the correct texture to give each face.
 fn resolve_face_texture(
     appearance: &BlockAppearance,
@@ -172,6 +185,8 @@ fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4
         ),
     }
 }
+
+
 
 /// Helper function that figures out whether a certain block has a neighbor
 /// in the same chunk in the specified direction.

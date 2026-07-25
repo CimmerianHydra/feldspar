@@ -124,7 +124,6 @@ pub fn populate_block_registry_sys(
         }
 
         let def = BlockDefinition {
-            id:            BlockID(0), // overwritten inside register_block
             name:          src.name.clone(),
             display_name:  src.display_name.clone(),
             shape:         src.shape.clone(),

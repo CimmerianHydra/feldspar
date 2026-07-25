@@ -381,6 +381,7 @@ pub enum BlockEvent {
     Break    { block_id: BlockID, at: BlockPos },
     /// Only for blocks with no entity — see `InteractsOnUse`.
     Interact { block_id: BlockID, at: BlockPos, player: Entity },
+    StateChange { block_id: BlockID, at: BlockPos, old: Voxel, new: Voxel },
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

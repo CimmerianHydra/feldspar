@@ -19,8 +19,7 @@ pub struct BlockID(pub u16);
 /// A fully resolved, immutable description of one block type.
 /// Created once at startup, lives in the global BlockRegistry.
 pub struct BlockDefinition {
-    pub id:             BlockID,
-    pub name:           String,          // e.g. "oreIronAndesite"
+    pub name:           String,          // e.g. "ore_iron_andesite"
     pub display_name:   String,          // e.g. "Andesite Iron Ore"
     pub shape:          BlockShape,
     pub appearance:     BlockAppearance,
@@ -43,7 +42,6 @@ impl BlockDefinition {
 impl Default for BlockDefinition {
     fn default() -> Self {
         BlockDefinition {
-            id: BlockID(0),
             name: "default_cube".to_string(),
             display_name: "Default Cube".to_string(),
             shape: BlockShape::default(),
@@ -73,9 +71,9 @@ impl BlockRegistry {
     }
 
     pub fn register_block(&mut self, def: BlockDefinition) -> BlockID {
-        let id = BlockID(self.definitions.len() as u16);
         let name = def.name.clone();
-        self.definitions.push(BlockDefinition { id, ..def });
+        let id = BlockID(self.definitions.len() as u16);
+        self.definitions.push(def);
         self.name_to_id.insert(name, id);
         id
     }
