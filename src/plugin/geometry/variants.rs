@@ -144,6 +144,12 @@ impl ModelTable {
     }
 }
 
+impl Default for ModelTable {
+    fn default() -> Self {
+        Self { key: VariantKey::STATIC, models: Vec::new() }
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TESTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

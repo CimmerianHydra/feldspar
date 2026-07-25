@@ -1,8 +1,7 @@
 use bevy::prelude::*;
 
 use crate::plugin::loader::block_registry::BlockRegistry;
-use crate::plugin::chunk::VoxelChunk;
-use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
+use crate::plugin::space::main::VoxelChunk;
 use crate::plugin::loader::block_assets::populate_block_registry_sys;
 use crate::plugin::state::GameState;
 use crate::plugin::worldgen::{flat::FlatGenerator, hills::HillsGenerator};

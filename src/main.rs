@@ -26,9 +26,9 @@ use plugin::state::GameUpdate;
 use avian3d::PhysicsPlugins;
 use plugin::state::GameState;
 
-use plugin::block::prelude::BlockPlugin;
-use plugin::chunk::{NeedsRemeshing, VoxelChunk};
-use plugin::space::prelude::SpacePlugin;
+use plugin::block::main::BlockPlugin;
+use plugin::space::main::VoxelChunk;
+use plugin::space::main::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
 
 
@@ -102,13 +102,14 @@ pub fn dev_populate_player_inventory(
 use crate::plugin::block::interaction::VoxelWriteRequest;
 use crate::plugin::geometry::collision::NeedsColliderRebuild;
 use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
+use crate::plugin::geometry::meshing::NeedsRemeshing;
 use crate::plugin::loader::block_registry::BlockID;
 use crate::plugin::loader::block_registry::BlockRegistry;
-use crate::plugin::space::prelude::BlockPos;
-use crate::plugin::space::prelude::DimensionRegistry;
-use crate::plugin::space::prelude::ChunkSlot;
-use crate::plugin::space::prelude::build_moving_grid;
-use crate::plugin::voxel::Voxel;
+use crate::plugin::space::main::BlockPos;
+use crate::plugin::space::main::DimensionRegistry;
+use crate::plugin::space::main::ChunkSlot;
+use crate::plugin::space::main::build_moving_grid;
+use crate::plugin::geometry::voxel::Voxel;
 use avian3d::dynamics::rigid_body::*;
 
 /// How many chunks out from origin to pre-spawn on each axis.

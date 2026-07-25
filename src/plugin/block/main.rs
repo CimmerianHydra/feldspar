@@ -5,8 +5,7 @@ use crate::plugin::block::behavior::*;
 use crate::plugin::block::entities::*;
 use crate::plugin::block::interaction::BlockEvent;
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
-use crate::plugin::space::prelude::*;
-use crate::plugin::voxel::Direction;
+use crate::plugin::space::main::*;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -46,7 +45,6 @@ pub fn build_block_entity(
     registry: &BlockRegistry,
     tag:      BlockEntityTag,
     at:       BlockPos,
-    facing:   Direction,
     block_id: BlockID,
 ) -> Option<Entity> {
     let definition = registry.get(block_id);
@@ -57,7 +55,7 @@ pub fn build_block_entity(
         .spawn((tag, Name::new(format!("BlockEntity<{}>", definition.name))))
         .id();
 
-    let mut ctx = BlockSpawnContext { commands, root, at, facing, block_id };
+    let mut ctx = BlockSpawnContext { commands, root, at, block_id };
     for spawner in spawns.iter() {
         spawner.spawn(&mut ctx);
     }
@@ -88,9 +86,7 @@ fn spawn_block_entities_on_place_obs(
         return;
     };
 
-    let facing = voxel_world.get_voxel(at).facing();
-
-    build_block_entity(&mut commands, &registry, tag, at, facing, block_id);
+    build_block_entity(&mut commands, &registry, tag, at, block_id);
 }
 
 /// Tears the entity down when the voxel goes away. `despawn` is recursive,

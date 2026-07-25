@@ -3,13 +3,23 @@ use serde::Deserialize;
 use bevy_asset_loader::prelude::*;
 
 use crate::plugin::block::behavior::{BlockBehaviorRegistry, BlockComponents, InteractsOnSecondary};
-use crate::plugin::voxel::BlockShape;
+
+
 use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::block::material::BlockMaterial;
 use crate::plugin::audio::block::SoundProfile;
 
+use crate::plugin::geometry::variants::ModelTable;
+use crate::plugin::geometry::model::ModelArena;
+use crate::plugin::geometry::shapes;
+use crate::plugin::geometry::rotation::BlockRotation;
+use crate::plugin::geometry::variants::VariantKey;
+use crate::plugin::geometry::voxel::BlockShape;
+use crate::plugin::geometry::{shapes::slots, rotation::ALL_DIRECTIONS};
+use crate::plugin::geometry::voxel::Direction;
+
 use crate::plugin::loader::texture_registry::TextureRegistry;
-use crate::plugin::loader::block_registry::{BlockID, BlockDefinition, BlockRegistry};
+use crate::plugin::loader::block_registry::{BlockDefinition, BlockRegistry};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ASSET COLLECTION  (bevy_asset_loader)
@@ -20,6 +30,19 @@ pub struct BlockDefinitionAssets {
     /// Every *.json under assets/templates/blocks/, typed.
     #[asset(path = "templates\\blocks", collection(typed))]
     pub blocks: Vec<Handle<BlockDefinitionAsset>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct ResolvedSlot {
+    pub base_layer:    u32,
+    pub overlay_layer: u32,
+    pub tint:          [f32; 4],
+}
+
+impl From<(u32, u32, [f32; 4])> for ResolvedSlot {
+    fn from((base_layer, overlay_layer, tint): (u32, u32, [f32; 4])) -> Self {
+        Self { base_layer, overlay_layer, tint }
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -127,6 +150,8 @@ pub fn populate_block_registry_sys(
             name:          src.name.clone(),
             display_name:  src.display_name.clone(),
             shape:         src.shape.clone(),
+            models:        ModelTable::default(),
+            texture_slots: Vec::new(),
             appearance:    resolve_appearance(&src.appearance, &tex),
             has_collision: src.has_collision,
             material:      resolve_material(&src.material),
@@ -138,6 +163,69 @@ pub fn populate_block_registry_sys(
 
     bevy::log::info!("BlockRegistry populated from JSON: {} entries.", registry.size());
 }
+
+pub fn bake_block_geometry(
+    mut commands: Commands,
+    mut registry: ResMut<BlockRegistry>,
+) {
+    let mut arena = ModelArena::new();
+    bake_all(&mut registry, &mut arena);
+    info!("Model arena baked: {} models, {} quads",
+          arena.model_count(), arena.quad_count());
+    commands.insert_resource(arena);
+}
+
+pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena) {
+    for i in 1..registry.definitions.len() {
+        let shape = registry.definitions[i].shape.clone();
+        let name  = registry.definitions[i].name.clone();
+
+        let table = match &shape {
+            BlockShape::Cube =>
+                ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY)),
+
+            BlockShape::Slab =>
+                ModelTable::from_rotations(
+                    arena.bake_rotations(&shapes::slab(), BlockRotation::all())),
+
+            BlockShape::Panel =>
+                ModelTable::from_rotations(
+                    arena.bake_rotations(&shapes::panel(1.0), BlockRotation::all())),
+
+            BlockShape::Stair =>
+                ModelTable::from_rotations(
+                    arena.bake_rotations(&shapes::stair(), BlockRotation::all())),
+
+            BlockShape::Slope =>
+                ModelTable::from_rotations(
+                    arena.bake_rotations(&shapes::slope(), BlockRotation::all())),
+
+            // The 64 masks, baked in order, indexed by 6 connection bits.
+            BlockShape::Pipe => {
+                let ids = shapes::all_pipe_variants()
+                    .iter()
+                    .map(|els| arena.bake(els, BlockRotation::IDENTITY))
+                    .collect();
+                ModelTable::new(VariantKey::stateful(6), ids)
+            }
+
+            // Blockbench import — parser is future work; fall back to a
+            // cube so the match stays total and nothing panics.
+            BlockShape::Custom(_path) =>
+                ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY)),
+        };
+
+        table.key.validate(&name);
+
+        let slots = resolve_slots(&registry.definitions[i].appearance, &shape);
+
+        registry.definitions[i].models = table;
+        registry.definitions[i].texture_slots  = slots;
+    }
+}
+
+// in your plugin build():
+// .add_systems(Startup, bake_block_geometry.after(populate_block_registry))
 
 fn resolve_appearance(src: &BlockAppearanceAsset, tex: &TextureRegistry) -> BlockAppearance {
     match src {
@@ -190,3 +278,84 @@ fn resolve_sound_profile(src: &SoundProfileAsset, srv: &AssetServer) -> SoundPro
         ..default()
     }
 }
+
+/// Helper function to figure out the correct texture to give each face.
+fn resolve_face_texture(
+    appearance: &BlockAppearance,
+    face_dir: Direction,
+    is_internal: bool,
+) -> &FaceTextures {
+    match appearance {
+        BlockAppearance::Uniform(ft) => ft,
+
+        BlockAppearance::TopBotSide { up, down, side } => match face_dir {
+            Direction::Up   => up,
+            Direction::Down => down,
+            _               => side, // sides AND interior (None) faces
+        },
+
+        BlockAppearance::PerFace { up, down, north, south, east, west } => {
+            match face_dir {
+                Direction::Up    => up,
+                Direction::Down  => down,
+                Direction::North => north,
+                Direction::South => south,
+                Direction::East  => east,
+                Direction::West  => west,
+            }
+        }
+        BlockAppearance::UniformWithInternal{ ext, int} => {
+            if is_internal { int } else { ext }
+        }
+    }
+}
+
+/// Helper function to figure out the correct texture data to provide to the voxel terrain shader.
+fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4]) {
+    match face_texture {
+        FaceTextures::Simple(b) => (
+            *b, 0,
+            [1.0, 1.0, 1.0, 1.0],
+        ),
+        FaceTextures::Bilayer(b, o) => (
+            *b, *o,
+            [1.0, 1.0, 1.0, 1.0],
+        ),
+        FaceTextures::Tinted(b, o, color) => (
+            *b, *o,
+            // Convert Bevy Color to a linear [f32; 4] for the shader
+            {
+                let c = color.to_linear();
+                [c.red, c.green, c.blue, c.alpha]
+            },
+        ),
+    }
+}
+
+pub fn resolve_slots(appearance: &BlockAppearance, shape: &BlockShape) -> Vec<ResolvedSlot> {
+    match shape {
+        // Pipes: 3 slots (core, arm, cap). For now they all take the block's
+        // one texture. If you later want a distinct cap, this is the only
+        // place that changes.
+        BlockShape::Pipe => {
+            let ft = resolve_face_texture(appearance, Direction::Up, false);
+            let s: ResolvedSlot = resolve_texture_properties(ft).into();
+            vec![s, s, s] // CORE, ARM, CAP  (indices 0,1,2)
+        }
+
+        // Everything else: 6 directional slots + 1 interior, in the exact
+        // order the shape generators emit (slots::NORTH..DOWN, then INTERIOR).
+        _ => {
+            let mut out = Vec::with_capacity(slots::PRIMITIVE_SLOT_COUNT);
+            for d in ALL_DIRECTIONS {
+                let ft = resolve_face_texture(appearance, d, false);
+                out.push(resolve_texture_properties(ft).into());
+            }
+            // Interior slot: is_internal=true so UniformWithInternal picks `int`.
+            let ft = resolve_face_texture(appearance, Direction::Up, true);
+            out.push(resolve_texture_properties(ft).into());
+            out
+        }
+    }
+}
+

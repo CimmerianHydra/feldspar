@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::plugin::loader::block_registry::BlockID;
-use crate::plugin::space::prelude::BlockPos;
-use crate::plugin::voxel::Direction;
+use crate::plugin::space::main::BlockPos;
+use crate::plugin::geometry::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – THE SPAWNER TRAIT
@@ -23,12 +23,11 @@ pub struct BlockSpawnContext<'a, 'w, 's> {
     pub commands: &'a mut Commands<'w, 's>,
     /// The block-entity every spawner in the list decorates. Already carries
     /// a `BlockEntityTag`, so it's already indexed and parented.
-    pub root:     Entity,
+    pub root:       Entity,
     /// Space-local position of the block that was placed.
-    pub at:       BlockPos,
-    /// Directional information, retrieved from the voxel pipeline.
-    pub facing:   Direction,
-    pub block_id: BlockID,
+    pub at:         BlockPos,
+    /// The ID of the block that was placed.
+    pub block_id:   BlockID,
 }
 
 impl<'a, 'w, 's> BlockSpawnContext<'a, 'w, 's> {

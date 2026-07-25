@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
-use crate::plugin::chunk::{VoxelChunk, CHUNK_SIZE};
-use crate::plugin::voxel::Voxel;
+use crate::plugin::space::main::{VoxelChunk, CHUNK_SIZE};
+use crate::plugin::geometry::voxel::Voxel;
 use crate::plugin::worldgen::main::WorldGenerator;
 use crate::plugin::loader::block_registry::BlockRegistry;
 

@@ -1,7 +1,7 @@
 use std::{f32::consts::FRAC_1_SQRT_2, vec};
 use bevy::math::Vec3;
 use bevy::math::Vec2;
-use crate::plugin::voxel::{BlockShape, Direction};
+use crate::plugin::geometry::voxel::{BlockShape, Direction};
 
 /// A single renderable quad in local block space [0, 1]³.
 ///

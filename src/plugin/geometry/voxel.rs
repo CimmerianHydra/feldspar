@@ -170,6 +170,18 @@ impl Direction {
     }
 
     #[inline]
+    pub fn as_vec3(self) -> Vec3 {
+        match self {
+            Direction::North => Vec3::new(0., 0., -1.),
+            Direction::South => Vec3::new(0., 0., 1.),
+            Direction::East  => Vec3::new(1., 0., 0.),
+            Direction::West  => Vec3::new(-1., 0., 0.),
+            Direction::Up    => Vec3::new(0., 1., 0.),
+            Direction::Down  => Vec3::new(0., -1., 0.),
+        }
+    }
+
+    #[inline]
     pub fn opposite(self) -> Self {
         match self {
             Direction::North => Direction::South,
@@ -188,8 +200,9 @@ impl Direction {
 /// it.
 ///
 /// `StairInv` is gone: it is `Stair` under a rotation.
-#[derive(Debug, Clone, PartialEq, Eq, Reflect, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Reflect, Deserialize)]
 pub enum BlockShape {
+    #[default]
     Cube,
     Slab,
     Panel,
@@ -247,3 +260,4 @@ mod tests {
         assert_eq!(v.id(), 1);
     }
 }
+

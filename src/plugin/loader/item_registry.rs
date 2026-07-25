@@ -6,7 +6,6 @@ use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::loader::substance_registry::{SubstanceID, PartID};
 use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
-use crate::plugin::voxel::BlockShape;
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -132,15 +131,7 @@ pub fn populate_item_registry_from_blocks_sys(
                 display_name: block.display_name.clone(),
                 max_stack: MAX_STACK,
                 kind: ItemKind::Block { block_id: BlockID(id as u16) },
-                display: ItemDisplay::Image{image: asset_server.load(
-                    match block.shape {
-                        BlockShape::Cube => "icons\\items\\cube.png",
-                        BlockShape::Slab => "icons\\items\\hslab.png",
-                        BlockShape::Stair => "icons\\items\\stair.png",
-                        BlockShape::Slope => "icons\\items\\slope.png",
-                        _ => "icons\\items\\cube.png",
-                    }
-                )},
+                display: ItemDisplay::Image{image: asset_server.load("icons\\items\\cube.png")},
                 components: ItemComponents::default()
                     .with(PlacesBlock { block_id: BlockID(id as u16) }),
             }

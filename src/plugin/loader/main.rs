@@ -80,6 +80,7 @@ impl Plugin for AssetLoaderPlugin {
             (
                 assemble_texture_arrays_sys,
                 populate_block_registry_sys,
+                bake_block_geometry,
                 populate_item_registry_from_blocks_sys,
                 load_item_definitions_sys,          // explicit JSON items
                 populate_substance_registries_sys,  // substances + parts

@@ -3,8 +3,8 @@ use bevy::{
     prelude::*,
 };
 
-use crate::plugin::space::prelude::{BlockPos, ChunkBlockEntities, VoxelAddress, VoxelWorld};
-use crate::plugin::voxel::Direction;
+use crate::plugin::space::main::{BlockPos, ChunkBlockEntities, VoxelAddress, VoxelWorld};
+use crate::plugin::geometry::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – THE TAG

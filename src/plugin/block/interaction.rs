@@ -4,18 +4,20 @@ use bevy::{
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::asset::RenderAssetUsages;
 use bevy_enhanced_input::prelude::*;
+use rand::rand_core::block;
 
 use crate::plugin::block::behavior::InteractsOnSecondary;
 use crate::plugin::block::entities::{BlockEntityEvent, Interactable};
 use crate::plugin::controller::player::{AltFire, PrimaryFire, SecondaryFire};
 use crate::plugin::geometry::meshing::BLOCK_SIZE;
+use crate::plugin::geometry::rotation::BlockRotation;
 use crate::plugin::inventory::player::*;
 use crate::plugin::item::components::*;
 use crate::plugin::loader::block_registry::*;
 use crate::plugin::loader::item_registry::*;
-use crate::plugin::space::prelude::*;
+use crate::plugin::space::main::*;
 use crate::plugin::state::GameState;
-use crate::plugin::voxel::{Direction, Voxel};
+use crate::plugin::geometry::voxel::{Direction, Voxel};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – PLUGIN
@@ -440,12 +442,10 @@ fn handle_secondary_fire_obs(
     // -- 3.1 The item places a block
     let Some(PlacesBlock { block_id }) = def.components.get::<PlacesBlock>().copied() else { return };
 
-    let shape = block_registry.get(block_id).shape.clone();
-
     // `at.neighbor(face)` stays inside the same space, so right-clicking the
     // hull of a ship builds onto the ship, not into the air behind it.
     commands.trigger(VoxelWriteRequest {
         at:    at.neighbor(face),
-        voxel: Voxel::new(block_id.0, shape, face),
+        voxel: Voxel::new(block_id.0, BlockRotation::IDENTITY, 0),
     });
 }

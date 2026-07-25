@@ -1,10 +1,9 @@
-use avian3d::parry::transformation::voxelization::Voxel;
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::plugin::chunk::{VoxelChunk, CHUNK_SIZE};
+use crate::plugin::space::main::{VoxelChunk, CHUNK_SIZE};
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
-use crate::plugin::space::prelude::{ChunkSlot, MovingGrid};
+use crate::plugin::space::main::{ChunkSlot, MovingGrid};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIG

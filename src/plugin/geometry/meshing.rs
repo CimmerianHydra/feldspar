@@ -2,14 +2,14 @@ use bevy::prelude::*;
 use bevy::mesh::{Mesh, Indices, PrimitiveTopology};
 use bevy::asset::{RenderAssetUsages};
 
-use crate::plugin::chunk::{CHUNK_SIZE, VoxelChunk, NeedsRemeshing};
+use crate::plugin::geometry::element::BakedQuad;
+use crate::plugin::geometry::model::ModelArena;
+use crate::plugin::space::main::{CHUNK_SIZE, VoxelChunk};
 use crate::plugin::geometry::collision::{update_dirty_collider_sys, wake_sleeping_grids_on_voxel_change_sys};
-use crate::plugin::graphics::block_textures::{BlockAppearance, FaceTextures};
 use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
-use crate::plugin::space::prelude::ChunkSlot;
+use crate::plugin::space::main::ChunkSlot;
 use crate::plugin::state::GameState;
-use crate::plugin::voxel::{Direction};
-use crate::plugin::geometry::quads::{Quad, shape_quads};
+use crate::plugin::geometry::voxel::{Direction};
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 
 use bevy::mesh::MeshVertexAttribute;
@@ -61,6 +61,9 @@ pub const ATTRIBUTE_OVERLAY_TINT: MeshVertexAttribute =
         VertexFormat::Float32x4,
     );
 
+#[derive(Component)]
+pub struct NeedsRemeshing;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // UPDATE SCHEDULE SYSTEMS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -70,6 +73,7 @@ fn update_dirty_mesh_sys(
     chunk_query: Query<(Entity, &VoxelChunk, &ChunkSlot, Option<&Mesh3d>), With<NeedsRemeshing>>,
     mut meshes: ResMut<Assets<Mesh>>,
     block_registry: Res<BlockRegistry>,
+    model_arena:    Res<ModelArena>,
 ) {
     for (
         entity,
@@ -97,7 +101,7 @@ fn update_dirty_mesh_sys(
                 e.remove::<Mesh3d>();
             }
         } else {
-            let new_mesh = build_chunk_data(voxel_chunk, &block_registry);
+            let new_mesh = build_chunk_mesh(voxel_chunk, &block_registry, &model_arena);
             e.insert(Visibility::Inherited);
             e.insert(Mesh3d(meshes.add(new_mesh)));
         }
@@ -117,171 +121,120 @@ fn add_material_to_chunk_sys(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MESHING - CORE FUNCTIONS
+// MESHING - CORE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-#[derive(Clone, Copy)]
-pub struct ResolvedSlot {
-    pub base_layer:    u32,
-    pub overlay_layer: u32,
-    pub tint:          [f32; 4],
-}
-
-impl From<(u32, u32, [f32; 4])> for ResolvedSlot {
-    fn from((base_layer, overlay_layer, tint): (u32, u32, [f32; 4])) -> Self {
-        Self { base_layer, overlay_layer, tint }
-    }
-}
-
-/// Helper function to figure out the correct texture to give each face.
-fn resolve_face_texture(
-    appearance: &BlockAppearance,
-    face_dir: Direction,
-    is_internal: bool,
-) -> &FaceTextures {
-    match appearance {
-        BlockAppearance::Uniform(ft) => ft,
-
-        BlockAppearance::TopBotSide { up, down, side } => match face_dir {
-            Direction::Up   => up,
-            Direction::Down => down,
-            _               => side, // sides AND interior (None) faces
-        },
-
-        BlockAppearance::PerFace { up, down, north, south, east, west } => {
-            match face_dir {
-                Direction::Up    => up,
-                Direction::Down  => down,
-                Direction::North => north,
-                Direction::South => south,
-                Direction::East  => east,
-                Direction::West  => west,
-            }
-        }
-        BlockAppearance::UniformWithInternal{ ext, int} => {
-            if is_internal { int } else { ext }
-        }
-    }
-}
-
-/// Helper function to figure out the correct texture data to provide to the voxel terrain shader.
-fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4]) {
-    match face_texture {
-        FaceTextures::Simple(b) => (
-            *b, 0,
-            [1.0, 1.0, 1.0, 1.0],
-        ),
-        FaceTextures::Bilayer(b, o) => (
-            *b, *o,
-            [1.0, 1.0, 1.0, 1.0],
-        ),
-        FaceTextures::Tinted(b, o, color) => (
-            *b, *o,
-            // Convert Bevy Color to a linear [f32; 4] for the shader
-            {
-                let c = color.to_linear();
-                [c.red, c.green, c.blue, c.alpha]
-            },
-        ),
-    }
-}
-
-
-
-/// Helper function that figures out whether a certain block has a neighbor
-/// in the same chunk in the specified direction.
-/// All local coordinates only.
+/// Local-space neighbour of `pos` across `face`, or `None` at a chunk edge.
+/// Unchanged: cross-chunk visibility is still the standing TODO.
 fn neighbor_pos(pos: UVec3, face: Direction) -> Option<UVec3> {
-    let (x, y, z) = (pos.x as i32, pos.y as i32, pos.z as i32);
-
-    let offset = face.as_ivec3();
-
-    let np = IVec3::new(x, y, z) + offset;
-
-    if np.x < 0 || np.y < 0 || np.z < 0 ||
-       np.x >= CHUNK_SIZE as i32 ||
-       np.y >= CHUNK_SIZE as i32 ||
-       np.z >= CHUNK_SIZE as i32 {
+    let np = IVec3::new(pos.x as i32, pos.y as i32, pos.z as i32) + face.as_ivec3();
+ 
+    if np.x < 0 || np.y < 0 || np.z < 0
+        || np.x >= CHUNK_SIZE as i32
+        || np.y >= CHUNK_SIZE as i32
+        || np.z >= CHUNK_SIZE as i32
+    {
         return None;
     }
-
     Some(np.as_uvec3())
 }
-
-/// Helper function to figure out whether the given quad is visible, knowing the neighbor it's looking at.
-/// TODO: include a more sophisticated coverage system to check visibility.
-/// TODO: include chunk boundaries (augment voxelchunk with some "chunk context" input data).
-fn is_visible(quad: &Quad, chunk: &VoxelChunk, pos: UVec3) -> bool {
-    let visible = match quad.culling_direction {
-        None => true, // It's an internal face, so we need to always render it
-        Some(dir) => match neighbor_pos(pos, dir) {
-            None  => true, // for now, and only for now, render the face if it's at the boundary of the chunk
-            Some(npos) => {
-                let neighbor = chunk.get_local(npos);
-                !neighbor.covers_face(dir.opposite())
-            }
-        },
+ 
+/// Whether a quad should be emitted, given what sits across its cull face.
+///
+/// The change from the old version: occlusion is no longer a hand-written
+/// `Voxel::covers_face` match. It is a property the model baker derived by
+/// rasterising each boundary face, read here as `model.occludes(dir)`. That
+/// is what makes this correct for slabs, slopes, pipes and imported meshes
+/// alike, with no shape-specific code in the mesher.
+///
+/// A quad with an interior cull tag is always drawn. A quad on a boundary
+/// is dropped only when the neighbour's *resolved model* fully covers the
+/// facing side.
+fn is_visible(
+    quad: &BakedQuad,
+    chunk: &VoxelChunk,
+    pos: UVec3,
+    registry: &BlockRegistry,
+    arena: &ModelArena,
+) -> bool {
+    let Some(dir) = quad.cull.dir() else {
+        return true; // interior face
     };
-    visible
+ 
+    match neighbor_pos(pos, dir) {
+        None => true, // chunk boundary — render for now (see TODO above)
+        Some(npos) => {
+            let neighbor = chunk.get_local(npos);
+            if neighbor.is_air() {
+                return true;
+            }
+            let n_def = registry.get(BlockID(neighbor.id()));
+            let n_model = arena.model(n_def.models.resolve(neighbor));
+            !n_model.occludes(dir.opposite())
+        }
+    }
 }
-
-
-// TODO: Implement greedy meshing and face culling to optimize block rendering, making use of the shapes and blockstates.
-// TODO: Separate rendering and physics pipelines in a smarter way
-fn build_chunk_data(chunk: &VoxelChunk, registry: &BlockRegistry) -> Mesh {
-    let mut positions      = Vec::<[f32; 3]>::new();
-    let mut normals        = Vec::<[f32; 3]>::new();
-    let mut uvs            = Vec::<[f32; 2]>::new();
-    let mut mesh_indices        = Vec::<u32>::new();
-    let mut texture_layers      = Vec::<u32>::new();
-    let mut overlay_layers      = Vec::<u32>::new();
-    let mut overlay_tints  = Vec::<[f32; 4]>::new();
-    let mut index_offset   = 0u32;
-
-
+ 
+/// Build the render mesh for one chunk.
+///
+/// The hot loop is now: resolve a `ModelId` from the voxel, borrow that
+/// model's baked quads, and for each visible quad look its texture up by
+/// slot index. There is no per-voxel allocation (the old `shape_quads`
+/// returned a fresh `Vec` every call) and no per-face texture `match` (it
+/// was precomputed into `def.slots` at startup).
+fn build_chunk_mesh(chunk: &VoxelChunk, registry: &BlockRegistry, arena: &ModelArena) -> Mesh {
+    let mut positions = Vec::<[f32; 3]>::new();
+    let mut normals = Vec::<[f32; 3]>::new();
+    let mut uvs = Vec::<[f32; 2]>::new();
+    let mut indices = Vec::<u32>::new();
+    let mut texture_layers = Vec::<u32>::new();
+    let mut overlay_layers = Vec::<u32>::new();
+    let mut overlay_tints = Vec::<[f32; 4]>::new();
+    let mut index_offset = 0u32;
+ 
     for (pos, voxel) in chunk.iter_non_air() {
-        let block_id = BlockID(voxel.id());
-        let block_def  = registry.get(block_id);
-        let appearance = &block_def.appearance;
-
-        let quads      = shape_quads(voxel.shape(), voxel.facing());
-
-        for quad in &quads {
-            // ── Check visibility    WIP    ────────────────────────────────
-            if !is_visible(quad, chunk, pos) { continue; }
-
-            // ── Resolve texture data for this quad ────────────────────────
-            let is_internal = quad.culling_direction == None;
-            let face_tex = resolve_face_texture(appearance, quad.texture_direction, is_internal);
-            let (base_layer, ov_layer, tint) = resolve_texture_properties(face_tex);
-
-            // ── Push all mesh data ────────────────────────────────────────
+        let def = registry.get(BlockID(voxel.id()));
+        let model_id = def.models.resolve(voxel);
+        let origin = pos.as_vec3();
+ 
+        for quad in arena.quads(model_id) {
+            if !is_visible(quad, chunk, pos, registry, arena) {
+                continue;
+            }
+ 
+            // One array index replaces the two texture `match`es the old
+            // mesher ran per face. `slot` was validated against the model's
+            // slot count at bake time, so this can't be out of range.
+            let slot = &def.texture_slots[quad.slot as usize];
+ 
             for (i, &vert) in quad.verts.iter().enumerate() {
-                positions.push((vert + pos.as_vec3()).to_array());
+                positions.push((vert + origin).to_array());
                 normals.push(quad.normal.to_array());
                 uvs.push(quad.uvs[i].to_array());
-                texture_layers.push(base_layer);
-                overlay_layers.push(ov_layer);
-                overlay_tints.push(tint);
+                texture_layers.push(slot.base_layer);
+                overlay_layers.push(slot.overlay_layer);
+                overlay_tints.push(slot.tint);
             }
-
-            mesh_indices.extend_from_slice(&[
+ 
+            // Two triangles per quad. Degenerate quads (slope side
+            // triangles, where verts[3] == verts[2]) still emit both; the
+            // second collapses to zero area and the GPU discards it, which
+            // is cheaper than branching here.
+            indices.extend_from_slice(&[
                 index_offset,     index_offset + 1, index_offset + 2,
                 index_offset,     index_offset + 2, index_offset + 3,
             ]);
-
             index_offset += 4;
         }
     }
-
+ 
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::RENDER_WORLD);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION,   positions);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL,     normals);
-    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0,       uvs);
-    mesh.insert_attribute(ATTRIBUTE_TEXTURE_LAYER,    texture_layers);
-    mesh.insert_attribute(ATTRIBUTE_OVERLAY_LAYER,    overlay_layers);
-    mesh.insert_attribute(ATTRIBUTE_OVERLAY_TINT,     overlay_tints);
-    mesh.insert_indices(Indices::U32(mesh_indices));
-
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
+    mesh.insert_attribute(ATTRIBUTE_TEXTURE_LAYER, texture_layers);
+    mesh.insert_attribute(ATTRIBUTE_OVERLAY_LAYER, overlay_layers);
+    mesh.insert_attribute(ATTRIBUTE_OVERLAY_TINT, overlay_tints);
+    mesh.insert_indices(Indices::U32(indices));
     mesh
 }

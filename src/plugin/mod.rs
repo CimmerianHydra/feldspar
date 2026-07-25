@@ -1,6 +1,5 @@
 pub mod audio;
 pub mod block;
-pub mod chunk;
 pub mod controller;
 pub mod crafting;
 pub mod geometry;
@@ -11,6 +10,5 @@ pub mod loader;
 pub mod space;
 pub mod state;
 pub mod ui;
-pub mod voxel;
 pub mod weather;
 pub mod worldgen;
