@@ -214,6 +214,65 @@ pub enum BlockShape {
     Custom(String),
 }
 
+use std::borrow::Cow;
+
+impl BlockShape {
+    /// The pair of suffixes a generated block inherits from its shape:
+    /// `(snake_case, Display Case)`.
+    ///
+    /// `None` for `Cube`. The cube is the canonical member of a shape
+    /// family and keeps the family's bare name — `slate`, not `slate_cube`,
+    /// "Slate", not "Slate (Cube)". That also means every block JSON
+    /// written before shape families existed keeps the exact name it had,
+    /// so `by_name("stone")` in worldgen and recipes never breaks.
+    ///
+    /// Returning both suffixes from one match makes it impossible for the
+    /// name and the label to disagree about whether a shape is suffixed.
+    pub fn suffixes(&self) -> Option<(Cow<'_, str>, Cow<'_, str>)> {
+        let pair = match self {
+            BlockShape::Cube  => return None,
+            BlockShape::Slab  => (Cow::Borrowed("slab"),  Cow::Borrowed("Slab")),
+            BlockShape::Panel => (Cow::Borrowed("panel"), Cow::Borrowed("Panel")),
+            BlockShape::Stair => (Cow::Borrowed("stair"), Cow::Borrowed("Stair")),
+            BlockShape::Slope => (Cow::Borrowed("slope"), Cow::Borrowed("Slope")),
+            BlockShape::Pipe  => (Cow::Borrowed("pipe"),  Cow::Borrowed("Pipe")),
+
+            // A one-off mesh has no vocabulary of its own, so borrow the
+            // model's file stem: "models/blocks/lantern.bbmodel" → "lantern".
+            BlockShape::Custom(path) => {
+                let stem = asset_stem(path);
+                (Cow::Owned(stem.to_owned()), Cow::Owned(title_case(stem)))
+            }
+        };
+        Some(pair)
+    }
+}
+
+/// Last path segment with the first extension stripped. Handles both
+/// separators — asset paths in this project are written with either.
+fn asset_stem(path: &str) -> &str {
+    let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
+    file.split('.').next().unwrap_or(file)
+}
+
+/// "lantern_post" → "Lantern Post".
+fn title_case(slug: &str) -> String {
+    slug.split(['_', '-'])
+        .filter(|word| !word.is_empty())
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => first
+                    .to_uppercase()
+                    .chain(chars.flat_map(char::to_lowercase))
+                    .collect::<String>(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TESTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

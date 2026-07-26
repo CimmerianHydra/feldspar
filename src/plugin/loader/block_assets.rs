@@ -20,6 +20,7 @@ use crate::plugin::geometry::voxel::Direction;
 
 use crate::plugin::loader::texture_registry::TextureRegistry;
 use crate::plugin::loader::block_registry::{BlockDefinition, BlockRegistry};
+use crate::plugin::loader::shape_sets::ShapeSetRegistry;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ASSET COLLECTION  (bevy_asset_loader)
@@ -30,6 +31,15 @@ pub struct BlockDefinitionAssets {
     /// Every *.json under assets/templates/blocks/, typed.
     #[asset(path = "templates\\blocks", collection(typed))]
     pub blocks: Vec<Handle<BlockDefinitionAsset>>,
+}
+
+/// One (asset × shape) pair with its generated identity, waiting to be
+/// registered.
+struct PendingBlock<'a> {
+    name:         String,
+    display_name: String,
+    shape:        BlockShape,
+    src:          &'a BlockDefinitionAsset,
 }
 
 #[derive(Clone, Copy)]
@@ -45,6 +55,32 @@ impl From<(u32, u32, [f32; 4])> for TexureSlot {
     }
 }
 
+/// Either one shape or a list of them, so both spellings work:
+///   "shape":  "Slab"
+///   "shapes": ["Cube", "Slab", "Slope"]
+///
+/// Untagged buffers the input and tries the variants in order, so a typo'd
+/// shape reports as "data did not match any variant of untagged enum
+/// ShapeSpec" rather than "unknown variant `Slabb`" — worth knowing when a
+/// block file mysteriously refuses to load.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum ShapeSpec {
+    One(BlockShape),
+    Many(Vec<BlockShape>),
+}
+
+impl ShapeSpec {
+    /// One accessor for both variants — `from_ref` makes the single case a
+    /// one-element slice with no allocation, so callers never branch.
+    pub fn as_slice(&self) -> &[BlockShape] {
+        match self {
+            ShapeSpec::One(shape)   => std::slice::from_ref(shape),
+            ShapeSpec::Many(shapes) => shapes.as_slice(),
+        }
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // JSON-SHAPED MIRRORS  (bevy_common_assets reads these)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -53,15 +89,24 @@ impl From<(u32, u32, [f32; 4])> for TexureSlot {
 pub struct BlockDefinitionAsset {
     pub name:          String,
     pub display_name:  String,
-    #[serde(default)] pub shape:         BlockShape,
-    #[serde(default)] pub appearance:    BlockAppearanceAsset,
+    #[serde(default, alias = "shape")]
+    pub shapes:        Option<ShapeSpec>,
+    /// Named sets from `*.shapeset.json`, unioned with `shapes`.
+    #[serde(default)]
+    pub shape_sets:    Vec<String>,
+    #[serde(default)]
+    pub appearance:    BlockAppearanceAsset,
     #[serde(default = "default_true")]
     pub has_collision: bool,
-    #[serde(default)] pub material:      BlockMaterialAsset,
-    #[serde(default)] pub sound_profile: SoundProfileAsset,
+    #[serde(default)]
+    pub material:      BlockMaterialAsset,
+    #[serde(default)]
+    pub sound_profile: SoundProfileAsset,
     /// Names resolved against `BlockBehaviorRegistry` at load time.
-    #[serde(default)] pub behaviors:     Vec<String>,
-    #[serde(default)] pub interactable:  bool,
+    #[serde(default)]
+    pub behaviors:     Vec<String>,
+    #[serde(default)]
+    pub interactable:  bool,
 }
 
 fn default_true() -> bool { true }
@@ -122,46 +167,74 @@ pub struct SoundProfileAsset {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub fn populate_block_registry_sys(
-    block_assets:   Res<BlockDefinitionAssets>,
-    assets:         Res<Assets<BlockDefinitionAsset>>,
-    asset_server:   Res<AssetServer>,
-    mut registry:   ResMut<BlockRegistry>,
-    tex:            Res<TextureRegistry>,
-    behaviors:      Res<BlockBehaviorRegistry>,
+    block_assets: Res<BlockDefinitionAssets>,
+    assets:       Res<Assets<BlockDefinitionAsset>>,
+    asset_server: Res<AssetServer>,
+    mut registry: ResMut<BlockRegistry>,
+    tex:          Res<TextureRegistry>,
+    behaviors:    Res<BlockBehaviorRegistry>,
+    shape_sets:   Res<ShapeSetRegistry>,
 ) {
-    // Deterministic order = deterministic in-memory IDs across runs (handy for debugging).
-    // Save files should still serialize names, not IDs — see register_block warning on dupes.
-    let mut defs: Vec<&BlockDefinitionAsset> = block_assets.blocks.iter()
-        .filter_map(|h| assets.get(h))
-        .collect();
-    defs.sort_by(|a, b| a.name.cmp(&b.name));
+    // ── Fan out: one asset → one definition per shape ──────────────────
+    let mut pending: Vec<PendingBlock<'_>> = Vec::new();
 
-    for src in defs {
+    for handle in &block_assets.blocks {
+        let Some(src) = assets.get(handle) else {
+            error!("Block definition asset not parsed before resolution — check loading state.");
+            continue;
+        };
 
+        for shape in resolve_shapes(src, &shape_sets) {
+            let (name, display_name) = derive_names(&shape, &src.name, &src.display_name);
+            pending.push(PendingBlock { name, display_name, shape, src });
+        }
+    }
+
+    // Sorting the GENERATED names, rather than the source files, makes
+    // in-memory BlockIDs a function of which blocks exist — not of the
+    // order shapes happen to be listed in, or of which set contributed
+    // them. Deterministic across runs, which is handy for debugging.
+    // Save files still serialize names, never IDs.
+    pending.sort_by(|a, b| a.name.cmp(&b.name));
+
+    // ── Resolve and register ───────────────────────────────────────────
+    for block in pending {
+        // BlockRegistry::register_block would otherwise overwrite the
+        // name→id entry and leave an unreachable definition behind.
+        if registry.by_name(block.name.clone()).is_some() {
+            warn!("Generated block '{}' collides with an existing block — skipped. \
+                   Either a hand-written file already claims that name, or two \
+                   shape families overlap.", block.name);
+            continue;
+        }
+
+        // Resolved per generated block rather than once per asset: the
+        // warning then names the block that actually failed, and the
+        // AssetServer returns the same handle for a repeated path, so the
+        // audio in a five-shape family is loaded once, not five times.
         let mut components = BlockComponents::default();
-        if let Some(spawns) = behaviors.resolve(&src.behaviors, &src.name) {
+        if let Some(spawns) = behaviors.resolve(&block.src.behaviors, &block.name) {
             components = components.with(spawns);
         }
-        if src.interactable {
+        if block.src.interactable {
             components = components.with(InteractsOnSecondary);
         }
 
-        let def = BlockDefinition {
-            name:          src.name.clone(),
-            display_name:  src.display_name.clone(),
-            shape:         src.shape.clone(),
+        registry.register_block(BlockDefinition {
+            name:          block.name,
+            display_name:  block.display_name,
+            shape:         block.shape,
             models:        ModelTable::default(),
             texture_slots: Vec::new(),
-            appearance:    resolve_appearance(&src.appearance, &tex),
-            has_collision: src.has_collision,
-            material:      resolve_material(&src.material),
-            sound_profile: resolve_sound_profile(&src.sound_profile, &asset_server),
+            appearance:    resolve_appearance(&block.src.appearance, &tex),
+            has_collision: block.src.has_collision,
+            material:      resolve_material(&block.src.material),
+            sound_profile: resolve_sound_profile(&block.src.sound_profile, &asset_server),
             components,
-        };
-        registry.register_block(def);
+        });
     }
 
-    bevy::log::info!("BlockRegistry populated from JSON: {} entries.", registry.size());
+    info!("BlockRegistry populated from JSON: {} entries.", registry.size());
 }
 
 pub fn bake_block_geometry(
@@ -224,8 +297,50 @@ pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena) {
     }
 }
 
-// in your plugin build():
-// .add_systems(Startup, bake_block_geometry.after(populate_block_registry))
+/// Union of the block's shape sets (in declaration order) with its inline
+/// shapes, deduplicated. Sets first so an inline list reads as "and also
+/// these".
+///
+/// An empty result means the file said nothing usable about shape, which is
+/// the pre-shape-families case: one cube. Note that a block naming only
+/// unknown sets lands here too — it warns, then falls back to a cube rather
+/// than vanishing from the registry.
+fn resolve_shapes(src: &BlockDefinitionAsset, sets: &ShapeSetRegistry) -> Vec<BlockShape> {
+    let mut out: Vec<BlockShape> = Vec::new();
+    let mut push = |shape: &BlockShape, out: &mut Vec<BlockShape>| {
+        if !out.contains(shape) {
+            out.push(shape.clone());
+        }
+    };
+
+    for set_name in &src.shape_sets {
+        match sets.get(set_name) {
+            Some(shapes) => for shape in shapes { push(shape, &mut out); },
+            // Reported here, at load time, not at bake time — a typo
+            // should scream early.
+            None => warn!("Block '{}' references unknown shape set '{}'.",
+                          src.name, set_name),
+        }
+    }
+
+    if let Some(spec) = &src.shapes {
+        for shape in spec.as_slice() { push(shape, &mut out); }
+    }
+
+    if out.is_empty() {
+        out.push(BlockShape::default());
+    }
+    out
+}
+
+/// "slate" + Slab → ("slate_slab", "Slate (Slab)"). Cube passes through
+/// unchanged — see `BlockShape::suffixes`.
+fn derive_names(shape: &BlockShape, name: &str, display: &str) -> (String, String) {
+    match shape.suffixes() {
+        Some((slug, label)) => (format!("{name}_{slug}"), format!("{display} ({label})")),
+        None                => (name.to_owned(), display.to_owned()),
+    }
+}
 
 fn resolve_appearance(src: &BlockAppearanceAsset, tex: &TextureRegistry) -> BlockAppearance {
     match src {

@@ -17,10 +17,15 @@ use crate::plugin::loader::substance_registry::*;
 use crate::plugin::loader::texture_assets::*;
 use crate::plugin::loader::block_assets::*;
 use crate::plugin::loader::item_assets::*;
+use crate::plugin::loader::shape_sets::*;
 
 use crate::plugin::loader::recipe_maps::*;
 
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PLUGIN
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub struct AssetLoaderPlugin;
 
@@ -36,6 +41,7 @@ impl Plugin for AssetLoaderPlugin {
 
         .insert_resource(TextureRegistry::new())
         .insert_resource(BlockRegistry::new())
+        .insert_resource(ShapeSetRegistry::new())
         .add_plugins(BlockIconPlugin)
         .insert_resource(ItemRegistry::new())
         .insert_resource(SubstanceRegistry::new())
@@ -45,17 +51,19 @@ impl Plugin for AssetLoaderPlugin {
         .insert_resource(VoxelMaterialHandle::default())
 
         // Parser for *.json block definition files
-        .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["json"]))
+        .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["block.json"]))
         .add_plugins(JsonAssetPlugin::<RecipeDefinitionAsset>::new(&["recipe.json"]))
         .add_plugins(JsonAssetPlugin::<ItemDefinitionAsset>::new(&["item.json"]))
         .add_plugins(JsonAssetPlugin::<SubstanceFileAsset>::new(&["substance.json"]))
         .add_plugins(JsonAssetPlugin::<PartProfileAsset>::new(&["part.json"]))
+        .add_plugins(JsonAssetPlugin::<ShapeSetAsset>::new(&["shapeset.json"]))
 
         // Gate Loading -> Running on every block file being parsed
         .add_loading_state(
             LoadingState::new(GameState::AssetLoading)
                 .load_collection::<BlockDefinitionAssets>()
                 .load_collection::<BlockTextureAssets>()
+                .load_collection::<ShapeSetAssets>()
                 .load_collection::<ItemDefinitionAssets>()
                 .load_collection::<SubstanceDefinitionAssets>()
                 .load_collection::<PartProfileAssets>()
@@ -82,6 +90,7 @@ impl Plugin for AssetLoaderPlugin {
             OnExit(GameState::AssetLoading),
             (
                 assemble_texture_arrays_sys,
+                populate_shape_set_registry_sys,
                 populate_block_registry_sys,
                 bake_block_geometry,
                 populate_item_registry_from_blocks_sys,

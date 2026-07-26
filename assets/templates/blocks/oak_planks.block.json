@@ -1,10 +1,10 @@
 {
-    "name": "slate_slope",
-    "display_name": "Slate (Slope)",
-    "shape": "Slope",
+    "name": "oak_planks",
+    "display_name": "Oak Planks",
+    "shape_sets": ["decorative"],
     "appearance": {
         "kind": "uniform",
-        "texture": { "kind": "simple", "texture": "slate" }
+        "texture":   { "kind": "simple", "texture": "oak_planks" }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
