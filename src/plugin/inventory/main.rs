@@ -9,6 +9,9 @@ use crate::plugin::inventory::player::{
 use crate::plugin::inventory::cursor::*;
 use crate::plugin::loader::item_registry::*;
 
+use crate::plugin::console::registry::ConsoleAppExt;
+use crate::plugin::inventory::commands::*;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -20,6 +23,7 @@ impl Plugin for InventoryPlugin {
         app
             // Systems that depend on other plugins
             .add_systems(Update, append_player_inventory_sys)
+            .add_command(give_command_spec(), give_cmd)
 
             // Event Observers
             .add_observer(sync_hotbar_on_mouse_scroll_obs)
@@ -313,6 +317,38 @@ pub fn transfer_items(
     from.extract(item, to_move);
     to.insert(item, to_move, registry);
     TransferResult { transferred: to_move, remainder: insertable }
+}
+
+/// `insert` reports totals; the UI syncs per (inventory, slot). So: snapshot,
+/// insert, diff, and fire one `InventoryChangedEvent` per slot that actually
+/// moved.
+///
+/// Anything that mutates an inventory *after* the UI exists has to do this, or
+/// the hotbar and any open screen silently go stale. The startup dev fixture got
+/// away without it only because it ran before a single slot node was spawned.
+///
+/// The snapshot is a memcpy of `capacity` Copy-sized slots — cheap enough for
+/// commands and one-off interactions. The real fix is for `insert`/`extract` to
+/// report their touched slots directly, which belts and inserters will want too;
+/// this is the stopgap that keeps `Inventory` untouched for now.
+pub fn insert_and_notify(
+    commands:  &mut Commands,
+    entity:    Entity,
+    inventory: &mut Inventory,
+    item:      ItemID,
+    count:     u16,
+    registry:  &ItemRegistry,
+) -> TransferResult {
+    let before: Vec<Option<ItemStack>> = inventory.slots().to_vec();
+    let result = inventory.insert(item, count, registry);
+
+    for (index, (old, new)) in before.iter().zip(inventory.slots().iter()).enumerate() {
+        if old != new {
+            commands.trigger(InventoryChangedEvent { entity, index });
+        }
+    }
+
+    result
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

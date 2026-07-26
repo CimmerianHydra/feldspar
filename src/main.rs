@@ -32,7 +32,7 @@ use plugin::space::main::VoxelChunk;
 use plugin::space::main::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
 
-
+use plugin::console::main::ConsolePlugin;
 
 
 fn main() {
@@ -43,6 +43,7 @@ fn main() {
             synchronous_pipeline_compilation: true,
             ..default()
         }))
+        .add_plugins(ConsolePlugin)
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(StatePlugin)
         //.add_plugins(FreeCameraPlugin)
@@ -66,6 +67,7 @@ fn main() {
         .add_systems(Update, enable_game.after(setup_dev_chunks))
         .add_systems(Update, dev_populate_player_inventory)
         .add_systems(Update, spawn_dev_ship.run_if(input_just_pressed(KeyCode::F4)))
+        .add_systems(Update, dev_submit_command.run_if(input_just_pressed(KeyCode::F5)))
 
         .run();
 }
@@ -99,6 +101,9 @@ pub fn dev_populate_player_inventory(
 
 
 use crate::plugin::block::interaction::VoxelWriteRequest;
+use crate::plugin::console::command::PendingCommands;
+use crate::plugin::console::command::CommandSource;
+use crate::plugin::controller::player::Player;
 use crate::plugin::geometry::collision::NeedsColliderRebuild;
 use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
 use crate::plugin::geometry::meshing::NeedsRemeshing;
@@ -213,3 +218,11 @@ fn resolve_hull_block(registry: &BlockRegistry) -> BlockID {
     // Index 0 is always air, so 1 is the first real block.
     BlockID(1.min(registry.size().saturating_sub(1) as u16))
 }
+
+fn dev_submit_command(
+    mut pending: ResMut<PendingCommands>,
+    player:      Single<Entity, With<Player>>,
+) {
+    pending.push(CommandSource::Player(*player), "/give slate 64");
+}
+// .add_systems(Update, dev_submit_command.run_if(input_just_pressed(KeyCode::F5)))

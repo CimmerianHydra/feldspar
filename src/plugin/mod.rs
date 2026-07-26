@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod block;
+pub mod console;
 pub mod controller;
 pub mod crafting;
 pub mod geometry;
