@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn bottom_slab_occludes_only_down() {
         let mut arena = ModelArena::new();
-        let id = arena.bake(&shapes::slab(), BlockRotation::IDENTITY);
+        let id = arena.bake(&shapes::panel(8.0), BlockRotation::IDENTITY);
         let m = arena.model(id);
         assert!(m.occludes(Direction::Down));
         assert!(!m.occludes(Direction::Up));
@@ -347,7 +347,7 @@ mod tests {
     fn rotating_a_slab_moves_its_occlusion() {
         let mut arena = ModelArena::new();
         let r = BlockRotation::from_parts(Direction::North, 0);
-        let id = arena.bake(&shapes::slab(), r);
+        let id = arena.bake(&shapes::panel(8.0), r);
         let m = arena.model(id);
         assert_eq!(m.occlusion.count_ones(), 1);
         assert!(m.occludes(r.apply_dir(Direction::Down)));

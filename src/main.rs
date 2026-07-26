@@ -84,7 +84,7 @@ pub fn dev_populate_player_inventory(
 ) {
     if let Ok((_entity, mut inventory)) = player_hotbar_query.single_mut() {
         for name in [
-            "barrel", "dirt", "grass", "slate", "slate_slab", "slate_slope",
+            "dirt", "slate", "slate_slab", "slate_panel", "slate_stair", "wooden_item_pipe",
             "iron_metal_ingot", "iron_metal_plate", "iron_metal_rod",
             "copper_metal_ingot", "copper_metal_plate", "copper_metal_rod",
             "oak_wood_plank", "spruce_wood_plank", "ebony_wood_plank"

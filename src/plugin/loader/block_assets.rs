@@ -259,7 +259,7 @@ pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena) {
 
             BlockShape::Slab =>
                 ModelTable::from_rotations(
-                    arena.bake_rotations(&shapes::slab(), BlockRotation::all())),
+                    arena.bake_rotations(&shapes::panel(8.0), BlockRotation::all())),
 
             BlockShape::Panel =>
                 ModelTable::from_rotations(

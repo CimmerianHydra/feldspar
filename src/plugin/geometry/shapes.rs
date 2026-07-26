@@ -83,11 +83,6 @@ pub fn cube() -> Vec<Element> {
     vec![Element::Box(slotted_box(Vec3::ZERO, Vec3::ONE))]
 }
 
-/// Bottom slab. Rotations give top slabs and all four vertical slabs.
-pub fn slab() -> Vec<Element> {
-    vec![Element::Box(slotted_box(Vec3::ZERO, v(1.0, 0.5, 1.0)))]
-}
-
 /// Thin panel, default 1/16. Rotations give wall and ceiling panels.
 pub fn panel(thickness_px: f32) -> Vec<Element> {
     vec![Element::Box(slotted_box(Vec3::ZERO, v(1.0, px(thickness_px), 1.0)))]

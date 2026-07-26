@@ -1,10 +1,10 @@
 {
-    "name": "dirt",
-    "display_name": "Dirt",
-    "shape_sets": ["decorative"],
+    "name": "wooden_item",
+    "display_name": "Oak",
+    "shape": "Pipe",
     "appearance": {
         "kind": "uniform",
-        "texture": { "kind": "simple", "texture": "dirt" }
+        "texture":   { "kind": "simple", "texture": "oak_planks" }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
