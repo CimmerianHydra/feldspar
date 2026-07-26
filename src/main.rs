@@ -4,6 +4,7 @@ use bevy::input::common_conditions::input_just_pressed;
 use bevy::prelude::*;
 
 mod plugin;
+use bevy::render::RenderPlugin;
 use plugin::geometry::meshing::GeometryPlugin;
 use plugin::block::interaction::BlockInteractionPlugin;
 use plugin::ui::main::UIPlugin;
@@ -37,7 +38,11 @@ use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
 fn main() {
     App::new()
         // Plugins
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(RenderPlugin {
+            // For now this should fix the block icon rendering problem
+            synchronous_pipeline_compilation: true,
+            ..default()
+        }))
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(StatePlugin)
         //.add_plugins(FreeCameraPlugin)
@@ -78,14 +83,8 @@ pub fn dev_populate_player_inventory(
     item_registry: Res<ItemRegistry>,
 ) {
     if let Ok((_entity, mut inventory)) = player_hotbar_query.single_mut() {
-        for id in 1..7 {
-            let item_id = ItemID(id as u16);
-            let result = inventory.insert(item_id, 10, &item_registry);
-
-            bevy::log::info!("Added [{}]x{} to player inventory.", item_registry.get(item_id).name, result.transferred);
-        };
-
         for name in [
+            "barrel", "dirt", "grass", "slate", "slate_slab", "slate_slope",
             "iron_metal_ingot", "iron_metal_plate", "iron_metal_rod",
             "copper_metal_ingot", "copper_metal_plate", "copper_metal_rod",
             "oak_wood_plank", "spruce_wood_plank", "ebony_wood_plank"

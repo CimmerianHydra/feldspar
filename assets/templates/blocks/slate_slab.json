@@ -1,0 +1,13 @@
+{
+    "name": "slate_slab",
+    "display_name": "Slate (Slab)",
+    "shape": "Slab",
+    "appearance": {
+        "kind": "uniform",
+        "texture": { "kind": "simple", "texture": "slate" }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}

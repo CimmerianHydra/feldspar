@@ -399,7 +399,6 @@ pub fn generate_substance_items_sys(
             }
 
             items.register(ItemDefinition {
-                id:           ItemID(0),
                 name,
                 display_name: part.name_pattern.replace("{}", &sub.display_name),
                 max_stack:    part.max_stack,

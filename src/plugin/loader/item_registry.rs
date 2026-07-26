@@ -1,12 +1,13 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
+use crate::plugin::geometry::model::ModelArena;
 use crate::plugin::item::components::*;
 use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
 use crate::plugin::loader::substance_registry::{SubstanceID, PartID};
 use crate::plugin::ui::item::ItemDisplay;
 use crate::plugin::inventory::main::MAX_STACK;
-use crate::plugin::loader::block_icons::BlockIcons;
+use crate::plugin::loader::block_icons::{BlockIcons, icon_voxel};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ITEM DEFINITIONS
@@ -37,7 +38,6 @@ impl Default for ItemKind {
 }
 
 pub struct ItemDefinition {
-    pub id:           ItemID,
     pub name:         String,
     pub display_name: String,
     pub max_stack:    u16,       // e.g. 99 for ore, 1 for unique tools
@@ -95,7 +95,7 @@ impl ItemRegistry {
             self.block_to_item.insert(pb.block_id, id);
         }
 
-        self.items.push(ItemDefinition { id, ..def });
+        self.items.push(ItemDefinition { ..def });
         self.name_to_item.insert(name, id);
         id
     }
@@ -112,44 +112,36 @@ impl ItemRegistry {
 /// Hardcoded block-placing item registry initialization.
 /// Scans the entire block registry and generates a suitable item from the block
 /// definition that is capable of placing the block in the world.
-/// TODO: add a "Placeable" tag on blocks we want to turn into such items.
 /// TODO: add a way to inject additional item components on the item from block def.
 
 pub fn populate_item_registry_from_blocks_sys(
     block_registry: Res<BlockRegistry>,
-    block_icons: Res<BlockIcons>,
     mut item_registry: ResMut<ItemRegistry>,
-    asset_server: Res<AssetServer>,
+    mut block_icons: ResMut<BlockIcons>,
+    arena: Res<ModelArena>,
+    mut images: ResMut<Assets<Image>>,
+    mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    // First we register all the blocks as items.
-
-    for id in 0..block_registry.size() {
-
-        let block = block_registry.get(BlockID(id as u16));
-
-        let display = match block_icons.get(BlockID(id as u16)) {
-            Some(image) => ItemDisplay::Image { image },
-            // Fallback to the flat PNG — covers air (id 0) and anything not baked.
-            None => ItemDisplay::Image {
-                image: asset_server.load("icons\\items\\cube.png"),
-            },
-        };
-
-        item_registry.register(
-            ItemDefinition {
-                id: ItemID(0 as u16),
-                name: block.name.clone(),
-                display_name: block.display_name.clone(),
-                max_stack: MAX_STACK,
-                kind: ItemKind::Block { block_id: BlockID(id as u16) },
-                display: display,
-                components: ItemComponents::default()
-                    .with(PlacesBlock { block_id: BlockID(id as u16) }),
-            }
-        );
+    // id 0 is air — no block, no icon, no item.
+    for id in 1..block_registry.size() {
+        let block_id = BlockID(id as u16);
+        let block = block_registry.get(block_id);
+ 
+        let voxel = icon_voxel(&block.shape, block_id);
+        let icon = block_icons.ensure(voxel, &block_registry, &arena, &mut images, &mut meshes);
+ 
+        item_registry.register(ItemDefinition {
+            name: block.name.clone(),
+            display_name: block.display_name.clone(),
+            max_stack: MAX_STACK,
+            kind: ItemKind::Block { block_id },
+            display: ItemDisplay::Image { image: icon },
+            components: ItemComponents::default().with(PlacesBlock { block_id }),
+        });
     }
-    
-    // In the future we'll add all other items by looking through JSON files.
-
-    bevy::log::info_once!("ItemRegistry populated from blocks: {} entries.", item_registry.len());
+ 
+    bevy::log::info_once!(
+        "ItemRegistry populated from blocks: {} entries.",
+        item_registry.len()
+    );
 }

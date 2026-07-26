@@ -16,7 +16,7 @@ use crate::plugin::geometry::voxel::Direction;
 
 /// Index into `ModelArena::models`. Cheap to copy, cheap to store 64 of.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub struct ModelId(pub u32);
+pub struct ModelID(pub u32);
 
 /// Small bit set. Hand-rolled rather than pulling in `bitflags`, since it
 /// is two flags and the crate is not already a direct dependency.
@@ -83,26 +83,26 @@ pub struct ModelArena {
     models:    Vec<BakedModel>,
     /// Structural hash → id. Collapses duplicate bakes, which is how a
     /// log's 32-entry rotation table ends up pointing at 3 real models.
-    dedup:     HashMap<u64, ModelId>,
+    dedup:     HashMap<u64, ModelID>,
 }
 
 impl ModelArena {
     pub fn new() -> Self { Self::default() }
 
     #[inline]
-    pub fn model(&self, id: ModelId) -> &BakedModel {
+    pub fn model(&self, id: ModelID) -> &BakedModel {
         &self.models[id.0 as usize]
     }
 
     /// The hot accessor. One bounds check, one slice.
     #[inline]
-    pub fn quads(&self, id: ModelId) -> &[BakedQuad] {
+    pub fn quads(&self, id: ModelID) -> &[BakedQuad] {
         let m = &self.models[id.0 as usize];
         &self.quads[m.quads.start as usize..m.quads.end as usize]
     }
 
     #[inline]
-    pub fn colliders(&self, id: ModelId) -> &[[Vec3; 2]] {
+    pub fn colliders(&self, id: ModelID) -> &[[Vec3; 2]] {
         let m = &self.models[id.0 as usize];
         &self.colliders[m.colliders.start as usize..m.colliders.end as usize]
     }
@@ -116,7 +116,7 @@ impl ModelArena {
     ///
     /// Rotation is applied here, at startup, exactly once per variant —
     /// not per remesh the way `rotate_to` currently works.
-    pub fn bake(&mut self, elements: &[Element], rotation: BlockRotation) -> ModelId {
+    pub fn bake(&mut self, elements: &[Element], rotation: BlockRotation) -> ModelID {
         let mut quads: Vec<BakedQuad> = Vec::new();
         let mut colliders: Vec<[Vec3; 2]> = Vec::new();
 
@@ -151,12 +151,12 @@ impl ModelArena {
         &mut self,
         elements: &[Element],
         rotations: impl IntoIterator<Item = BlockRotation>,
-    ) -> Vec<ModelId> {
+    ) -> Vec<ModelID> {
         rotations.into_iter().map(|r| self.bake(elements, r)).collect()
     }
 
     /// Push (or reuse) a finished quad list.
-    fn intern(&mut self, quads: Vec<BakedQuad>, colliders: Vec<[Vec3; 2]>) -> ModelId {
+    fn intern(&mut self, quads: Vec<BakedQuad>, colliders: Vec<[Vec3; 2]>) -> ModelID {
         let key = structural_hash(&quads, &colliders);
         if let Some(existing) = self.dedup.get(&key) {
             return *existing;
@@ -177,7 +177,7 @@ impl ModelArena {
         let coll_start = self.colliders.len() as u32;
         self.colliders.extend(colliders);
 
-        let id = ModelId(self.models.len() as u32);
+        let id = ModelID(self.models.len() as u32);
         self.models.push(BakedModel {
             quads:     quad_start..self.quads.len() as u32,
             colliders: coll_start..self.colliders.len() as u32,

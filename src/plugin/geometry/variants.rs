@@ -1,4 +1,4 @@
-use crate::plugin::geometry::model::ModelId;
+use crate::plugin::geometry::model::ModelID;
 use crate::plugin::geometry::rotation::ROTATION_COUNT;
 use crate::plugin::geometry::voxel::{Voxel, STATE_BITS};
 
@@ -102,17 +102,17 @@ impl VariantKey {
 #[derive(Clone, Debug)]
 pub struct ModelTable {
     pub key:    VariantKey,
-    pub models: Vec<ModelId>,
+    pub models: Vec<ModelID>,
 }
 
 impl ModelTable {
     /// The single-model case: cubes, and anything else whose appearance
     /// never changes.
-    pub fn single(id: ModelId) -> Self {
+    pub fn single(id: ModelID) -> Self {
         Self { key: VariantKey::STATIC, models: vec![id] }
     }
 
-    pub fn new(key: VariantKey, models: Vec<ModelId>) -> Self {
+    pub fn new(key: VariantKey, models: Vec<ModelID>) -> Self {
         debug_assert_eq!(
             models.len(),
             key.table_len(),
@@ -127,7 +127,7 @@ impl ModelTable {
     /// through `BlockRotation`, but the table is sized by bit width, so
     /// those slots are filled with the identity model. A corrupted voxel
     /// then renders upright instead of indexing out of bounds.
-    pub fn from_rotations(mut models: Vec<ModelId>) -> Self {
+    pub fn from_rotations(mut models: Vec<ModelID>) -> Self {
         assert_eq!(models.len(), ROTATION_COUNT);
         let identity = models[0];
         models.resize(32, identity);
@@ -136,7 +136,7 @@ impl ModelTable {
 
     /// The hot lookup. One index, no branch beyond the descriptor.
     #[inline]
-    pub fn resolve(&self, voxel: Voxel) -> ModelId {
+    pub fn resolve(&self, voxel: Voxel) -> ModelID {
         // Safe by construction: `index` masks to `key.bits()`, and the
         // table is `2^bits` long. Kept as a checked index anyway — it is
         // one compare against a value already in cache.
@@ -196,10 +196,10 @@ mod tests {
 
     #[test]
     fn rotation_table_pads_unreachable_slots() {
-        let models: Vec<ModelId> = (0..ROTATION_COUNT).map(|i| ModelId(i as u32)).collect();
+        let models: Vec<ModelID> = (0..ROTATION_COUNT).map(|i| ModelID(i as u32)).collect();
         let table = ModelTable::from_rotations(models);
         assert_eq!(table.models.len(), 32);
         // Slots 24..31 fall back to the identity model.
-        assert_eq!(table.models[31], ModelId(0));
+        assert_eq!(table.models[31], ModelID(0));
     }
 }

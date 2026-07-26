@@ -1,100 +1,154 @@
-//! Isometric block icons, rendered from baked models at load time.
+//! Isometric block icons, generated on demand from baked models.
 //!
-//! Each block gets a small offscreen render of its model, viewed in true
-//! isometric, used as its item icon. Because the icon goes through the
-//! *same* `VoxelMaterial` as the world, it is pixel-identical to the block
-//! in-game — overlays and tints included — and it works for any model the
-//! arena can produce, including future Blockbench imports.
+//! ## Requires synchronous pipeline compilation
 //!
-//! ## How the timing works (the part worth understanding)
+//! This depends on the app being built with
 //!
-//! A render-target `Image`'s **handle is valid the moment the asset is
-//! created**; only its pixels arrive later, once the baking camera has
-//! rendered a frame. So we hand every item a valid handle immediately
-//! (during loading), and the picture resolves a frame or two afterwards.
-//! No CPU readback, no waiting on the bake before items can be built.
+//! ```ignore
+//! DefaultPlugins.set(RenderPlugin { synchronous_pipeline_compilation: true, ..default() })
+//! ```
 //!
-//! ## How the bake works
+//! Without it, wgpu compiles the icon pipeline asynchronously and **skips
+//! the draw every frame until it's ready** — the target clears but no
+//! geometry lands. With it, the first render blocks until the pipeline is
+//! compiled, then every icon after reuses the cached pipeline and renders
+//! in a single frame.
 //!
-//! Each frame the holder's mesh is swapped to the next block and the camera
-//! is pointed at that block's target, rendering exactly one icon per frame.
-//! A single visible model at a time means the camera can't see the others,
-//! so there's no per-model render layer bookkeeping. It's a one-shot loading
-//! cost, so sequential is fine.
+//! ## Shape
+//!
+//! `BlockIcons` is a registry. `ensure()` returns a valid handle
+//! immediately and queues the render. One **persistent** studio — camera,
+//! model holder, light on an isolated render layer — drains the queue, one
+//! icon per frame, repointing the camera at each target in turn.
+//!
+//! ## Timing
+//!
+//! The studio needs the voxel material and the arena to exist, and nothing
+//! else. So rather than waiting for the game, the systems run from app
+//! start and **self-gate on those dependencies**: the studio spawns the
+//! instant they appear (during loading), immediately warms the pipeline
+//! behind the loading screen, and starts draining the queue — which
+//! `populate` has been filling since the arena was baked. Generation is
+//! done, or nearly, before the world is even shown, and the same processor
+//! keeps serving runtime requests afterward.
 
-use std::collections::HashMap;
+use std::collections::VecDeque;
 
-use bevy::camera::visibility::RenderLayers;
 use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
 use bevy::mesh::{Indices, Mesh, PrimitiveTopology};
-
-// ── Version-sensitive imports ────────────────────────────────────────────
-// These paths moved around in the Bevy module reshuffle. If one fails to
-// resolve, it has almost certainly just relocated — check the prelude or
-// the `bevy::camera` / `bevy::render::camera` modules for your version.
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
-use bevy::camera::ScalingMode;
-use bevy::camera::RenderTarget;
 
-use crate::plugin::geometry::model::ModelArena;
+// Camera types live in `bevy_camera` in this Bevy version. If a path fails
+// to resolve it has just moved — check `bevy::camera` and its submodules.
+// `Msaa` is re-exported by the prelude; if not, it's `bevy::camera::Msaa`.
+use bevy::camera::visibility::RenderLayers;
+use bevy::camera::{ClearColorConfig, OrthographicProjection, Projection, RenderTarget, ScalingMode};
+
+use crate::plugin::geometry::model::{ModelArena, ModelID};
 use crate::plugin::geometry::meshing::{
     ATTRIBUTE_OVERLAY_LAYER, ATTRIBUTE_OVERLAY_TINT, ATTRIBUTE_TEXTURE_LAYER,
 };
 use crate::plugin::geometry::prelude::ConnectionMask;
-use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
-use crate::plugin::loader::texture_assets::VoxelMaterialHandle;
 use crate::plugin::geometry::voxel::{BlockShape, Direction, Voxel};
+use crate::plugin::loader::block_registry::{BlockID, BlockRegistry};
+use crate::plugin::loader::texture_assets::{VoxelMaterialHandle, assemble_texture_arrays_sys};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CONFIG
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Target icon resolution. 128 downsamples cleanly to the 64px UI slot and,
-/// with nearest sampling, keeps pixel-art textures crisp. Bump to 256 for
-/// retina-density UIs.
 const ICON_RESOLUTION: u32 = 128;
 
-/// Orthographic frustum height, in world units, and fixed for every icon.
-///
-/// This is the "always frame the full block" decision made concrete: the
-/// camera is sized to the unit cube (its isometric silhouette spans a bit
-/// over 1.6 units tall) plus a margin, and it never adapts to the model.
-/// So a slab renders half-height in the lower portion of its icon — the
-/// size cue you asked for — rather than being zoomed to fill.
-const ICON_FRUSTUM_HEIGHT: f32 = 1.85;
+/// Orthographic frustum height, fixed for every icon so relative block
+/// sizes read true. Raise slightly if blocks feel tight against the edges.
+const ICON_FRUSTUM: f32 = 1.85;
 
-/// Dedicated render layer for the bake scene. The main camera lives on
-/// layer 0 and never sees these entities; this camera sees only them.
+/// Isolated render layer. The main camera sees layer 0 and never these
+/// entities; the icon camera sees only them.
 const ICON_LAYER: usize = 31;
 
-// PBR light magnitudes are physically based and need visual calibration —
-// treat these as starting points and tune against your textures.
-const ICON_KEY_LUX: f32 = 6_000.0;
-const ICON_AMBIENT: f32 = 1_200.0;
+/// Placeholder for a not-yet-rendered icon — opaque, so a pending icon is a
+/// visible grey square (a diagnostic). A successful render clears to
+/// transparent and overwrites it.
+const PLACEHOLDER: [u8; 4] = [70, 70, 70, 255];
+
+// PBR light magnitudes need visual calibration. Direction is set in
+// `spawn_icon_studio_sys`.
+const ICON_KEY_LUX: f32 = 4_000.0;
+const ICON_AMBIENT: f32 = 250.0;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// PUBLIC RESOURCES
+// THE REGISTRY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Rendered icon per block. Populated during loading; handles are valid
-/// immediately, pixels arrive within a couple of frames.
+/// What determines an icon: the block (texture slots) and its resolved
+/// model (geometry). Voxels differing only in non-geometric state share one.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct IconKey {
+    block: BlockID,
+    model: ModelID,
+}
+
+struct PendingIcon {
+    target: Handle<Image>,
+    mesh: Handle<Mesh>,
+}
+
+/// Cache of generated icons plus the queue of renders still owed. Persists
+/// across sessions; entries are only ever added.
 #[derive(Resource, Default)]
-pub struct BlockIcons(pub HashMap<BlockID, Handle<Image>>);
+pub struct BlockIcons {
+    cache: bevy::platform::collections::HashMap<IconKey, Handle<Image>>,
+    pending: VecDeque<PendingIcon>,
+}
 
 impl BlockIcons {
-    pub fn get(&self, id: BlockID) -> Option<Handle<Image>> {
-        self.0.get(&id).cloned()
+    /// The icon handle for a voxel, generating it if absent. Returns
+    /// immediately with a valid handle; if new, the render is queued.
+    pub fn ensure(
+        &mut self,
+        voxel: Voxel,
+        registry: &BlockRegistry,
+        arena: &ModelArena,
+        images: &mut Assets<Image>,
+        meshes: &mut Assets<Mesh>,
+    ) -> Handle<Image> {
+        let block = BlockID(voxel.id());
+        let model = registry.get(block).models.resolve(voxel);
+        let key = IconKey { block, model };
+
+        if let Some(handle) = self.cache.get(&key) {
+            return handle.clone();
+        }
+
+        let target = images.add(new_icon_target());
+        let mesh = meshes.add(build_icon_mesh(voxel, registry, arena));
+
+        self.cache.insert(key, target.clone());
+        self.pending.push_back(PendingIcon {
+            target: target.clone(),
+            mesh,
+        });
+        target
     }
 }
 
-/// Flips to `true` once every icon has been rendered and the bake scene
-/// torn down. Gate a loading→in-game transition on this if you want zero
-/// icon pop-in; otherwise icons simply resolve a frame or two after the
-/// HUD appears, which is harmless since the handles are already bound.
-#[derive(Resource, Default)]
-pub struct BlockIconsReady(pub bool);
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STUDIO
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Marker that the studio exists. Its presence stops the spawn system from
+/// firing again and would gate a despawn if you add one.
+#[derive(Resource)]
+struct IconStudio;
+
+#[derive(Component)]
+struct IconCamera;
+
+#[derive(Component)]
+struct IconModelHolder;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
@@ -104,66 +158,24 @@ pub struct BlockIconPlugin;
 
 impl Plugin for BlockIconPlugin {
     fn build(&self, app: &mut App) {
+        // No state gating: both systems run from app start and self-gate on
+        // their dependencies, so generation begins the moment the material
+        // and arena appear during loading and continues into the game.
         app.init_resource::<BlockIcons>()
-            .init_resource::<BlockIconsReady>()
-            // The bake driver only exists while there's baking to do, so
-            // this run condition confines it to the loading window with no
-            // state dependency.
-            .add_systems(
-                Update,
-                drive_block_icon_baking_sys.run_if(resource_exists::<IconBaker>),
-            );
-
-        // NOTE: `setup_block_icon_baking_sys` is deliberately NOT added
-        // here — it must be ordered against systems this plugin can't see.
-        // Add it to your loading schedule with:
-        //
-        //     setup_block_icon_baking_sys
-        //         .after(assemble_texture_arrays_sys)   // needs the material
-        //         .after(bake_block_geometry)           // needs the arena
-        //
-        // and make `populate_item_registry_from_blocks_sys` run
-        // `.after(setup_block_icon_baking_sys)` so the icon handles exist
-        // when items are built. See the accompanying notes.
+            .add_systems(Update, spawn_icon_studio_sys.after(assemble_texture_arrays_sys))
+            .add_systems(Update, process_icon_requests_sys)
+        ;
     }
 }
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// INTERNAL BAKE STATE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Drives the sequential bake. Present only while baking is in progress;
-/// removed at teardown, which also disables the driver via its run
-/// condition.
-#[derive(Resource)]
-struct IconBaker {
-    /// One (target image, model mesh) pair per block, in dispatch order.
-    queue: Vec<(Handle<Image>, Handle<Mesh>)>,
-    next: usize,
-    camera: Entity,
-    holder: Entity,
-    light: Entity,
-}
-
-#[derive(Component)]
-struct IconCamera;
-
-#[derive(Component)]
-struct IconModelHolder;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // VARIANT SELECTION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// The representative voxel an icon renders for a given block.
-///
-/// Standard shapes use identity rotation and default state — the canonical
-/// look. Pipes get North↔South connections so the icon shows a straight
-/// segment through the block rather than a lone, cube-like core.
-///
-/// This is the single place to add engine-native variant icons later: a
-/// rotated log, a specific machine orientation, and so on.
-fn icon_voxel(shape: &BlockShape, id: BlockID) -> Voxel {
+/// Representative voxel per block: identity rotation and default state for
+/// standard shapes; a North↔South pipe segment so pipes aren't a lone core
+/// cube. The single place to add engine-native variant icons later.
+pub fn icon_voxel(shape: &BlockShape, id: BlockID) -> Voxel {
     match shape {
         BlockShape::Pipe => {
             let mask = ConnectionMask::NONE
@@ -176,16 +188,13 @@ fn icon_voxel(shape: &BlockShape, id: BlockID) -> Voxel {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// ICON MESH
+// ASSET CONSTRUCTION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Build the mesh for one block's icon.
-///
-/// This is `build_chunk_mesh` for a single voxel with the neighbour
-/// culling removed — an icon has no neighbours, so every quad is emitted
-/// and the GPU backface-culls the interior ones. Verts stay in the model's
-/// native `[0,1]³`; the camera looks at the cube's centre, so no offset is
-/// applied.
+/// A single model's mesh, in the chunk mesher's vertex format so it renders
+/// through the voxel material unchanged. No neighbour culling — an icon has
+/// no neighbours; the GPU backface-culls interior faces. Verts stay in
+/// `[0,1]³`; the camera looks at the cube centre.
 fn build_icon_mesh(voxel: Voxel, registry: &BlockRegistry, arena: &ModelArena) -> Mesh {
     let def = registry.get(BlockID(voxel.id()));
     let model_id = def.models.resolve(voxel);
@@ -200,6 +209,7 @@ fn build_icon_mesh(voxel: Voxel, registry: &BlockRegistry, arena: &ModelArena) -
     let mut index_offset = 0u32;
 
     for quad in arena.quads(model_id) {
+        // NOTE: field is `texture_slots` in your registry — match §1/§3.
         let slot = &def.texture_slots[quad.slot as usize];
         for (i, &vert) in quad.verts.iter().enumerate() {
             positions.push(vert.to_array());
@@ -227,9 +237,8 @@ fn build_icon_mesh(voxel: Voxel, registry: &BlockRegistry, arena: &ModelArena) -
     mesh
 }
 
-/// A fresh offscreen render target. Transparent-cleared, nearest-sampled,
-/// usable both as a render attachment (the camera writes it) and a texture
-/// (the UI samples it).
+/// A render target pre-filled with the placeholder colour, usable as both a
+/// render attachment and a sampled texture.
 fn new_icon_target() -> Image {
     let size = Extent3d {
         width: ICON_RESOLUTION,
@@ -239,7 +248,7 @@ fn new_icon_target() -> Image {
     let mut image = Image::new_fill(
         size,
         TextureDimension::D2,
-        &[0, 0, 0, 0],
+        &PLACEHOLDER,
         TextureFormat::Rgba8UnormSrgb,
         RenderAssetUsages::RENDER_WORLD,
     );
@@ -251,164 +260,134 @@ fn new_icon_target() -> Image {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SETUP  (add to your loading schedule — see plugin note)
+// STUDIO SPAWN + WARM-UP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Allocate a target and mesh per block, publish the handles, and spawn the
-/// isometric bake scene. Must run after the material and arena exist and
-/// before item registration reads `BlockIcons`.
-pub fn setup_block_icon_baking_sys(
+/// Spawn the studio the first frame its dependencies exist, and seed the
+/// warm-up. Runs every frame but does nothing until the material and arena
+/// are present, then fires exactly once.
+///
+/// The warm-up: the holder starts with a real block mesh and the camera
+/// points at a scratch target, so the very next rendered frame — behind the
+/// loading screen — forces the (synchronous) pipeline compile. After that
+/// the processor's real renders each take one frame.
+///
+/// NOTE ON THE GATE: this assumes `VoxelMaterialHandle` is *inserted* when
+/// the material is assembled. If instead it's `init_resource`'d empty at
+/// startup, this would fire too early — in that case drop `material` from
+/// the gate and order this system `.after(assemble_texture_arrays_sys)`.
+fn spawn_icon_studio_sys(
     mut commands: Commands,
-    registry: Res<BlockRegistry>,
-    arena: Res<ModelArena>,
-    material: Res<VoxelMaterialHandle>,
-    mut images: ResMut<Assets<Image>>,
+    material: Option<Res<VoxelMaterialHandle>>,
+    arena: Option<Res<ModelArena>>,
+    registry: Option<Res<BlockRegistry>>,
+    studio: Option<Res<IconStudio>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut ready: ResMut<BlockIconsReady>,
+    mut images: ResMut<Assets<Image>>,
 ) {
-    let mut icons = BlockIcons::default();
-    let mut queue = Vec::new();
-
-    // Skip id 0 (air).
-    for id in 1..registry.size() {
-        let block_id = BlockID(id as u16);
-        let def = registry.get(block_id);
-
-        let voxel = icon_voxel(&def.shape, block_id);
-        let mesh = meshes.add(build_icon_mesh(voxel, &registry, &arena));
-        let target = images.add(new_icon_target());
-
-        icons.0.insert(block_id, target.clone());
-        queue.push((target, mesh));
+    if studio.is_some() {
+        return; // already spawned
     }
-
-    // Nothing to render (only air registered). Publish empties and report
-    // done so a gated transition doesn't stall.
-    if queue.is_empty() {
-        commands.insert_resource(icons);
-        ready.0 = true;
-        info!("Block icons: nothing to bake.");
-        return;
-    }
-
-    // ---- the isometric bake scene ---------------------------------------
-    //
-    // Everything below lives on ICON_LAYER, invisible to the main camera.
-    // This block is the version-sensitive part; the surrounding logic is
-    // stable.
+    let (Some(material), Some(arena), Some(registry)) = (material, arena, registry) else {
+        return; // dependencies not ready yet
+    };
 
     let layer = RenderLayers::layer(ICON_LAYER);
     let center = Vec3::splat(0.5);
-
-    // Model holder: an empty mesh to start; the driver swaps in each block
-    // before the camera is activated, so this empty is never rendered.
-    let holder = commands
-        .spawn((
-            IconModelHolder,
-            Mesh3d(Handle::default()),
-            MeshMaterial3d(material.0.clone()),
-            Transform::default(),
-            Visibility::Visible,
-            layer.clone(),
-        ))
-        .id();
-
-    // Key light, aimed from upper-front-left. Under true isometric the
-    // three visible faces are symmetric, so the light must be asymmetric
-    // for top / left / right to read as distinct shades.
-    let light = commands
-        .spawn((
-            DirectionalLight {
-                illuminance: ICON_KEY_LUX,
-                shadows_enabled: false,
-                ..default()
-            },
-            Transform::from_translation(Vec3::new(-1.0, 2.5, 1.5)).looking_at(center, Vec3::Y),
-            layer.clone(),
-        ))
-        .id();
-
-    // True isometric: view along (1,1,1), looking at the cube centre, with
-    // world-up so the cube's vertical edges stay vertical in the image.
-    // Orthographic and fixed-size — see ICON_FRUSTUM_HEIGHT.
     let dir = Vec3::ONE.normalize();
-    let camera = commands
-        .spawn((
-            IconCamera,
-            Camera3d::default(),
-            Camera {
-                // Off until the driver points it at the first target, so no
-                // stray render lands on the main window.
-                is_active: false,
-                clear_color: ClearColorConfig::Custom(Color::NONE),
-                ..default()
-            },
-            RenderTarget::Image(queue[0].0.clone().into()),
-            Projection::Orthographic(OrthographicProjection {
-                scaling_mode: ScalingMode::Fixed {
-                    width: ICON_FRUSTUM_HEIGHT,
-                    height: ICON_FRUSTUM_HEIGHT,
-                },
-                ..OrthographicProjection::default_3d()
-            }),
-            // Per-view ambient fill. If your Bevy version doesn't accept
-            // AmbientLight as a camera component, delete this line — the
-            // global ambient will apply instead.
-            AmbientLight {
-                brightness: ICON_AMBIENT,
-                ..default()
-            },
-            Transform::from_translation(center + dir * 10.0).looking_at(center, Vec3::Y),
-            layer.clone(),
-        ))
-        .id();
 
-    let count = queue.len();
-    commands.insert_resource(icons);
-    commands.insert_resource(IconBaker {
-        queue,
-        next: 0,
-        camera,
-        holder,
-        light,
-    });
+    // Warm-up mesh: any real block. Its render compiles the icon pipeline.
+    let warmup_mesh = if registry.size() > 1 {
+        meshes.add(build_icon_mesh(Voxel::full(1), &registry, &arena))
+    } else {
+        Handle::default()
+    };
 
-    info!("Block icons: baking {count} icons.");
+    commands.spawn((
+        IconModelHolder,
+        Mesh3d(warmup_mesh),
+        MeshMaterial3d(material.0.clone()),
+        Transform::default(),
+        Visibility::Visible,
+        layer.clone(),
+    ));
+
+    // Key light from upper-front-left, off the view axis so the three
+    // visible faces read distinctly under true isometric.
+    commands.spawn((
+        DirectionalLight {
+            illuminance: ICON_KEY_LUX,
+            shadows_enabled: false,
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(-1.0, 2.5, 1.5)).looking_at(center, Vec3::Y),
+        layer.clone(),
+    ));
+
+    // The camera starts aimed at a scratch target purely to warm the
+    // pipeline; the processor repoints it at real icon targets from the next
+    // frame on. `Msaa::Off` so it writes the single-sample image directly.
+    let scratch = images.add(new_icon_target());
+    commands.spawn((
+        IconCamera,
+        Camera3d::default(),
+        Camera {
+            clear_color: ClearColorConfig::Custom(Color::NONE),
+            ..default()
+        },
+        Msaa::Off,
+        RenderTarget::Image(scratch.into()),
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::Fixed {
+                width: ICON_FRUSTUM,
+                height: ICON_FRUSTUM,
+            },
+            ..OrthographicProjection::default_3d()
+        }),
+        AmbientLight {
+            brightness: ICON_AMBIENT,
+            ..default()
+        },
+        Transform::from_translation(center + dir * 10.0).looking_at(center, Vec3::Y),
+        layer,
+    ));
+
+    commands.insert_resource(IconStudio);
+    info!("Icon studio spawned; warming pipeline behind the loading screen.");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// DRIVER  (added by the plugin)
+// PROCESSOR
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// One icon per frame: point the camera at the next target, swap the model
-/// in. The previous frame's target is guaranteed rendered by now, so when
-/// the queue drains we tear the scene down and report ready.
-fn drive_block_icon_baking_sys(
-    mut commands: Commands,
-    mut baker: ResMut<IconBaker>,
+/// One icon per frame: repoint the persistent camera at the next queued
+/// target and swap in its mesh. The previous frame's target has finished
+/// rendering, so its pixels are already in place — nothing to track. When
+/// the queue empties, deactivate the camera so it stops consuming a pass;
+/// it reactivates the moment a new request (startup or runtime) arrives.
+///
+/// Self-gates on the studio: until the camera and holder exist, the queries
+/// come up empty and it does nothing.
+fn process_icon_requests_sys(
+    mut icons: ResMut<BlockIcons>,
     mut cameras: Query<(&mut Camera, &mut RenderTarget), With<IconCamera>>,
     mut holders: Query<&mut Mesh3d, With<IconModelHolder>>,
-    mut ready: ResMut<BlockIconsReady>,
 ) {
-    if baker.next >= baker.queue.len() {
-        commands.entity(baker.camera).despawn();
-        commands.entity(baker.holder).despawn();
-        commands.entity(baker.light).despawn();
-        commands.remove_resource::<IconBaker>();
-        ready.0 = true;
-        info!("Block icons: bake complete.");
-        return;
-    }
+    let Ok((mut camera, mut target)) = cameras.single_mut() else { return };
+    let Ok(mut holder) = holders.single_mut() else { return };
 
-    let (target, mesh) = baker.queue[baker.next].clone();
-
-    if let Ok((mut camera, mut render_target)) = cameras.single_mut() {
-        *render_target = RenderTarget::Image(target.into());
-        camera.is_active = true;
+    match icons.pending.pop_front() {
+        Some(job) => {
+            *target = RenderTarget::Image(job.target.into());
+            holder.0 = job.mesh;
+            if !camera.is_active {
+                camera.is_active = true;
+            }
+        }
+        None => {
+            if camera.is_active {
+                camera.is_active = false;
+            }
+        }
     }
-    if let Ok(mut holder_mesh) = holders.single_mut() {
-        holder_mesh.0 = mesh;
-    }
-
-    baker.next += 1;
 }

@@ -178,7 +178,6 @@ pub fn load_item_definitions_sys(
             };
 
             item_registry.register(ItemDefinition {
-                id:           ItemID(0), // overwritten by register()
                 name:         def.name.clone(),
                 display_name: def.display_name.clone(),
                 max_stack:    def.max_stack,
