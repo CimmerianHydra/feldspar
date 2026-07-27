@@ -6,3 +6,6 @@ pub mod log;
 pub mod parser;
 pub mod main;
 pub mod registry;
+pub mod chat;
+pub mod session;
+pub mod ui;

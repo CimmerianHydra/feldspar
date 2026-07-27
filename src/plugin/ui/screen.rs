@@ -46,10 +46,16 @@ pub struct UIPushOptions {
     /// World entities this screen is a view of, if any. Feeds `EntityUISession`, so
     /// breaking a barrel closes the barrel's screen.
     pub sources: Vec<Entity>,
+    /// Does this UI capture text and swallow every keystroke while it's on top?
+    pub captures_text: bool,
 }
 
 impl Default for UIPushOptions {
-    fn default() -> Self { Self { dim: true, sources: Vec::new() } }
+    fn default() -> Self { Self {
+        dim: true,
+        sources: Vec::new(),
+        captures_text: false,
+    } }
 }
 
 impl UIPushOptions {
@@ -59,6 +65,7 @@ impl UIPushOptions {
         self.sources.extend(entities);
         self
     }
+    pub fn capturing_text(mut self) -> Self { self.captures_text = true; self }
 }
 
 /// The one interstitial layer. `should_block_lower` makes the topmost screen
@@ -102,6 +109,10 @@ impl UiScreenCommandsExt for Commands<'_, '_> {
             EntityUISession { source_entities: options.sources.clone() },
             Children::spawn(Spawn(content)),
         )).id();
+
+        if options.captures_text {
+            self.entity(screen).insert(TextCapture);
+        };
 
         self.queue(move |world: &mut World| {
             let Ok(mut player_ref) = world.get_entity_mut(player) else {
@@ -169,9 +180,10 @@ fn despawn_screen(world: &mut World, screen: Entity) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub fn reconcile_ui_stack_sys(
-    mut commands: Commands,
-    stacks: Query<(Entity, &UiStack), Changed<UiStack>>,
+    mut commands:  Commands,
+    stacks:        Query<(Entity, &UiStack), Changed<UiStack>>,
     mut z_indices: Query<&mut ZIndex, With<UiScreen>>,
+    text_capture:  Query<(), With<TextCapture>>,
 ) {
     for (player, stack) in stacks.iter() {
         for (depth, screen) in stack.iter().enumerate() {
@@ -180,19 +192,29 @@ pub fn reconcile_ui_stack_sys(
             }
         }
 
-        // All these are idempotent actions, so enforcing them twice in a row is fine.
+        let capturing_text = stack.top().is_some_and(|top| text_capture.contains(top));
+
         if stack.is_empty() {
             commands.entity(player).insert((
                 ContextActivity::<GameInput>::ACTIVE,
                 ContextActivity::<UiInput>::INACTIVE,
             ));
+            commands.entity(player).remove::<TextFocus>();
             commands.trigger(CursorLockRequest::Lock);
             commands.set_state(GameUpdate::Enabled);
+        } else if capturing_text {
+            commands.entity(player).insert((
+                ContextActivity::<GameInput>::INACTIVE,
+                ContextActivity::<UiInput>::INACTIVE,
+                TextFocus,
+            ));
+            commands.trigger(CursorLockRequest::Unlock);
         } else {
             commands.entity(player).insert((
                 ContextActivity::<GameInput>::INACTIVE,
                 ContextActivity::<UiInput>::ACTIVE,
             ));
+            commands.entity(player).remove::<TextFocus>();
             commands.trigger(CursorLockRequest::Unlock);
         }
     }
@@ -209,3 +231,18 @@ pub fn ui_back_obs(event: On<Start<UiBack>>, mut commands: Commands) {
 pub fn ui_close_all_obs(event: On<Start<UiCloseAll>>, mut commands: Commands) {
     commands.close_all_ui_screens(event.context);
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TEXT INPUT (console, search boxes...)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Marks a screen as owning the keyboard. While it's on top of the stack every
+/// input context goes inactive, so keystrokes reach a text buffer instead of
+/// firing actions. Without this, typing "e" into the console opens the inventory.
+#[derive(Component)]
+pub struct TextCapture;
+
+/// The reconciler's mirror of `TextCapture`, on the *player*. Lets keyboard
+/// ingestion be one query filter instead of a stack walk.
+#[derive(Component)]
+pub struct TextFocus;

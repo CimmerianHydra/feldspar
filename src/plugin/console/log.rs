@@ -46,4 +46,9 @@ impl ConsoleLog {
     pub fn clear(&mut self)      { self.lines.clear(); }
     pub fn len(&self)  -> usize  { self.lines.len() }
     pub fn is_empty(&self) -> bool { self.lines.is_empty() }
+
+    /// The last `count` lines, oldest first.
+    pub fn tail(&self, count: usize) -> impl Iterator<Item = &LogLine> {
+        self.lines.iter().skip(self.lines.len().saturating_sub(count))
+    }
 }

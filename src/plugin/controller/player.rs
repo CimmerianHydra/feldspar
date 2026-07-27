@@ -77,6 +77,11 @@ pub struct UiOpenPauseMenu;
 #[action_output(bool)]
 pub struct UiOpenPlayerInventory;
 
+/// Action corresponding to backslash in the standard layout.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub struct ConsoleToggle;
+
 // ── Components ────────────────────────────────────────────────────────────────
 
 #[derive(Component)]
@@ -188,6 +193,7 @@ fn build_game_input_actions() -> impl Bundle
                 },
                 bindings![KeyCode::KeyI],
             ),
+            (Action::<ConsoleToggle>::new(), bindings![KeyCode::F3]),
             (Action::<SelectItem>::new(), HotbarSelection { index: 0 }, bindings![KeyCode::Digit1]),
             (Action::<SelectItem>::new(), HotbarSelection { index: 1 }, bindings![KeyCode::Digit2]),
             (Action::<SelectItem>::new(), HotbarSelection { index: 2 }, bindings![KeyCode::Digit3]),
@@ -218,6 +224,7 @@ fn build_ui_input_actions() -> impl Bundle {
             ActionSettings { require_reset: true, ..Default::default() },
             bindings![KeyCode::Escape, KeyCode::KeyI],
         ),
+        (Action::<ConsoleToggle>::new(), bindings![KeyCode::F3]),
     ]))
 }
 

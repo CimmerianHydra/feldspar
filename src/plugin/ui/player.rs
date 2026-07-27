@@ -86,6 +86,7 @@ pub fn open_player_inventory_obs(
     let ui_options = UIPushOptions {
         dim: true,
         sources: involved_entities,
+        ..default()
     };
 
     let Some(panel) = build_player_ui_with_top_panel(

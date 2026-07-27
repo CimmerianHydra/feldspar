@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_egui::egui::Key::D;
 use bevy_enhanced_input::prelude::*;
 
 use crate::plugin::controller::player::Player;
@@ -203,7 +204,7 @@ fn spawn_pause_menu_obs(
     // Spawn the pause menu and immediately set the world to not update
     commands.push_ui_screen(
         event.context, 
-        UIPushOptions { dim: true, sources: Vec::new() },
+        UIPushOptions { dim: true, sources: Vec::new(), ..default() },
         panel);
     commands.set_state(GameUpdate::Disabled);
 }

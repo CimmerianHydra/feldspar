@@ -5,6 +5,7 @@ use bevy::prelude::*;
 
 mod plugin;
 use bevy::render::RenderPlugin;
+use bevy::log::LogPlugin;
 use plugin::geometry::meshing::GeometryPlugin;
 use plugin::block::interaction::BlockInteractionPlugin;
 use plugin::ui::main::UIPlugin;
@@ -18,10 +19,6 @@ use plugin::controller::player::PlayerControllerPlugin;
 use plugin::audio::block::BlockAudioPlugin;
 use plugin::crafting::main::CraftingPlugin;
 use plugin::loader::main::AssetLoaderPlugin;
-
-use plugin::inventory::main::*;
-use plugin::inventory::player::*;
-use plugin::loader::item_registry::*;
 use plugin::state::GameUpdate;
 
 use avian3d::PhysicsPlugins;
@@ -33,16 +30,22 @@ use plugin::space::main::SpacePlugin;
 use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
 
 use plugin::console::main::ConsolePlugin;
+use plugin::console::chat::console_log_layer;
 
 
 fn main() {
     App::new()
         // Plugins
-        .add_plugins(DefaultPlugins.set(RenderPlugin {
-            // For now this should fix the block icon rendering problem
-            synchronous_pipeline_compilation: true,
-            ..default()
-        }))
+        .add_plugins(DefaultPlugins
+            .set(RenderPlugin {
+                synchronous_pipeline_compilation: true,
+                ..default()
+            })
+            .set(LogPlugin {
+                custom_layer: console_log_layer,
+                ..default()
+            })
+        )
         .add_plugins(ConsolePlugin)
         .add_plugins(PhysicsPlugins::default())
         .add_plugins(StatePlugin)
@@ -65,7 +68,6 @@ fn main() {
         // DEVELOPMENT & TEST SYSTEMS
         .add_systems(OnEnter(GameState::InGame), setup_dev_chunks)
         .add_systems(Update, enable_game.after(setup_dev_chunks))
-        .add_systems(Update, dev_populate_player_inventory)
         .add_systems(Update, spawn_dev_ship.run_if(input_just_pressed(KeyCode::F4)))
         .add_systems(Update, dev_submit_command.run_if(input_just_pressed(KeyCode::F5)))
 
@@ -78,26 +80,6 @@ fn enable_game(
     commands.set_state(GameUpdate::Enabled);
 }
 
-/// Hardcoded function to spawn some items into the player's inventory.
-/// Since I hardcoded a few blocks in the block registry, I'll add them here.
-pub fn dev_populate_player_inventory(
-    mut player_hotbar_query: Query<(Entity, &mut Inventory), Added<PlayerInventory>>,
-    item_registry: Res<ItemRegistry>,
-) {
-    if let Ok((_entity, mut inventory)) = player_hotbar_query.single_mut() {
-        for name in [
-            "dirt", "slate", "slate_slab", "slate_panel", "slate_stair", "wooden_item_pipe",
-            "iron_metal_ingot", "iron_metal_plate", "iron_metal_rod",
-            "copper_metal_ingot", "copper_metal_plate", "copper_metal_rod",
-            "oak_wood_plank", "spruce_wood_plank", "ebony_wood_plank"
-            ] {
-            let Some(item_id) = item_registry.by_name(name.to_string()) else { continue ;};
-            let result = inventory.insert(item_id, 10, &item_registry);
-
-            bevy::log::info!("Added [{}]x{} to player inventory.", name.to_string(), result.transferred);
-        }
-    }
-}
 
 
 use crate::plugin::block::interaction::VoxelWriteRequest;

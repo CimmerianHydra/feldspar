@@ -42,10 +42,10 @@ pub fn give_cmd(
 
     // ── Validate before touching the world ───────────────────────────────
     if requested_amount < 1 {
-        return Err(CommandError::Failed("amount has to be at least 1".into()));
+        return Err(CommandError::Failed("'amount' has to be at least 1".into()));
     }
     if requested_amount > u16::MAX as i64 {
-        return Err(CommandError::Failed(format!("amount has to be at most {}", u16::MAX)));
+        return Err(CommandError::Failed(format!("'amount' has to be at most {}", u16::MAX)));
     }
     let requested_amount = requested_amount as u16;
 
@@ -55,10 +55,10 @@ pub fn give_cmd(
     let Some(item_id) = item_registry.by_name(requested_name.clone()) else {
         let suggestions = suggest_item_names(&item_registry, &requested_name);
         return Err(CommandError::Failed(if suggestions.is_empty() {
-            format!("no item named '{requested_name}'")
+            format!("No item named '{requested_name}'.")
         } else {
             format!(
-                "no item named '{requested_name}' — did you mean: {}?",
+                "No item named '{requested_name}'. Did you mean: {}?",
                 suggestions.join(", ")
             )
         }));
@@ -67,15 +67,14 @@ pub fn give_cmd(
 
     // ── Resolve the destinations ─────────────────────────────────────────
     let Ok(&inventory_set) = player_inventories.get(player) else {
-        return Err(CommandError::Failed("the calling player has no inventories".into()));
+        return Err(CommandError::Failed("The calling player entity has no inventories".into()));
     };
 
-    // Backpack first, spilling into the hotbar — so a full main inventory
-    // doesn't make the command look like it did nothing.
+    // Hotbar first, then inventory.
     let mut given = 0u16;
     let mut left  = requested_amount;
 
-    for target in [inventory_set.main, inventory_set.hotbar] {
+    for target in [inventory_set.hotbar, inventory_set.main] {
         if left == 0 { break; }
 
         let Ok(mut inventory) = inventories.get_mut(target) else { continue };
@@ -96,14 +95,14 @@ pub fn give_cmd(
 
     // ── Report ───────────────────────────────────────────────────────────
     if given == 0 {
-        return Err(CommandError::Failed(format!("no room for {display_name}")));
+        return Err(CommandError::Failed(format!("No inventory space available for [{display_name}].")));
     }
     if left > 0 {
         return Ok(Feedback::warn(format!(
-            "gave {display_name} x{given} — {left} didn't fit"
+            "Added [{display_name}]x{given} to player inventory. Inventory full: {left} could not fit."
         )));
     }
-    Ok(Feedback::success(format!("gave {display_name} x{given}")))
+    Ok(Feedback::success(format!("Added [{display_name}]x{given} to player inventory.")))
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
