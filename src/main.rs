@@ -1,210 +1,39 @@
-
-use avian3d::dynamics::rigid_body::mass_properties::components::ColliderDensity;
-use bevy::input::common_conditions::input_just_pressed;
-use bevy::prelude::*;
-
-mod plugin;
-use bevy::render::RenderPlugin;
-use bevy::log::LogPlugin;
-use plugin::geometry::meshing::GeometryPlugin;
-use plugin::block::interaction::BlockInteractionPlugin;
-use plugin::ui::main::UIPlugin;
-use plugin::weather::WeatherPlugin;
-use plugin::state::StatePlugin;
-use plugin::controller::main::ControlsPlugin;
-use plugin::inventory::main::InventoryPlugin;
-use plugin::graphics::block_material::VoxelMaterialPlugin;
-use plugin::worldgen::main::WorldgenPlugin;
-use plugin::controller::player::PlayerControllerPlugin;
-use plugin::audio::block::BlockAudioPlugin;
-use plugin::crafting::main::CraftingPlugin;
-use plugin::loader::main::AssetLoaderPlugin;
-use plugin::state::GameUpdate;
-
 use avian3d::PhysicsPlugins;
-use plugin::state::GameState;
+use bevy::log::LogPlugin;
+use bevy::prelude::*;
+use bevy::render::RenderPlugin;
 
-use plugin::block::main::BlockPlugin;
-use plugin::space::main::VoxelChunk;
-use plugin::space::main::SpacePlugin;
-use plugin::worldgen::main::{WorldGenerator, ActiveWorldGenerator};
-
-use plugin::console::main::ConsolePlugin;
-use plugin::console::chat::console_log_layer;
-
+use feldspar::command::console_log_layer;
+use feldspar::GamePlugin;
 
 fn main() {
     App::new()
-        // Plugins
-        .add_plugins(DefaultPlugins
-            .set(RenderPlugin {
-                synchronous_pipeline_compilation: true,
-                ..default()
-            })
-            .set(LogPlugin {
-                custom_layer: console_log_layer,
-                ..default()
-            })
+        .add_plugins(
+            DefaultPlugins
+                // Block-icon rendering needs the pipeline ready on the frame
+                // it is asked for; see `render::icons`.
+                .set(RenderPlugin {
+                    synchronous_pipeline_compilation: true,
+                    ..default()
+                })
+                // Routes `chat!` lines into the in-game console.
+                .set(LogPlugin {
+                    custom_layer: console_log_layer,
+                    ..default()
+                }),
         )
-        .add_plugins(ConsolePlugin)
         .add_plugins(PhysicsPlugins::default())
-        .add_plugins(StatePlugin)
-        //.add_plugins(FreeCameraPlugin)
-        .add_plugins(PlayerControllerPlugin)
-        .add_plugins(ControlsPlugin)
-        .add_plugins(VoxelMaterialPlugin)
-        .add_plugins(AssetLoaderPlugin)
-        .add_plugins(SpacePlugin)
-        .add_plugins(BlockPlugin)
-        .add_plugins(GeometryPlugin)
-        .add_plugins(UIPlugin)
-        .add_plugins(InventoryPlugin)
-        .add_plugins(BlockInteractionPlugin)
-        .add_plugins(WorldgenPlugin)
-        .add_plugins(WeatherPlugin)
-        .add_plugins(BlockAudioPlugin)
-        .add_plugins(CraftingPlugin)
-
-        // DEVELOPMENT & TEST SYSTEMS
-        .add_systems(OnEnter(GameState::InGame), setup_dev_chunks)
-        .add_systems(Update, enable_game.after(setup_dev_chunks))
-        .add_systems(Update, spawn_dev_ship.run_if(input_just_pressed(KeyCode::F4)))
-        .add_systems(Update, dev_submit_command.run_if(input_just_pressed(KeyCode::F5)))
-
+        .add_plugins(GamePlugin)
+        .add_plugins(DevPlugins)
         .run();
 }
 
-fn enable_game(
-    mut commands: Commands,
-) {
-    commands.set_state(GameUpdate::Enabled);
-}
+/// Dev-only fixtures, compiled out when the `dev` feature is off.
+struct DevPlugins;
 
-
-
-use crate::plugin::block::interaction::VoxelWriteRequest;
-use crate::plugin::console::command::PendingCommands;
-use crate::plugin::console::command::CommandSource;
-use crate::plugin::controller::player::Player;
-use crate::plugin::geometry::collision::NeedsColliderRebuild;
-use crate::plugin::geometry::collision::CHUNK_COLLIDER_DENSITY;
-use crate::plugin::geometry::meshing::NeedsRemeshing;
-use crate::plugin::loader::block_registry::BlockID;
-use crate::plugin::loader::block_registry::BlockRegistry;
-use crate::plugin::space::main::BlockPos;
-use crate::plugin::space::main::DimensionRegistry;
-use crate::plugin::space::main::ChunkSlot;
-use crate::plugin::space::main::build_moving_grid;
-use crate::plugin::geometry::voxel::Voxel;
-use avian3d::dynamics::rigid_body::*;
-
-/// How many chunks out from origin to pre-spawn on each axis.
-/// Total chunk count = (2*R + 1)^3 — with R=8 that's 4913 chunks.
-/// Drop this to 2 or 3 if startup feels heavy while testing.
-const DEV_CHUNK_RADIUS: i32 = 4;
-const DEV_CHUNK_HEIGHT: i32 = 4;
-
-fn setup_dev_chunks(
-    mut commands:                   Commands,
-    worldgen:                       Res<ActiveWorldGenerator>,
-    dimensions:                     Res<DimensionRegistry>,
-) {
-    // ── chunk generation + spawn ──────────────────────────────────────────
-
-    for cx in -DEV_CHUNK_RADIUS..=DEV_CHUNK_RADIUS {
-        for cy in -DEV_CHUNK_HEIGHT..=DEV_CHUNK_HEIGHT {
-            for cz in -DEV_CHUNK_RADIUS..=DEV_CHUNK_RADIUS {
-                let chunk_pos = IVec3::new(cx, cy, cz);
-
-                let mut chunk_data = VoxelChunk::empty();
-                worldgen.generate_chunk(chunk_pos, &mut chunk_data);
-                
-                bevy::log::debug!("Generating static chunk at position ({}, {}, {})", cx, cy, cz);
-
-                let chunk_slot = ChunkSlot { space: dimensions.overworld(), coord: chunk_pos };
-
-                commands.spawn((
-                    chunk_slot.clone(),
-                    chunk_data.clone(),
-                    NeedsRemeshing,
-                    NeedsColliderRebuild,
-                ));
-            }
-        }
+impl Plugin for DevPlugins {
+    fn build(&self, _app: &mut App) {
+        #[cfg(feature = "dev")]
+        _app.add_plugins(feldspar::dev::DevPlugin);
     }
 }
-
-fn spawn_dev_ship(
-    mut commands:       Commands,
-    registry:           Res<BlockRegistry>,
-) {
-    let Some(barrel_id) = registry.by_name("barrel".to_string()) else {
-        error!("dev grid: no 'barrel' block in the registry — check barrel.json");
-        return;
-    };
-    let hull_id = resolve_hull_block(&registry);
- 
-    // ---- the space owns the body ----------------------------------------
-    let spawn_transform = Transform::from_translation(Vec3::new(0.0, 16.0, 0.0));
- 
-    let grid = commands
-        .spawn((
-            build_moving_grid(spawn_transform, "TestBarrelCrate"),
-            Friction::new(0.5),
-            Restitution::new(0.05),
-        ))
-        .id();
- 
-    // ---- the chunk supplies geometry -------------------------------------
-    // We spawn an empty chunk in the ship's body. Later, we will simulate BlockEvent::Place events
-    // for every block so that it gets populated and block entities are spawned as they should be.
-    commands.spawn((
-        Name::new("TestBarrelCrate/chunk"),
-        ChunkSlot { space: grid, coord: IVec3::ZERO },
-        VoxelChunk::empty(),
-        NeedsRemeshing,
-        NeedsColliderRebuild,
-        ColliderDensity(CHUNK_COLLIDER_DENSITY),
-        Visibility::Visible,
-    ));
-
-    // ---- author the chunk contents -------------------------------------
-    // We simulate BlockEvent::Place events (which are induced by VoxelWriteRequests) so that block
-    // entities are spawned if the block needs it.
-    // This step fails if no chunk entity exists containing the requested coords.
-    // This is fairly inefficient even for small grids because VoxelWriteRequests induce remeshing and
-    // recolliding. Large amounts of VWRs should be handled more efficiently (explosions).
-    for x in 0..2i32 {
-        for y in 0..2i32 {
-            for z in 0..2i32 {
-                let coords = IVec3::new(x, y, z);
-                // One barrel, so there's exactly one thing to right-click.
-                let id = if coords == IVec3::new(1, 1, 1) { barrel_id } else { hull_id };
-                commands.trigger(VoxelWriteRequest {
-                    at: BlockPos { space: grid, pos: coords },
-                    voxel: Voxel::full(id.0),
-                });
-            }
-        }
-    }
- 
-    info!("Dev Grid spawned at: {}", spawn_transform.translation);
-}
- 
-/// Pick a solid block for the hull, tolerating an unknown name.
-fn resolve_hull_block(registry: &BlockRegistry) -> BlockID {
-    if let Some(id) = registry.by_name("slate".to_string()) {
-        return id;
-    }
-    warn!("dev grid: block not found, falling back to the first registered block");
-    // Index 0 is always air, so 1 is the first real block.
-    BlockID(1.min(registry.size().saturating_sub(1) as u16))
-}
-
-fn dev_submit_command(
-    mut pending: ResMut<PendingCommands>,
-    player:      Single<Entity, With<Player>>,
-) {
-    pending.push(CommandSource::Player(*player), "/give slate 64");
-}
-// .add_systems(Update, dev_submit_command.run_if(input_just_pressed(KeyCode::F5)))

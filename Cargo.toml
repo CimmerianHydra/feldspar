@@ -3,6 +3,13 @@ name = "feldspar"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["dev"]
+# Dev-only fixtures: pre-generated chunks, the F4 test ship, the F5 command.
+# On by default; turn it off for a headless or shipping build and the whole
+# `dev` module compiles out.
+dev = []
+
 [dependencies]
 bevy = { version = "0.18", features = ["debug", "mesh_picking"] }
 bevy_common_assets = { version = "0.16", features = ["json"] }
