@@ -10,12 +10,12 @@
 //! `Inventory` and is `Interactable`; whether anyone is looking at it, and
 //! what that looks like, is not its problem. Everything here runs headless.
 
+
 pub mod behaviors;
 pub mod block_entity;
 pub mod crafting;
 pub mod inventory;
 pub mod player;
-
 pub use block_entity::{BlockEntityEvent, BlockEntityTag, Interactable};
 pub use player::{
     HotbarSelect, LookTarget, LookTargetChanged, Player, PlayerEquipment, PlayerHeldItems,

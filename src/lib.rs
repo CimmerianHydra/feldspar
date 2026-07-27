@@ -48,6 +48,11 @@
 //! crate-internal imports, re-exported at the crate root so that call sites
 //! read `use crate::GameState;` rather than reaching upward into `app`.
 
+
+
+#[cfg(feature = "dev")]
+pub mod dev;
+
 pub mod app;
 pub mod audio;
 pub mod command;
@@ -61,10 +66,6 @@ pub mod space;
 pub mod ui;
 pub mod voxel;
 pub mod worldgen;
-
-#[cfg(feature = "dev")]
-pub mod dev;
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CRATE VOCABULARY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

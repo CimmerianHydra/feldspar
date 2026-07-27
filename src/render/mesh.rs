@@ -6,12 +6,12 @@
 //! - `bake`    — one pass at load that fills every block's `ModelTable`
 //! - `mesher`  — the per-chunk mesh build, driven by `Changed<VoxelChunk>`
 
+
 pub mod bake;
 pub mod element;
 pub mod mesher;
 pub mod model;
 pub mod shapes;
-
 pub use element::{BakedQuad, CullTag, Element, ElementBox, FaceSpec};
 pub use model::{BakedModel, ModelArena, ModelFlags};
 

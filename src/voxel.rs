@@ -10,15 +10,16 @@
 //! Everything worth naming is re-exported at this level, so call sites read
 //! `crate::voxel::Voxel` rather than `crate::voxel::voxel::Voxel`.
 
+
+#[allow(clippy::module_inception)]
+pub mod voxel;
+
 pub mod coords;
 pub mod direction;
 pub mod ids;
 pub mod rotation;
 pub mod shape;
 pub mod variants;
-#[allow(clippy::module_inception)]
-pub mod voxel;
-
 pub use ids::{BlockID, ItemID};
 
 pub use coords::{
