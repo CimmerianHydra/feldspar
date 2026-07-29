@@ -653,6 +653,7 @@ dependencies = [
  "bevy_reflect",
  "bevy_state",
  "bevy_utils",
+ "iyes_progress",
  "path-slash",
 ]
 

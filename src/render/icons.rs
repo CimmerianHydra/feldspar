@@ -29,6 +29,9 @@
 //! the registration pass lives here and writes down into the item registry.
 
 use std::collections::VecDeque;
+use std::time::Duration;
+
+use iyes_progress::Progress;
 
 use bevy::asset::RenderAssetUsages;
 use bevy::image::ImageSampler;
@@ -128,6 +131,13 @@ impl BlockIcons {
             mesh,
         });
         target
+    }
+
+    /// How many renders are still owed. The loader holds the splash screen
+    /// until this reaches zero, so the hotbar's first frame shows real
+    /// icons rather than the grey placeholder.
+    pub fn pending(&self) -> usize {
+        self.pending.len()
     }
 }
 
@@ -364,6 +374,40 @@ fn process_icon_requests_sys(
         }
     }
 }
+
+/// Hold the load until the icon queue drains. One icon per rendered frame,
+/// so this is a step measured in frames, not in work — which is precisely
+/// why it has to report partial progress rather than block.
+///
+/// **Requires `synchronous_pipeline_compilation`** (see the module docs).
+/// Without it the icon pipeline is never ready, no target is ever written,
+/// and this would wait forever — hence the bail-out.
+pub fn await_block_icons_sys(
+    icons: Res<BlockIcons>,
+    time: Res<Time>,
+    mut queued: Local<Option<u32>>,
+    mut waited: Local<Duration>,
+) -> Progress {
+    // First call: whatever is in the queue right now is the denominator.
+    let total = *queued.get_or_insert(icons.pending() as u32);
+    let done = total.saturating_sub(icons.pending() as u32);
+
+    *waited += time.delta();
+    if *waited > ICON_DRAIN_TIMEOUT && done < total {
+        warn_once!(
+            "Icon queue still has {} entries after {:?} — continuing without them. \
+             Is `synchronous_pipeline_compilation` enabled?",
+            icons.pending(),
+            ICON_DRAIN_TIMEOUT,
+        );
+        return Progress { done: total, total };
+    }
+
+    Progress { done, total }
+}
+
+/// Generous: a few hundred icons at one per frame is a second or two.
+const ICON_DRAIN_TIMEOUT: Duration = Duration::from_secs(20);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN

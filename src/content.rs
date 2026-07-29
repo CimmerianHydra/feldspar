@@ -42,6 +42,12 @@ pub mod recipe;
 pub mod shape_set;
 pub mod substance;
 pub mod texture;
+
+/// Inserted by `bevy_asset_loader` the instant every collection above has
+/// been built. `app::loading` gates the elaboration sequence on it, so no
+/// step ever runs against a half-parsed world.
+#[derive(Resource, Default)]
+pub struct ContentFilesReady;
 pub struct ContentPlugin;
 
 impl Plugin for ContentPlugin {
@@ -78,6 +84,7 @@ impl Plugin for ContentPlugin {
                     .load_collection::<PartProfileAssets>()
                     .load_collection::<SpatialRecipeAssets>()
                     .load_collection::<ModelSourceAssets>()
+                    .finally_init_resource::<ContentFilesReady>()
             );
     }
 }

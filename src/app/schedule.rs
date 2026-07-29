@@ -61,6 +61,19 @@ pub enum ConsoleSet {
     Present,
 }
 
+/// The loading frame, in two beats. Gated on `GameState::AssetLoading`.
+///
+/// `Present` after `Advance` is load-bearing, not cosmetic: a step announces
+/// its caption one frame before it runs, and the splash has to pick that up
+/// *this* frame for the caption to be on screen while the step blocks.
+#[derive(SystemSet, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum LoadSet {
+    /// The sequence driver and the progress reporters.
+    Advance,
+    /// The splash screen catching up.
+    Present,
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -84,6 +97,13 @@ impl Plugin for SchedulePlugin {
         .configure_sets(
             Update,
             (ConsoleSet::Input, ConsoleSet::Dispatch, ConsoleSet::Present).chain(),
-        );
+        )
+        .configure_sets(
+            Update,
+            (LoadSet::Advance, LoadSet::Present)
+                .chain()
+                .run_if(in_state(GameState::AssetLoading)),
+        )
+        ;
     }
 }

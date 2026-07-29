@@ -7,11 +7,14 @@
 //! modules with no crate-internal dependencies of their own, re-exported at
 //! the crate root, and any layer may name them.
 
+
 pub mod loading;
+pub mod progress;
 pub mod schedule;
 pub mod state;
 
-pub use schedule::{BakeSet, ConsoleSet, GameplaySet};
+pub use progress::LoadReport;
+pub use schedule::{BakeSet, ConsoleSet, GameplaySet, LoadSet};
 pub use state::{GameMode, GameState, GameUpdate};
 
 use bevy::prelude::*;
