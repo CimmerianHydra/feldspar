@@ -28,6 +28,6 @@ pub use coords::{
 };
 pub use direction::{dir_from_index, dir_from_ivec3, dir_index, Direction, ALL_DIRECTIONS};
 pub use rotation::{BlockRotation, RotMatrix, ROTATION_COUNT};
-pub use shape::{pipe_slots, slots, BlockShape, ConnectionMask, FACE_SLOTS};
+pub use shape::{asset_stem, pipe_slots, slots, BlockShape, ConnectionMask, FACE_SLOTS};
 pub use variants::{ModelID, ModelTable, VariantKey, MAX_VARIANT_BITS};
 pub use voxel::{Voxel, ID_BITS, ROTATION_BITS, STATE_BITS};

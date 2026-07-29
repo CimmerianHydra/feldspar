@@ -14,6 +14,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 
 use crate::content::block::BlockRegistry;
+use crate::render::mesh::mesher::ChunkSurface;
 use crate::space::{ChunkSlot, MovingGrid, VoxelChunk};
 use crate::voxel::{BlockID, CHUNK_SIZE};
 use crate::BakeSet;
@@ -43,22 +44,26 @@ pub fn update_dirty_collider_sys(
     meshes: Res<Assets<Mesh>>,
     registry: Res<BlockRegistry>,
     chunks: Query<
-        (Entity, &ChunkSlot, &VoxelChunk, Option<&Mesh3d>),
+        (Entity, &ChunkSlot, &VoxelChunk, &Children),
         Changed<VoxelChunk>,
     >,
+    chunk_surfaces: Query<(&ChunkSurface, Option<&Mesh3d>)>,
     bodies: Query<&RigidBody>,
 ) {
-    for (entity, slot, chunk, mesh_handle) in chunks.iter() {
+    for (entity, slot, chunk, children) in chunks.iter() {
         let body = bodies.get(slot.space).copied().unwrap_or(RigidBody::Static);
 
         let collider = match body {
             // Static geometry: a trimesh off the render mesh. Hollow, but
             // that's fine for something that never moves, and it handles
             // slabs, stairs, and every other non-cube shape for free.
+            // TODO: update this since we now have multiple meshes in one chunk
+            /*
             RigidBody::Static => mesh_handle
                 .and_then(|h| meshes.get(&h.0))
                 .and_then(Collider::trimesh_from_mesh),
-
+             */
+            
             // Moving bodies: boxes with real interior volume. A dynamic
             // body made of a trimesh tunnels through geometry and has no
             // usable inertia tensor, because a hollow surface has no

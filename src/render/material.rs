@@ -77,35 +77,59 @@ impl MaterialExtension for VoxelMaterialExtension {
 // SECTION 2 – THE SHARED HANDLE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// The one voxel material every chunk and every block icon renders through.
-#[derive(Resource, Default)]
-pub struct VoxelMaterialHandle(pub Handle<VoxelMaterial>);
+use crate::content::block::definition::RenderClass;
 
-/// Build the material from the arrays `content::texture` assembled.
+/// The voxel materials, one per render class.
 ///
-/// The split is the layering rule in miniature: assembling image layers and
-/// naming them is content's job; deciding they are a PBR material with a
-/// custom vertex layout is the renderer's.
-pub fn build_voxel_material_sys(
-    mut commands: Commands,
-    arrays: Res<TextureArrays>,
+/// Not two material *types* — one type, two instances. They share a shader,
+/// a vertex layout and both texture arrays; only the pipeline state differs.
+/// A second type is what you would pay for water's reflections, and not
+/// before.
+#[derive(Resource, Default)]
+pub struct VoxelMaterials {
+    pub opaque: Handle<VoxelMaterial>,
+    pub mask:   Handle<VoxelMaterial>,
+}
+
+impl VoxelMaterials {
+    pub fn get(&self, class: RenderClass) -> Handle<VoxelMaterial> {
+        match class {
+            RenderClass::Opaque => self.opaque.clone(),
+            RenderClass::Mask   => self.mask.clone(),
+        }
+    }
+}
+
+/// Cutoff for alpha-tested surfaces. 0.5 is the conventional midpoint; it
+/// only matters for texels that are partially transparent, of which
+/// hard-edged pixel art has approximately none.
+const ALPHA_CUTOFF: f32 = 0.5;
+
+pub fn build_voxel_materials_sys(
+    mut commands:  Commands,
+    arrays:        Res<TextureArrays>,
     mut materials: ResMut<Assets<VoxelMaterial>>,
 ) {
-    let handle = materials.add(VoxelMaterial {
+    let make = |alpha_mode| VoxelMaterial {
         base: StandardMaterial {
             base_color:           Color::WHITE,
             metallic:             0.0,
             perceptual_roughness: 0.8,
+            alpha_mode,
             ..default()
         },
         extension: VoxelMaterialExtension {
             array_texture: arrays.base.clone(),
             array_overlay: arrays.overlay.clone(),
         },
-    });
-    commands.insert_resource(VoxelMaterialHandle(handle));
+    };
 
-    info!("Generated global handle for voxel material.");
+    commands.insert_resource(VoxelMaterials {
+        opaque: materials.add(make(AlphaMode::Opaque)),
+        mask:   materials.add(make(AlphaMode::Mask(ALPHA_CUTOFF))),
+    });
+
+    info!("Generated voxel materials: opaque, mask({ALPHA_CUTOFF}).");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -117,6 +141,6 @@ pub struct VoxelMaterialPlugin;
 impl Plugin for VoxelMaterialPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(MaterialPlugin::<VoxelMaterial>::default())
-            .init_resource::<VoxelMaterialHandle>();
+            .init_resource::<VoxelMaterials>();
     }
 }

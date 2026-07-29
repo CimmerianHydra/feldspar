@@ -89,11 +89,11 @@ impl BakedQuad {
 pub struct FaceSpec {
     /// Which of the model's paintable surfaces this face uses.
     pub slot: u8,
-    /// Explicit UV rectangle in `[0,1]²`, for imported models that carry
-    /// their own mapping. `None` derives UVs from the box extents, which
-    /// gives the "cut out of the full-block texture" behaviour you want
-    /// for slabs, stairs and panels.
-    pub uv: Option<[Vec2; 2]>,
+    /// Explicit per-corner UVs, in the same order as the face's verts, for
+    /// imported models that carry their own mapping. `None` derives UVs from
+    /// the box extents, which gives the "cut out of the full-block texture"
+    /// behaviour we want for slabs, stairs and panels.
+    pub uv: Option<[Vec2; 4]>,
 }
 
 impl FaceSpec {
@@ -188,15 +188,7 @@ pub fn box_quads(b: &ElementBox, out: &mut Vec<BakedQuad>) {
         let dir = ALL_DIRECTIONS[i];
 
         let (verts, uv_pairs, normal) = face_geometry(b.min, b.max, dir);
-
-        let uvs = match spec.uv {
-            Some([uv_min, uv_max]) => {
-                // Explicit mapping: lerp the derived corner parameters
-                // through the supplied rectangle.
-                std::array::from_fn(|k| uv_min + (uv_max - uv_min) * uv_pairs[k])
-            }
-            None => uv_pairs,
-        };
+        let uvs = spec.uv.unwrap_or(uv_pairs);
 
         out.push(BakedQuad {
             verts,

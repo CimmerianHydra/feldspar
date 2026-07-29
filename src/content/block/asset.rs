@@ -13,6 +13,10 @@ use crate::content::shape_set::ShapeSetRegistry;
 use crate::content::texture::TextureRegistry;
 use crate::voxel::{slots, BlockShape, Direction, ModelTable, ALL_DIRECTIONS};
 
+use std::collections::BTreeMap;
+use crate::content::block::definition::{ModelSurface, RenderClass};
+use crate::content::model_source::ModelSourceRegistry;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – ASSET COLLECTION  (bevy_asset_loader)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -85,6 +89,10 @@ pub struct BlockDefinitionAsset {
     pub behaviors:     Vec<String>,
     #[serde(default)]
     pub interactable:  bool,
+    /// Default render class for every surface. Per-surface `render` on a
+    /// `model` appearance overrides it.
+    #[serde(default)]
+    pub render: RenderClass,
 }
 
 fn default_true() -> bool { true }
@@ -106,6 +114,9 @@ pub enum BlockAppearanceAsset {
     UniformWithInternal {
         ext: FaceTexturesAsset,
         int: FaceTexturesAsset,
+    },
+    Model {
+        surfaces: BTreeMap<String, ModelSurfaceAsset>
     },
 }
 
@@ -152,6 +163,7 @@ pub fn populate_block_registry_sys(
     tex:          Res<TextureRegistry>,
     behaviors:    Res<BlockBehaviorRegistry>,
     shape_sets:   Res<ShapeSetRegistry>,
+    sources:      Res<ModelSourceRegistry>,
 ) {
     // ── Fan out: one asset → one definition per shape ──────────────────
     let mut pending: Vec<PendingBlock<'_>> = Vec::new();
@@ -202,7 +214,7 @@ pub fn populate_block_registry_sys(
         // Texture slots are resolved here, next to the appearance they come
         // from. Geometry is not: `render::mesh::bake` fills `models` in a
         // later pass, because only the renderer owns a model arena.
-        let texture_slots = resolve_slots(&appearance, &block.shape);
+        let texture_slots = resolve_slots(&appearance, &block.shape, &sources, RenderClass::Mask);
 
         registry.register_block(BlockDefinition {
             name:          block.name,
@@ -284,6 +296,17 @@ fn resolve_appearance(src: &BlockAppearanceAsset, tex: &TextureRegistry) -> Bloc
             BlockAppearance::UniformWithInternal {
                 ext: resolve_face(ext, tex), int: resolve_face(int, tex),
             },
+        BlockAppearanceAsset::Model { surfaces } => BlockAppearance::Model(
+            surfaces
+                .iter()
+                .map(|(name, s)| {
+                    (name.clone(), ModelSurface {
+                        textures: resolve_face(&s.textures, tex),
+                        render:   s.render,
+                    })
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -322,6 +345,9 @@ fn resolve_sound_profile(src: &SoundProfileAsset, srv: &AssetServer) -> SoundPro
 // SECTION 4 – APPEARANCE → TEXTURE SLOTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+/// Fallback for appearances that have no per-direction notion of a texture.
+static MISSING_FACE: FaceTextures = FaceTextures::Simple(TextureRegistry::MISSING_LAYER);
+
 /// Which `FaceTextures` a given face of a given appearance uses.
 fn resolve_face_texture(
     appearance: &BlockAppearance,
@@ -350,6 +376,12 @@ fn resolve_face_texture(
         BlockAppearance::UniformWithInternal { ext, int } => {
             if is_internal { int } else { ext }
         }
+
+        BlockAppearance::Model(_) => {
+            warn!("Directional texture lookup on a 'model' appearance — \
+                   custom models resolve their slots by name, not by face.");
+            &MISSING_FACE
+        }
     }
 }
 
@@ -376,7 +408,19 @@ fn resolve_texture_properties(face_texture: &FaceTextures) -> (u32, u32, [f32; 4
 /// Slot numbering itself lives in `voxel::shape`, which is what lets this
 /// (content) and the shape generators (render) agree without either
 /// importing the other.
-pub fn resolve_slots(appearance: &BlockAppearance, shape: &BlockShape) -> Vec<TextureSlot> {
+pub fn resolve_slots(
+    appearance:    &BlockAppearance,
+    shape:         &BlockShape,
+    sources:       &ModelSourceRegistry,
+    default_class: RenderClass,
+) -> Vec<TextureSlot> {
+
+    // Imported models are resolved by name, so they branch before the
+    // shape-keyed slot conventions get a chance to apply.
+    if let BlockAppearance::Model(surfaces) = appearance {
+        return resolve_model_slots(surfaces, shape, sources, default_class);
+    }
+
     match shape {
         // Pipes: 3 slots (core, arm, cap). For now they all take the block's
         // one texture. If you later want a distinct cap, this is the only
@@ -401,4 +445,53 @@ pub fn resolve_slots(appearance: &BlockAppearance, shape: &BlockShape) -> Vec<Te
             out
         }
     }
+}
+
+/// One slot per texture the model declares, in the model's own order.
+///
+/// That order is the contract between the importer (which stamps a face's
+/// slot with its texture index) and this table. Nothing else needs to agree
+/// on it, which is what lets twelve chess blocks share one baked model.
+fn resolve_model_slots(
+    surfaces:      &BTreeMap<String, ModelSurface>,
+    shape:         &BlockShape,
+    sources:       &ModelSourceRegistry,
+    default_class: RenderClass,
+) -> Vec<TextureSlot> {
+    let BlockShape::Custom(path) = shape else {
+        warn!("A 'model' appearance on shape {shape:?}, which has no model file. \
+               Every surface falls back to 'missing'.");
+        return vec![TextureSlot::MISSING; shape.slot_count()];
+    };
+
+    let Some(doc) = sources.get(path) else {
+        warn!("Block references model '{path}', which is not in the model registry. \
+               Check that the file is under assets/models/blocks/.");
+        return vec![TextureSlot::MISSING];
+    };
+
+    doc.surface_names()
+        .map(|name| match surfaces.get(name) {
+            Some(surface) => TextureSlot::from(resolve_texture_properties(&surface.textures))
+                .with_class(surface.render.unwrap_or(default_class)),
+            None => {
+                warn!("Model '{path}' declares surface '{name}', which this block's \
+                       appearance does not paint — falling back to 'missing'.");
+                TextureSlot::MISSING
+            }
+        })
+        .collect()
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CUSTOM MODEL RELATED DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct ModelSurfaceAsset {
+    #[serde(flatten)]
+    pub textures: FaceTexturesAsset,
+    #[serde(default)]
+    pub render:   Option<RenderClass>,
 }

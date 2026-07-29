@@ -46,7 +46,7 @@ use crate::content::block::BlockRegistry;
 use crate::content::item::{
     ItemComponents, ItemDefinition, ItemDisplay, ItemKind, ItemRegistry, PlacesBlock, MAX_STACK,
 };
-use crate::render::material::VoxelMaterialHandle;
+use crate::render::material::VoxelMaterials;
 use crate::render::mesh::mesher::build_single_model_mesh;
 use crate::render::mesh::model::ModelArena;
 use crate::voxel::{BlockID, BlockShape, ConnectionMask, Direction, ModelID, Voxel};
@@ -251,7 +251,7 @@ fn new_icon_target() -> Image {
 /// the processor's real renders each take one frame.
 fn spawn_icon_studio_sys(
     mut commands: Commands,
-    material: Res<VoxelMaterialHandle>,
+    material: Res<VoxelMaterials>,
     arena: Option<Res<ModelArena>>,
     registry: Option<Res<BlockRegistry>>,
     studio: Option<Res<IconStudio>>,
@@ -279,7 +279,7 @@ fn spawn_icon_studio_sys(
     commands.spawn((
         IconModelHolder,
         Mesh3d(warmup_mesh),
-        MeshMaterial3d(material.0.clone()),
+        MeshMaterial3d(material.mask.clone()),
         Transform::default(),
         Visibility::Visible,
         layer.clone(),

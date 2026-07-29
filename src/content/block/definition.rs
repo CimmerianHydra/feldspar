@@ -99,12 +99,23 @@ pub enum BlockAppearance {
         ext:    FaceTextures,
         int:    FaceTextures,
     },
+    /// Surfaces of an imported model, keyed by the name the model gives
+    /// them. Resolution order comes from the model file, not from here.
+    Model(std::collections::BTreeMap<String, ModelSurface>),
 }
 
 impl Default for BlockAppearance {
     fn default() -> Self {
         BlockAppearance::Uniform(FaceTextures::Simple(1))
     }
+}
+
+/// One paintable surface of an imported model.
+#[derive(Clone, Debug)]
+pub struct ModelSurface {
+    pub textures: FaceTextures,
+    /// `None` inherits the block-wide default.
+    pub render:   Option<RenderClass>,
 }
 
 /// One paintable surface, resolved down to what the shader wants.
@@ -117,12 +128,57 @@ pub struct TextureSlot {
     pub base_layer:    u32,
     pub overlay_layer: u32,
     pub tint:          [f32; 4],
+    pub class:         RenderClass,
+}
+
+impl TextureSlot {
+    /// The fallback for a surface nobody painted.
+    pub const MISSING: Self = Self {
+        base_layer: 0,
+        overlay_layer: 0,
+        tint: [1.0, 1.0, 1.0, 1.0],
+        class: RenderClass::Opaque,
+    };
+
+    pub fn with_class(mut self, class: RenderClass) -> Self {
+        self.class = class;
+        self
+    }
 }
 
 impl From<(u32, u32, [f32; 4])> for TextureSlot {
     fn from((base_layer, overlay_layer, tint): (u32, u32, [f32; 4])) -> Self {
-        Self { base_layer, overlay_layer, tint }
+        Self { base_layer, overlay_layer, tint, class: RenderClass::default() }
     }
+}
+
+use serde::Deserialize;
+
+/// Which pipeline a surface draws through.
+///
+/// Alpha mode is pipeline state, not fragment state — opaque and alpha-tested
+/// geometry are queued into different phases with different depth behaviour,
+/// so no single draw call can be both. This enum is where that split is
+/// named; the mesher buckets on it and emits one mesh per class.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RenderClass {
+    #[default]
+    Opaque,
+    /// Alpha-tested. Still writes depth, so unlike blending it needs no
+    /// back-to-front sorting — which is why cutouts belong here and not in a
+    /// future `Blend` variant.
+    Mask,
+}
+
+pub const RENDER_CLASS_COUNT: usize = 2;
+
+impl RenderClass {
+    pub const ALL: [RenderClass; RENDER_CLASS_COUNT] =
+        [RenderClass::Opaque, RenderClass::Mask];
+
+    #[inline]
+    pub fn index(self) -> usize { self as usize }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

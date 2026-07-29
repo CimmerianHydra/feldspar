@@ -25,6 +25,7 @@ bevy_enhanced_input = "0.24.4"
 bevy_kira_audio = "0.25.0"
 bevy_asset_loader = "0.26.0"
 iyes_progress = "0.16.0"
+serde_json = "1.0.151"
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 
 use crate::content::block::BlockRegistry;
+use crate::content::block::TextureSlot;
+use crate::content::model_source::ModelSourceRegistry;
 use crate::render::mesh::model::ModelArena;
 use crate::render::mesh::shapes;
 use crate::voxel::{BlockRotation, BlockShape, ModelTable, VariantKey};
+use crate::render::mesh::import;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // GEOMETRY BAKING
@@ -21,15 +24,16 @@ use crate::voxel::{BlockRotation, BlockShape, ModelTable, VariantKey};
 pub fn bake_block_geometry_sys(
     mut commands: Commands,
     mut registry: ResMut<BlockRegistry>,
+    sources:      Res<ModelSourceRegistry>,
 ) {
     let mut arena = ModelArena::new();
-    bake_all(&mut registry, &mut arena);
+    bake_all(&mut registry, &mut arena, &sources);
     info!("Model arena baked: {} models, {} quads",
           arena.model_count(), arena.quad_count());
     commands.insert_resource(arena);
 }
 
-pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena) {
+pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena, sources: &ModelSourceRegistry) {
     // Index 0 is air, which has no geometry.
     for i in 1..registry.definitions.len() {
         let shape = registry.definitions[i].shape.clone();
@@ -66,8 +70,39 @@ pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena) {
 
             // Blockbench import — parser is future work; fall back to a
             // cube so the match stays total and nothing panics.
-            BlockShape::Custom(_path) =>
-                ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY)),
+            BlockShape::Custom(path) => match sources.get(path) {
+                Some(doc) => {
+                    // The slot table was resolved from this same document, so
+                    // the two can only disagree if a block used a non-model
+                    // appearance. Pad rather than panic — a wrong texture is a
+                    // better failure than a crash in the mesher's inner loop,
+                    // which is the only other place this could show up.
+                    let needed = doc.slot_count();
+                    let slots  = &mut registry.definitions[i].texture_slots;
+                    if slots.len() < needed {
+                        warn!("Block '{name}' resolved {} texture slots but model '{path}' \
+                               declares {needed} surfaces — padding with 'missing'. Give it \
+                               an appearance of kind 'model'.", slots.len());
+                        slots.resize(needed, TextureSlot::MISSING);
+                    }
+
+                    let elements = import::import(doc, path);
+                    if elements.is_empty() {
+                        warn!("Model '{path}' produced no geometry for '{name}' — using a cube.");
+                        ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY))
+                    } else {
+                        // Single entry: the X-cross is symmetric under yaw, so
+                        // all four rotations would dedup to one model anyway.
+                        // Swap for `from_rotations` if a piece should face.
+                        ModelTable::single(arena.bake(&elements, BlockRotation::IDENTITY))
+                    }
+                }
+                None => {
+                    error!("Block '{name}' names model '{path}', which is not in the registry. \
+                            Falling back to a cube.");
+                    ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY))
+                }
+            },
         };
 
         table.key.validate(&name);

@@ -18,7 +18,7 @@ pub mod mesh;
 pub mod sky;
 
 pub use icons::{icon_voxel, BlockIcons};
-pub use material::{VoxelMaterial, VoxelMaterialExtension, VoxelMaterialHandle};
+pub use material::{VoxelMaterial, VoxelMaterialExtension, VoxelMaterials};
 pub use mesh::{BakedQuad, CullTag, Element, ElementBox, FaceSpec, ModelArena};
 
 use bevy::prelude::*;

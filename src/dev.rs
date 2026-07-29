@@ -56,6 +56,8 @@ fn setup_dev_chunks(
                 commands.spawn((
                     ChunkSlot { space: dimensions.overworld(), coord: chunk_pos },
                     chunk_data,
+                    Name::new(format!("Overworld ({cx}, {cy}, {cz})")),
+                    InheritedVisibility::default(),
                 ));
             }
         }

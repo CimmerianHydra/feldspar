@@ -1,0 +1,13 @@
+{
+  "name": "rook_white",
+  "display_name": "Rook (White)",
+  "shape": { "Custom": "chess_piece.bbmodel" },
+  "has_collision": true,
+  "appearance": {
+    "kind": "model",
+    "surfaces": {
+      "base.png": { "kind": "simple", "texture": "slate" },
+      "top.png":  { "kind": "simple", "texture": "rook", "render": "mask" }
+    }
+  }
+}

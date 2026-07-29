@@ -18,12 +18,13 @@ use iyes_progress::{Progress, ProgressPlugin, ProgressReturningSystem, ProgressT
 
 use crate::content::block::asset::populate_block_registry_sys;
 use crate::content::item::asset::load_item_definitions_sys;
+use crate::content::model_source::populate_model_source_registry_sys;
 use crate::content::recipe::asset::populate_spatial_recipe_registry_sys;
 use crate::content::shape_set::populate_shape_set_registry_sys;
 use crate::content::substance::{generate_substance_items_sys, populate_substance_registries_sys};
 use crate::content::texture::assemble_texture_arrays_sys;
 use crate::render::icons::register_block_items_sys;
-use crate::render::material::build_voxel_material_sys;
+use crate::render::material::build_voxel_materials_sys;
 use crate::render::mesh::bake::bake_block_geometry_sys;
 use crate::worldgen::init_active_worldgen_sys;
 use crate::GameState;
@@ -58,9 +59,11 @@ impl Plugin for LoadingPlugin {
                 // Image layers → named layer indices.
                 assemble_texture_arrays_sys,
                 // ...which become one PBR material.
-                build_voxel_material_sys,
+                build_voxel_materials_sys,
                 // Shape sets have to exist before blocks can reference them.
                 populate_shape_set_registry_sys,
+                // After shapes, we build information from unique models.
+                populate_model_source_registry_sys,
                 // Blocks: identity, appearance, texture slots, behaviours.
                 populate_block_registry_sys,
                 // Worldgen resolves block names, so it needs the registry.

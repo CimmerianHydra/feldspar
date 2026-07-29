@@ -14,12 +14,6 @@
 //! the load is [`crate::app::loading`]'s job, because the order spans this
 //! layer and the renderer's model baker.
 
-pub mod block;
-pub mod item;
-pub mod recipe;
-pub mod shape_set;
-pub mod substance;
-pub mod texture;
 
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
@@ -39,7 +33,15 @@ use crate::content::substance::{
 };
 use crate::content::texture::{BlockTextureAssets, TextureRegistry};
 use crate::GameState;
+use crate::content::model_source::{BbModel, ModelSourceAssets, ModelSourceRegistry};
 
+pub mod block;
+pub mod item;
+pub mod model_source;
+pub mod recipe;
+pub mod shape_set;
+pub mod substance;
+pub mod texture;
 pub struct ContentPlugin;
 
 impl Plugin for ContentPlugin {
@@ -54,6 +56,7 @@ impl Plugin for ContentPlugin {
             .init_resource::<SubstanceRegistry>()
             .init_resource::<PartRegistry>()
             .init_resource::<SpatialRecipeRegistry>()
+            .init_resource::<ModelSourceRegistry>()
 
             // ---- parsers for the *.json definition files --------------------
             .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["block.json"]))
@@ -62,6 +65,7 @@ impl Plugin for ContentPlugin {
             .add_plugins(JsonAssetPlugin::<SubstanceFileAsset>::new(&["substance.json"]))
             .add_plugins(JsonAssetPlugin::<PartProfileAsset>::new(&["part.json"]))
             .add_plugins(JsonAssetPlugin::<ShapeSetAsset>::new(&["shapeset.json"]))
+            .add_plugins(JsonAssetPlugin::<BbModel>::new(&["bbmodel"]))
 
             // ---- gate the state transition on every file being parsed -------
             .add_loading_state(
@@ -72,7 +76,8 @@ impl Plugin for ContentPlugin {
                     .load_collection::<ItemDefinitionAssets>()
                     .load_collection::<SubstanceDefinitionAssets>()
                     .load_collection::<PartProfileAssets>()
-                    .load_collection::<SpatialRecipeAssets>(),
+                    .load_collection::<SpatialRecipeAssets>()
+                    .load_collection::<ModelSourceAssets>()
             );
     }
 }

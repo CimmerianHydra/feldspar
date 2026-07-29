@@ -205,7 +205,7 @@ fn handle_secondary_fire_obs(
     let Some(held) = held_item.right_hand else { return };
     let def = item_registry.get(held.id);
 
-    // -- 3.1 The item places a block
+    // ── 3.1 The item places a block
     let Some(PlacesBlock { block_id }) = def.components.get::<PlacesBlock>().copied() else { return };
 
     // `at.neighbor(face)` stays inside the same space, so right-clicking the

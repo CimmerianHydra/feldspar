@@ -9,6 +9,7 @@
 
 pub mod bake;
 pub mod element;
+pub mod import;
 pub mod mesher;
 pub mod model;
 pub mod shapes;
@@ -26,7 +27,6 @@ impl Plugin for ChunkMeshPlugin {
         app.add_systems(
             Update,
             (
-                mesher::add_material_to_chunk_sys,
                 mesher::update_dirty_mesh_sys,
             )
                 .chain()

@@ -75,7 +75,7 @@ impl BlockShape {
 
 /// Last path segment with the first extension stripped. Handles both
 /// separators — asset paths in this project are written with either.
-fn asset_stem(path: &str) -> &str {
+pub fn asset_stem(path: &str) -> &str {
     let file = path.rsplit(['/', '\\']).next().unwrap_or(path);
     file.split('.').next().unwrap_or(file)
 }
