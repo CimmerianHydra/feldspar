@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
 use crate::content::item::ItemRegistry;
 use crate::sim::inventory::storage::{transfer_automated, Inventory, InventoryChangedEvent};
+use crate::space::VoxelWriteRequest;
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
 
@@ -419,6 +420,16 @@ fn watch(commands: &mut Commands, endpoint: Entity, run: Entity) {
         });
 }
 
+/// Engage the topology systems every time a block is written. The systems
+/// drop the enqueued events immediately if the block is irrelevant, so
+/// that's not a problem.
+fn enqueue_on_block_write_obs(
+    event: On<VoxelWriteRequest>,
+    mut queue: ResMut<ChuteTopologyQueue>
+) {
+    queue.0.push(event.at);
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 4 – TRANSPORT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -520,6 +531,8 @@ impl Plugin for ChutePlugin {
             .configure_sets(FixedUpdate, (ChuteSet::Topology, ChuteSet::Transport).chain())
             .add_systems(FixedUpdate, rebuild_topology_sys.in_set(ChuteSet::Topology))
             .add_systems(FixedUpdate, tick_chutes_sys.in_set(ChuteSet::Transport))
-            .add_observer(wake_on_inventory_change_obs);
+            .add_observer(wake_on_inventory_change_obs)
+            .add_observer(enqueue_on_block_write_obs)
+        ;
     }
 }
