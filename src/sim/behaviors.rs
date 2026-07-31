@@ -5,18 +5,26 @@
 //! is no central match statement, and adding a machine touches exactly two
 //! files: a new one here, and one line in the plugin below.
 
-pub mod barrel;
 
+pub mod barrel;
+pub mod chute;
 pub use barrel::{Barrel, BarrelSpawner};
+pub use chute::{ChuteSpawner, ChutePlugin};
 
 use bevy::prelude::*;
 
-use crate::content::block::components::RegisterBlockBehaviorExtension;
+use crate::content::block::RegisterBlockBehaviorExtension;
 
 pub struct BehaviorsPlugin;
 
 impl Plugin for BehaviorsPlugin {
     fn build(&self, app: &mut App) {
-        app.register_block_behavior("barrel", BarrelSpawner { slots: 27 });
+        app
+        .add_plugins(ChutePlugin)
+
+        .register_block_behavior("chute", ChuteSpawner::default())
+        .register_block_behavior("barrel", BarrelSpawner { slots: 27 })
+
+        ;
     }
 }

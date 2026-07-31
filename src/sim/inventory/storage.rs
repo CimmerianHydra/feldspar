@@ -15,13 +15,13 @@ use crate::sim::inventory::stack::TransferResult;
 /// not consult this and the automation API in section 4 is the only thing
 /// that does.
 ///
-/// The default is `Buffer` - deny - on purpose. If the default were
+/// The default is `Buffer` — deny — on purpose. If the default were
 /// permissive, a machine that forgot to lock its working slots would let
 /// players pull half-finished recipes out through a chute, and nobody would
 /// notice for months. Denying by default fails the other way: "my chute
 /// isn't working", discovered in ten seconds.
 ///
-/// There is no specific `Fuel` role, and there shouldn't be: a fuel slot is an
+/// There is no `Fuel` role, and there shouldn't be: a fuel slot is an
 /// `Input` with a filter on it. Roles say *whether*, filters will say
 /// *what*, and keeping those separate stops this enum growing a variant per
 /// machine.
@@ -457,10 +457,10 @@ impl Inventory {
 // SECTION 5 – AUTOMATED TRANSFER
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-/// Lives here rather than in `transport` because every automated device
-/// wants it — chutes now, pipe extractors and storage buses later. Move it
-/// to its own `sim::inventory::automation` module if this file gets long.
-///
+// Lives here rather than in `transport` because every automated device
+// wants it — chutes now, pipe extractors and storage buses later. Move it
+// to its own `sim::inventory::automation` module if this file gets long.
+
 /// Move up to `batch` items from one inventory to another, obeying roles at
 /// both ends.
 ///

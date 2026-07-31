@@ -1,0 +1,16 @@
+{
+    "name": "chute",
+    "display_name": "Chute",
+    "shape": "Cube",
+    "appearance": {
+        "kind": "top_bot_side",
+        "up":   { "kind": "simple", "texture": "chute_top" },
+        "down": { "kind": "simple", "texture": "chute_top" },
+        "side": { "kind": "simple", "texture": "chute_side" }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    },
+    "behaviors": ["chute"]
+}
