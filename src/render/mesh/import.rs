@@ -118,11 +118,7 @@ fn import_element(doc: &BbModel, el: &BbElement, name: &str) -> Option<Element> 
     for (i, dir) in ALL_DIRECTIONS.iter().enumerate() {
         let Some(face) = el.faces.get(*dir) else { continue };
 
-        // No texture means Blockbench is telling us not to draw it. This is
-        // what makes the crown planes work: four of their six faces are
-        // untextured zero-area slivers, and dropping them leaves exactly the
-        // two real quads, wound oppositely, so the blade reads from both
-        // sides with backface culling left on.
+        // No texture means Blockbench is telling us not to draw it.
         let Some(texture) = face.texture else { continue };
 
         if texture >= doc.textures.len() {
@@ -193,9 +189,8 @@ fn import_element(doc: &BbModel, el: &BbElement, name: &str) -> Option<Element> 
     }
 
     // Deliberately no collider. The axis-aligned bounds of a rotated blade
-    // are several times its own volume, and a chess piece should collide
-    // like its base, not like the box its crown sweeps through. Solid
-    // elements keep the free collider they get from `Element::Box`.
+    // are several times its own volume.
+    // Solid elements keep the free collider they get from `Element::Box`.
     Some(Element::Raw { quads, collider: Vec::new() })
 }
 

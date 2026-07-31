@@ -1,0 +1,18 @@
+{
+    "name": "item_extractor",
+    "display_name": "Item Extractor",
+    "shape": { "Custom": "chute.bbmodel" },
+    "appearance": {
+        "kind": "model",
+        "surfaces": {
+        "chute_side": { "kind": "simple", "texture": "basalt_side" },
+        "chute_top":  { "kind": "simple", "texture": "basalt_top"},
+        "chute_bottom":  { "kind": "simple", "texture": "basalt_top"}
+        }
+    },
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    },
+    "behaviors": ["extractor"]
+}

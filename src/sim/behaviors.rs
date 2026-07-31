@@ -8,23 +8,28 @@
 
 pub mod barrel;
 pub mod chute;
-pub use barrel::{Barrel, BarrelSpawner};
-pub use chute::{ChuteSpawner, ChutePlugin};
+pub mod extractor;
+
+use barrel::{BarrelSpawner};
+use chute::{ChuteSpawner, ChutePlugin};
+use extractor::{ExtractorSpawner, ExtractorPlugin};
 
 use bevy::prelude::*;
-
-use crate::content::block::RegisterBlockBehaviorExtension;
+use crate::{content::block::RegisterBlockBehaviorExtension};
 
 pub struct BehaviorsPlugin;
 
 impl Plugin for BehaviorsPlugin {
     fn build(&self, app: &mut App) {
         app
-        .add_plugins(ChutePlugin)
 
         .register_block_behavior("chute", ChuteSpawner::default())
-        .register_block_behavior("barrel", BarrelSpawner { slots: 27 })
+        .add_plugins(ChutePlugin)
 
+        .register_block_behavior("extractor", ExtractorSpawner::default())
+        .add_plugins(ExtractorPlugin)
+        
+        .register_block_behavior("barrel", BarrelSpawner { slots: 27 })
         ;
     }
 }

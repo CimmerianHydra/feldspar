@@ -36,8 +36,7 @@ impl std::ops::BitOrAssign for ModelFlags {
 }
 
 /// A finished model: a slice of the arena's quad array, plus everything
-/// the mesher and the physics builder need to use it without ever looking
-/// at how it was authored.
+/// the mesher needs to use it without ever looking at how it was authored.
 ///
 /// Note what is *not* here: textures, materials, block identity. A model
 /// is geometry. That is the whole reason 64 pipe variants can be shared by

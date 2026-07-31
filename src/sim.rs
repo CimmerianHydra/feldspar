@@ -16,6 +16,7 @@ pub mod block_entity;
 pub mod crafting;
 pub mod inventory;
 pub mod player;
+pub mod transport;
 pub use block_entity::{BlockEntityEvent, BlockEntityTag, Interactable};
 pub use player::{
     HotbarSelect, LookTarget, LookTargetChanged, Player, PlayerEquipment, PlayerHeldItems,
@@ -34,6 +35,7 @@ impl Plugin for SimPlugin {
             crafting::CraftingPlugin,
             behaviors::BehaviorsPlugin,
             player::PlayerStatePlugin,
+            transport::TransportPlugin,
         ));
     }
 }

@@ -1,12 +1,14 @@
 {
     "name": "chute",
     "display_name": "Chute",
-    "shape": "Cube",
+    "shape": { "Custom": "chute.bbmodel" },
     "appearance": {
-        "kind": "top_bot_side",
-        "up":   { "kind": "simple", "texture": "chute_top" },
-        "down": { "kind": "simple", "texture": "chute_top" },
-        "side": { "kind": "simple", "texture": "chute_side" }
+        "kind": "model",
+        "surfaces": {
+        "chute_side": { "kind": "simple", "texture": "chute_side" },
+        "chute_top":  { "kind": "simple", "texture": "chute_top"},
+        "chute_bottom":  { "kind": "simple", "texture": "chute_bottom"}
+        }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
