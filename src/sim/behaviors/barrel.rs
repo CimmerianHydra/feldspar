@@ -40,7 +40,7 @@ impl BlockEntitySpawner for BarrelSpawner {
     fn spawn(&self, ctx: &mut BlockSpawnContext) {
         // "Spawn an entity with the following bundle of components:"
         ctx.insert((
-            Inventory::new(self.slots),
+            Inventory::storage(self.slots),
             Interactable,
             Barrel,
         ));

@@ -1,7 +1,7 @@
 {
     "name": "marble",
     "display_name": "Marble",
-    "shape": "Cube",
+    "shape_sets": ["decorative"],
     "appearance": {
         "kind": "uniform",
         "texture": { "kind": "simple", "texture": "marble" }

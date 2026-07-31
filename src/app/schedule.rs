@@ -41,8 +41,6 @@ pub enum GameplaySet {
 /// Rebuilding the derived representations of a chunk. Gated on
 /// `GameState::InGame` and ordered after gameplay.
 ///
-/// `Collide` runs after `Mesh` because a static chunk's collider is a
-/// trimesh taken from the render mesh.
 #[derive(SystemSet, Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum BakeSet {
     Mesh,
