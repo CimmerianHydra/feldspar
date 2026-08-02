@@ -31,6 +31,8 @@ impl Plugin for BehaviorsPlugin {
         .register_block_behavior::<ChuteSpawner>()
         .add_plugins(ChutePlugin)
         
+        .register_block_behavior::<ExtractorSpawner>()
+        .add_plugins(ExtractorPlugin)
         ;
     }
 }

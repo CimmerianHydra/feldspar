@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use serde::Deserialize;
 
 use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
 use crate::sim::block_entity::{BlockEntityEvent, Interactable};
@@ -87,7 +88,8 @@ impl ItemExtractor {
 /// Declares three components and stops. `Interactable` is what routes a
 /// right-click here instead of placing the held block; the observer in
 /// section 4 is what it routes to.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ExtractorSpawner {
     pub batch: u16,
     pub batches_per_second: u32,
@@ -98,6 +100,8 @@ impl Default for ExtractorSpawner {
         Self { batch: DEFAULT_BATCH, batches_per_second: DEFAULT_RATE }
     }
 }
+
+crate::spawner_behavior!(ExtractorSpawner, "extractor");
 
 impl BlockEntitySpawner for ExtractorSpawner {
     fn spawn(&self, ctx: &mut BlockSpawnContext) {
@@ -192,7 +196,7 @@ pub fn configure_extractor_obs(
 ) {
     let Ok(extractor) = extractors.get(event.entity) else { return };
 
-    if event.face == extractor.output {
+    if event.target_face == extractor.output.opposite() {
         return;
     }
 
@@ -200,7 +204,7 @@ pub fn configure_extractor_obs(
 
     commands.trigger(VoxelWriteRequest {
         at: extractor.at,
-        voxel: Voxel::new(voxel.id(), rotation_for_output(event.face), voxel.state()),
+        voxel: Voxel::new(voxel.id(), rotation_for_output(event.target_face), voxel.state()),
     });
 }
 
