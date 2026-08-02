@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 
 use bevy::ecs::lifecycle::HookContext;
@@ -11,7 +11,6 @@ use crate::sim::transport::mover::{
 };
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
-use crate::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CHUTE
@@ -32,6 +31,24 @@ use crate::voxel::Direction;
 //                 block definition. Never iterated per tick.
 //   ChuteRun      one per contiguous column. Geometry only — the item
 //                 moving is an `ItemMover` on the same entity.
+//
+// The invariant this file exists to maintain:
+//
+//   for every column, the set of runs is exactly the set of spans.
+//
+// Note the *exactly*. A `ChuteRun` is an entity with no owner — no voxel,
+// no parent, nothing that dies and takes it along — so if the rebuild only
+// ever asks "which spans need a run?" then a run whose voxels have all
+// gone is never asked about, and never dies. It keeps its endpoints, keeps
+// its place in both barrels' watcher lists, and keeps moving items from a
+// chute that is no longer there. Place and break the same block twenty
+// times and you get twenty invisible movers pumping the same pair of
+// barrels in parallel.
+//
+// So the rebuild reconciles in both directions, and its unit of work is the
+// *column*, not the span. A span that has just been deleted cannot be
+// found by scanning, which is exactly why it cannot be the thing that
+// drives the search.
 
 // ── tuning ───────────────────────────────────────────────────────────────
 
@@ -83,6 +100,12 @@ pub struct ChuteSegment {
 /// `space::address`. That is exactly why topology is rebuilt from a dirty
 /// list rather than trusted: a `SpaceSplit` observer only has to mark the
 /// affected positions, and the rebuild re-derives everything.
+///
+/// The rebuild does read `space` and `column` — that's how a run whose
+/// voxels are all gone is still found — but only ever as a *hint* about
+/// which column to rescan, never as truth. A stale hint costs one wasted
+/// scan; the run is also reachable through any segment pointing at it, and
+/// whichever route finds it, the geometry is overwritten from voxels.
 #[derive(Component, Debug)]
 pub struct ChuteRun {
     pub space: Entity,
@@ -137,7 +160,10 @@ impl BlockEntitySpawner for ChuteSpawner {
     }
 
     fn despawn(&self, _commands: &mut Commands, _root: Entity) {
-        // `segment_touched` fires on removal and marks the rebuild.
+        // `segment_touched` fires on removal and marks the rebuild. The
+        // run this segment belonged to is *not* despawned here: whether it
+        // should die depends on the rest of the column, which only the
+        // rebuild can see.
     }
 }
 
@@ -158,14 +184,66 @@ impl Span {
     fn at(&self, y: i32) -> BlockPos {
         BlockPos::new(self.space, IVec3::new(self.column.x, y, self.column.y))
     }
+
+    /// Voxels shared with a run's stored extent. Zero means the run has no
+    /// business continuing as this span.
+    fn overlap(&self, run: &ChuteRun) -> i32 {
+        (self.top.min(run.top) - self.bottom.max(run.bottom) + 1).max(0)
+    }
+}
+
+/// The unit of work.
+///
+/// Deliberately not a span. Half of what the rebuild has to fix is spans
+/// that stopped existing, and those are unreachable from a scan — the
+/// voxels are gone. A column is reachable whatever happened to it, because
+/// it's derived from the dirty *position*, which survives its block.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+struct ColumnKey {
+    space: Entity,
+    column: IVec2,
+}
+
+impl ColumnKey {
+    fn of(at: BlockPos) -> Self {
+        Self { space: at.space, column: IVec2::new(at.pos.x, at.pos.z) }
+    }
+
+    fn at(&self, y: i32) -> BlockPos {
+        BlockPos::new(self.space, IVec3::new(self.column.x, y, self.column.y))
+    }
+}
+
+/// Everything gathered about one dirty column before anything is written.
+#[derive(Default)]
+struct ColumnWork {
+    /// Heights worth scanning from.
+    probes: HashSet<i32>,
+    /// Runs that currently claim this column.
+    claimants: Vec<Entity>,
+    /// Spans that exist now. Filled in phase 1c.
+    spans: Vec<Span>,
+}
+
+/// One span, read in a single downward pass, with everything the commit
+/// needs. Separated from the commit so the whole read happens under an
+/// immutable borrow of `segments`.
+struct Survey {
+    span: Span,
+    segments: Vec<Entity>,
+    batch: u16,
+    credit_per_tick: u32,
+    /// Live runs the span's own segments point at, topmost first, deduped.
+    referenced: Vec<Entity>,
 }
 
 /// Reconcile runs against whatever the voxels currently say.
 ///
-/// One code path covers extend-up, extend-down, merge and split, because it
-/// doesn't care which happened: it rescans the affected column, finds the
-/// spans that exist *now*, and reconciles runs against them. Four
-/// hand-rolled cases is where the bugs would live.
+/// One code path covers extend, merge, split and delete, because it doesn't
+/// care which happened: it rescans each affected column, works out the
+/// spans that exist *now*, and makes the runs match. Four hand-rolled cases
+/// is where the bugs would live — and the case that was missing is the one
+/// with no span left to hang the logic off.
 ///
 /// Because transfer is instantaneous there's no in-flight state to
 /// preserve, so this is pure bookkeeping — no item positions to rebase, and
@@ -175,35 +253,71 @@ pub fn rebuild_chutes_sys(
     dirty: Res<TransportDirty>,
     voxels: VoxelWorld,
     mut segments: Query<&mut ChuteSegment>,
-    mut runs: Query<(&mut ChuteRun, &mut ItemMover)>,
+    mut runs: Query<(Entity, &mut ChuteRun, &mut ItemMover)>,
 ) {
     if dirty.current().is_empty() {
         return;
     }
 
-    // Phase 1 — read only. Decide which spans exist before touching
-    // anything, so the set is derived from one consistent view of the world
-    // and the borrow of `segments` stays immutable throughout the scan.
-    let mut spans: Vec<Span> = Vec::new();
-    let mut seen: HashSet<(Entity, IVec2, i32)> = HashSet::new();
+    // ── Phase 1 — read only ──────────────────────────────────────────────
+    //
+    // Decide everything before touching anything, so the whole decision is
+    // derived from one consistent view of the world and the borrow of
+    // `segments` stays immutable throughout.
+
+    // 1a. Every dirty position names a column.
+    //
+    // A break leaves its own position empty, so the spans that changed may
+    // be the ones above and below it — hence the ±1 probes. A write to a
+    // *barrel* above or below a chute lands in the same column too, which
+    // is what makes endpoint re-resolution fall out of the same grouping
+    // rather than needing a rule of its own.
+    let mut columns: HashMap<ColumnKey, ColumnWork> = HashMap::new();
 
     for &at in dirty.current() {
-        // A break leaves `at` empty, so the spans that changed may be the
-        // ones above and below it rather than one containing it. A write to
-        // a *barrel* next to a chute lands here too, and finds the chute.
-        let seeds = [at, at.neighbor(Direction::Up), at.neighbor(Direction::Down)];
-
-        for seed in seeds {
-            let Some(span) = find_span(&voxels, &segments, seed) else { continue };
-            if seen.insert((span.space, span.column, span.top)) {
-                spans.push(span);
-            }
-        }
+        let work = columns.entry(ColumnKey::of(at)).or_default();
+        work.probes.extend([at.pos.y - 1, at.pos.y, at.pos.y + 1]);
     }
 
-    // Phase 2 — commit.
-    for span in spans {
-        rebuild_span(&mut commands, &voxels, &mut segments, &mut runs, span);
+    // 1b. Which runs claim a dirty column.
+    //
+    // One pass over every run rather than one filtered pass per column, so
+    // this stays O(runs) no matter how many columns a chunk load dirties.
+    // There is one run per chute column in the world, so the scan is small.
+    //
+    // Seeding probes from the run's own extent is not optional. Without it,
+    // a write far up an otherwise-untouched column would find no spans near
+    // the write, and the sweep at the end would conclude the run is
+    // orphaned and delete a working chute. Probing top and bottom
+    // guarantees every claimant gets re-derived from voxels, which is what
+    // makes the sweep safe to run unconditionally.
+    for (entity, run, _) in runs.iter() {
+        let key = ColumnKey { space: run.space, column: run.column };
+        let Some(work) = columns.get_mut(&key) else { continue };
+
+        work.claimants.push(entity);
+        work.probes.extend([run.bottom, run.top]);
+    }
+
+    // 1c. Which spans exist now.
+    for (key, work) in columns.iter_mut() {
+        let mut tops: HashSet<i32> = HashSet::new();
+
+        for &y in &work.probes {
+            let Some(span) = find_span(&voxels, &segments, key.at(y)) else { continue };
+            if tops.insert(span.top) {
+                work.spans.push(span);
+            }
+        }
+
+        // Top-down, which makes the order deterministic and preserves the
+        // old "topmost run wins" rule when a merge has to pick a survivor.
+        work.spans.sort_unstable_by_key(|span| std::cmp::Reverse(span.top));
+    }
+
+    // ── Phase 2 — commit, one column at a time ───────────────────────────
+    for work in columns.into_values() {
+        rebuild_column(&mut commands, &voxels, &mut segments, &mut runs, work);
     }
 }
 
@@ -251,100 +365,242 @@ fn find_span(
     Some(Span { space: at.space, column, top, bottom })
 }
 
-fn rebuild_span(
-    commands: &mut Commands,
+/// Read one span without writing anything.
+fn survey_span(
     voxels: &VoxelWorld,
-    segments: &mut Query<&mut ChuteSegment>,
-    runs: &mut Query<(&mut ChuteRun, &mut ItemMover)>,
+    segments: &Query<&mut ChuteSegment>,
     span: Span,
-) {
-    // ── survey the column ────────────────────────────────────────────────
-    let mut old: Vec<Entity> = Vec::new();
-    let mut segment_entities: Vec<Entity> = Vec::new();
+) -> Option<Survey> {
+    let mut entities = Vec::new();
+    let mut referenced = Vec::new();
 
     // A run is as slow as its slowest segment; mixed tiers resolve by
     // taking the minimum of each axis independently.
     let mut batch = u16::MAX;
-    let mut credit_rate = u32::MAX;
+    let mut rate = u32::MAX;
 
     for y in (span.bottom..=span.top).rev() {
         let Some(entity) = voxels.block_entity_at(span.at(y)) else { continue };
         let Ok(segment) = segments.get(entity) else { continue };
 
-        segment_entities.push(entity);
+        entities.push(entity);
         batch = batch.min(segment.batch);
-        credit_rate = credit_rate.min(segment.credit_per_tick);
+        rate = rate.min(segment.credit_per_tick);
 
-        if segment.run != Entity::PLACEHOLDER && !old.contains(&segment.run) {
-            old.push(segment.run);
+        if segment.run != Entity::PLACEHOLDER && !referenced.contains(&segment.run) {
+            referenced.push(segment.run);
         }
     }
 
-    if segment_entities.is_empty() {
-        return;
+    if entities.is_empty() {
+        return None;
     }
 
-    let source = voxels.block_entity_at(span.at(span.top + 1));
-    let sink = voxels.block_entity_at(span.at(span.bottom - 1));
+    Some(Survey { span, segments: entities, batch, credit_per_tick: rate, referenced })
+}
 
-    // ── settle on one run entity ─────────────────────────────────────────
+/// Reconcile one column's runs against one column's spans.
+///
+/// Both directions, which is the whole point. Every span ends up with
+/// exactly one run, and — the arm that used to be missing — every run left
+/// without a span is despawned. "Column emptied" and "merge absorbed a
+/// neighbour" are then the same three lines, rather than one case handled
+/// and one case forgotten.
+fn rebuild_column(
+    commands: &mut Commands,
+    voxels: &VoxelWorld,
+    segments: &mut Query<&mut ChuteSegment>,
+    runs: &mut Query<(Entity, &mut ChuteRun, &mut ItemMover)>,
+    work: ColumnWork,
+) {
+    let ColumnWork { spans, mut claimants, .. } = work;
+
+    // ── survey every span first ──────────────────────────────────────────
+    let surveys: Vec<Survey> = spans
+        .into_iter()
+        .filter_map(|span| survey_span(voxels, segments, span))
+        .collect();
+
+    // A run reachable only through a segment — because its own stored
+    // address went stale under a grid split — would otherwise escape the
+    // sweep. Two independent routes to the same set, unioned, so a run has
+    // to be invisible to both to leak.
+    for survey in &surveys {
+        for &entity in &survey.referenced {
+            if !claimants.contains(&entity) {
+                claimants.push(entity);
+            }
+        }
+    }
+
+    // ── match spans to runs ──────────────────────────────────────────────
     //
-    // Reuse the topmost existing run where there is one, so extending a
-    // column preserves accrued credit rather than handing the player a free
-    // reset every time they place a block.
-    let run_entity = match old.first().copied() {
-        Some(entity) if runs.contains(entity) => {
-            let (mut run, mut mover) = runs.get_mut(entity).unwrap();
+    // Both lists are at most a handful of entries — a column with three
+    // separate runs in it is already unusual — so linear membership beats
+    // allocating a set.
+    let mut taken: Vec<Entity> = Vec::with_capacity(surveys.len());
 
-            run.space = span.space;
-            run.column = span.column;
-            run.top = span.top;
-            run.bottom = span.bottom;
+    for survey in surveys {
+        let span = survey.span;
+        let source = voxels.block_entity_at(span.at(span.top + 1));
+        let sink = voxels.block_entity_at(span.at(span.bottom - 1));
 
-            mover.batch = batch;
-            mover.credit_per_tick = credit_rate;
-            set_endpoints(commands, entity, &mut mover, source, sink);
+        let mut reused = None;
 
-            entity
+        if let Some(entity) = pick_run(runs, &claimants, &taken, &survey) {
+            if let Ok((_, mut run, mut mover)) = runs.get_mut(entity) {
+                run.space = span.space;
+                run.column = span.column;
+                run.top = span.top;
+                run.bottom = span.bottom;
+
+                mover.batch = survey.batch;
+                mover.credit_per_tick = survey.credit_per_tick;
+                set_endpoints(commands, entity, &mut mover, source, sink);
+
+                reused = Some(entity);
+            }
         }
-        _ => {
-            let mut mover = ItemMover::new(batch, 0);
-            mover.credit_per_tick = credit_rate;
 
-            let entity = commands
-                .spawn((
-                    Name::new(format!("ChuteRun({}, {})", span.column.x, span.column.y)),
-                    ChuteRun {
-                        space: span.space,
-                        column: span.column,
-                        top: span.top,
-                        bottom: span.bottom,
-                    },
-                ))
-                .id();
+        let run_entity = match reused {
+            Some(entity) => entity,
+            None => spawn_run(commands, &survey, source, sink),
+        };
 
-            set_endpoints(commands, entity, &mut mover, source, sink);
-            commands.entity(entity).insert(mover);
+        taken.push(run_entity);
 
-            entity
+        for entity in survey.segments {
+            if let Ok(mut segment) = segments.get_mut(entity) {
+                segment.run = run_entity;
+            }
         }
-    };
-
-    // Absorbed runs are now unreferenced.
-    for &stale in old.iter().skip(1) {
-        commands.entity(stale).despawn();
     }
 
-    // ── point every segment at it ────────────────────────────────────────
-    for entity in segment_entities {
-        if let Ok(mut segment) = segments.get_mut(entity) {
-            segment.run = run_entity;
+    // ── sweep ────────────────────────────────────────────────────────────
+    //
+    // Nothing to unwind first. `MoverWatchers` is documented as tolerant of
+    // dead entries and revalidates each against the mover query, so a
+    // despawned run simply stops being woken and its endpoints never
+    // notice. The `contains` guard is for claimants that arrived through a
+    // stale `segment.run` and are already gone.
+    for entity in claimants {
+        if !taken.contains(&entity) && runs.contains(entity) {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+/// Which existing run, if any, should this span continue?
+///
+/// Two rules, in order:
+///
+/// 1. The topmost live run the span's own segments already point at. This
+///    is the old behaviour: extending a column upward continues the run
+///    that was there rather than handing the player a free credit reset.
+/// 2. Failing that, the unclaimed run whose stored extent overlaps this
+///    span most, ties broken upward. Covers a span whose segments are all
+///    freshly spawned — a chunk reload — while its run survived.
+///
+/// A run already handed to a taller span is never handed out twice, and
+/// that single fact is what makes a split produce two runs instead of two
+/// spans fighting over one and the loser silently going dark.
+fn pick_run(
+    runs: &Query<(Entity, &mut ChuteRun, &mut ItemMover)>,
+    claimants: &[Entity],
+    taken: &[Entity],
+    survey: &Survey,
+) -> Option<Entity> {
+    let available = |entity: Entity| runs.contains(entity) && !taken.contains(&entity);
+
+    if let Some(&entity) = survey.referenced.iter().find(|&&e| available(e)) {
+        return Some(entity);
+    }
+
+    claimants
+        .iter()
+        .copied()
+        .filter(|&entity| available(entity))
+        .filter_map(|entity| {
+            let (_, run, _) = runs.get(entity).ok()?;
+            let overlap = survey.span.overlap(run);
+            (overlap > 0).then_some((overlap, run.top, entity))
+        })
+        .max_by_key(|&(overlap, top, _)| (overlap, top))
+        .map(|(_, _, entity)| entity)
+}
+
+fn spawn_run(
+    commands: &mut Commands,
+    survey: &Survey,
+    source: Option<Entity>,
+    sink: Option<Entity>,
+) -> Entity {
+    let span = survey.span;
+
+    let mut mover = ItemMover::new(survey.batch, 0);
+    mover.credit_per_tick = survey.credit_per_tick;
+
+    let entity = commands
+        .spawn((
+            Name::new(format!("ChuteRun({}, {})", span.column.x, span.column.y)),
+            ChuteRun {
+                space: span.space,
+                column: span.column,
+                top: span.top,
+                bottom: span.bottom,
+            },
+        ))
+        .id();
+
+    set_endpoints(commands, entity, &mut mover, source, sink);
+    commands.entity(entity).insert(mover);
+
+    entity
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 4 – DEBUG TRIPWIRE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Assert that every run is still vouched for by its own voxels.
+///
+/// The failure this guards against is invisible in the world — a leaked run
+/// has no blocks — and only shows up as a device running at some integer
+/// multiple of its rated speed, which reads as a tuning problem rather than
+/// a lifecycle one. Checking the two end voxels is O(runs) and catches it
+/// on the very next tick.
+///
+/// Endpoints only, not the whole extent: a leak always shows there, and
+/// walking every voxel of every run would make a long chute expensive to
+/// validate.
+#[cfg(debug_assertions)]
+fn debug_orphaned_runs_sys(
+    voxels: VoxelWorld,
+    segments: Query<&ChuteSegment>,
+    runs: Query<(Entity, &ChuteRun)>,
+) {
+    for (entity, run) in runs.iter() {
+        for y in [run.bottom, run.top] {
+            let at = BlockPos::new(run.space, IVec3::new(run.column.x, y, run.column.y));
+
+            let vouched = voxels
+                .block_entity_at(at)
+                .and_then(|block| segments.get(block).ok())
+                .is_some_and(|segment| segment.run == entity);
+
+            if !vouched {
+                warn_once!(
+                    "chute: run {entity} claims column {:?} y={y}, but that voxel does not \
+                     claim it back — a run has outlived its segments",
+                    run.column
+                );
+            }
         }
     }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 – PLUGIN
+// SECTION 5 – PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// One system. Everything else a chute does is `ItemTransportPlugin`.
@@ -353,5 +609,14 @@ pub struct ChutePlugin;
 impl Plugin for ChutePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(FixedUpdate, rebuild_chutes_sys.in_set(TransportSet::Topology));
+
+        // After the whole topology set, so the rebuild's spawns and
+        // despawns have been applied before anything is asserted about
+        // them.
+        #[cfg(debug_assertions)]
+        app.add_systems(
+            FixedUpdate,
+            debug_orphaned_runs_sys.after(TransportSet::Topology),
+        );
     }
 }

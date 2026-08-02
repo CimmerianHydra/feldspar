@@ -32,7 +32,7 @@
 
 use bevy::math::{Vec2, Vec3};
 
-use crate::voxel::direction::{Direction, ALL_DIRECTIONS};
+use crate::voxel::direction::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – THE IN-PLANE BASIS
@@ -87,7 +87,7 @@ pub struct FaceCell {
 
 /// The face-local centre of a cell, in `[-0.5, 0.5]²`. What the highlight
 /// translates its indicator by.
-pub const CELL_SIZE: f32 = 0.5;
+pub const CELL_SIZE: f32 = 1.0/3.0;
 
 impl FaceCell {
     /// Dead centre. The "no subdivision" answer.
@@ -178,6 +178,7 @@ pub fn face_uv(point_in_voxel: Vec3, face: Direction) -> Vec2 {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use crate::voxel::direction::ALL_DIRECTIONS;
 
     /// The property the whole feature rests on: from any single exposed
     /// face, all six faces are addressable.

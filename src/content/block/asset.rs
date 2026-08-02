@@ -276,7 +276,7 @@ pub fn populate_block_registry_sys(
         // warning then names the block that actually failed, and the
         // AssetServer returns the same handle for a repeated path, so the
         // audio in a five-shape family is loaded once, not five times.
-        let mut components = behaviors.resolve(&block.src.behaviors, &block.name);
+        let components = behaviors.resolve(&block.src.behaviors, &block.name);
 
         let appearance = resolve_appearance(&block.src.appearance, &tex);
         // Texture slots are resolved here, next to the appearance they come

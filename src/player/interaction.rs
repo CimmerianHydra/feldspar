@@ -8,7 +8,7 @@ use crate::sim::block_entity::{BlockEntityEvent, Interactable};
 use crate::sim::player::{
     LookCellChanged, LookTarget, LookTargetChanged, PlayerHeldItems, PlayerLookTarget,
 };
-use crate::space::{BlockEvent, BlockPos, ChunkMap, VoxelWorld, VoxelWriteRequest};
+use crate::space::{BlockPos, ChunkMap, VoxelWorld, VoxelWriteRequest};
 use crate::voxel::{BlockID, BlockRotation, Direction, FaceCell, Voxel, BLOCK_SIZE};
 use crate::GameplaySet;
 
