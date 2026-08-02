@@ -41,7 +41,8 @@ pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena, sources: &
 
         let table = match &shape {
             BlockShape::Cube =>
-                ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY)),
+                ModelTable::from_rotations(
+                    arena.bake_rotations(&shapes::cube(), BlockRotation::all())),
 
             BlockShape::Slab =>
                 ModelTable::from_rotations(
@@ -91,9 +92,6 @@ pub fn bake_all(registry: &mut BlockRegistry, arena: &mut ModelArena, sources: &
                         warn!("Model '{path}' produced no geometry for '{name}' — using a cube.");
                         ModelTable::single(arena.bake(&shapes::cube(), BlockRotation::IDENTITY))
                     } else {
-                        // Single entry: the X-cross is symmetric under yaw, so
-                        // all four rotations would dedup to one model anyway.
-                        // Swap for `from_rotations` if a piece should face.
                         ModelTable::single(arena.bake(&elements, BlockRotation::IDENTITY))
                     }
                 }
