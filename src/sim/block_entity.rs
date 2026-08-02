@@ -172,9 +172,16 @@ pub struct BlockEntityEvent {
     pub player: Entity,
     /// Which cell was clicked — matters for multiblocks. Space-local.
     pub at:     BlockPos,
-    /// Which face was clicked — matters for sided machines. Space-local, so
-    /// a conveyor keeps feeding the same neighbor when the ship rolls.
+    /// The face the ray geometrically struck. Space-local, so a conveyor
+    /// keeps feeding the same neighbor when the ship rolls.
     pub face:   Direction,
+    /// The face this interaction *addresses*.
+    ///
+    /// Equal to `face` for every block that does not declare `FaceTargeted`,
+    /// so an existing handler that ignores this field keeps behaving
+    /// exactly as it did. A pipe reads it to pick which connection to
+    /// toggle; a barrel ignores it and opens its screen.
+    pub target_face: Direction,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

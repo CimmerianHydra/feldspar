@@ -10,6 +10,7 @@ pub struct ItemComponents {
     places_block:   Option<PlacesBlock>,
     durability:     Option<Durability>,
     fuel:           Option<Fuel>,
+    orients_blocks: Option<OrientsBlocks>,
 }
 
 /// Lets `ItemComponents` offer a uniform typed accessor.
@@ -45,6 +46,19 @@ pub struct Durability { pub max: u32, pub current: u32 }
 #[derive(Clone, Copy, Debug)]
 pub struct Fuel { pub value: u32 }
 
+/// This item reorients blocks that declare `Orientable`.
+///
+/// A marker rather than a bare `bool` on the definition, for the same
+/// reason `PlacesBlock` is: the dispatcher then names a *capability*, never
+/// an item, so wrench tiers and creative-mode configurators cost nothing.
+///
+/// If a single tool later needs to do several configuring jobs — GregTech's
+/// wrench both rotates machines and wrenches pipe connections — grow this
+/// into a capability set rather than adding a second marker. The dispatch
+/// site is written to make that additive.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct OrientsBlocks;
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MACRO-BASED IMPL FOR EACH COMPONENT
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -63,3 +77,4 @@ macro_rules! item_component {
 item_component!(PlacesBlock, places_block);
 item_component!(Durability, durability);
 item_component!(Fuel, fuel);
+item_component!(OrientsBlocks, orients_blocks);

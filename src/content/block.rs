@@ -19,7 +19,8 @@ pub use asset::{
 };
 pub use components::{
     BlockBehaviorRegistry, BlockComponent, BlockComponents, BlockEntitySpawner, BlockSpawnContext,
-    InteractsOnSecondary, RegisterBlockBehaviorExtension, SpawnsBlockEntities,
+    FaceTargeted, Orientable, OrientationMode,
+    RegisterBlockBehaviorExtension, SpawnsBlockEntities,
 };
 pub use definition::{
     BlockAppearance, BlockDefinition, BlockMaterial, FaceTextures, SoundProfile, TextureSlot,

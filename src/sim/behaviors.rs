@@ -15,7 +15,7 @@ use chute::{ChuteSpawner, ChutePlugin};
 use extractor::{ExtractorSpawner, ExtractorPlugin};
 
 use bevy::prelude::*;
-use crate::{content::block::RegisterBlockBehaviorExtension};
+use crate::content::block::{FaceTargeted, Orientable, RegisterBlockBehaviorExtension};
 
 pub struct BehaviorsPlugin;
 
@@ -23,13 +23,14 @@ impl Plugin for BehaviorsPlugin {
     fn build(&self, app: &mut App) {
         app
 
-        .register_block_behavior("chute", ChuteSpawner::default())
-        .add_plugins(ChutePlugin)
+        .register_block_behavior::<FaceTargeted>()
+        .register_block_behavior::<Orientable>()
 
-        .register_block_behavior("extractor", ExtractorSpawner::default())
-        .add_plugins(ExtractorPlugin)
+        .register_block_behavior::<BarrelSpawner>()
+
+        .register_block_behavior::<ChuteSpawner>()
+        .add_plugins(ChutePlugin)
         
-        .register_block_behavior("barrel", BarrelSpawner { slots: 27 })
         ;
     }
 }

@@ -137,7 +137,9 @@ fn resolve_hull_block(registry: &BlockRegistry) -> BlockID {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 fn dev_submit_command(mut pending: ResMut<PendingCommands>, player: Single<Entity, With<Player>>) {
+    pending.push(CommandSource::Player(*player), "/give chute_chute 64");
     pending.push(CommandSource::Player(*player), "/give slate 64");
+    pending.push(CommandSource::Player(*player), "/give barrel 64");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

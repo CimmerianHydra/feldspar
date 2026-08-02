@@ -15,7 +15,7 @@ pub use asset::{
     load_item_definitions_sys, parse_hex_color, resolve_display, DisplayJson, ItemDefinitionAsset,
     ItemDefinitionAssets,
 };
-pub use components::{Durability, Fuel, ItemComponent, ItemComponents, PlacesBlock};
+pub use components::{Durability, Fuel, ItemComponent, ItemComponents, OrientsBlocks, PlacesBlock};
 pub use display::{DisplayLayer, ItemDisplay};
 pub use registry::{ItemDefinition, ItemKind, ItemRegistry};
 

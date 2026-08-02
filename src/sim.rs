@@ -19,8 +19,9 @@ pub mod player;
 pub mod transport;
 pub use block_entity::{BlockEntityEvent, BlockEntityTag, Interactable};
 pub use player::{
-    HotbarSelect, LookTarget, LookTargetChanged, Player, PlayerEquipment, PlayerHeldItems,
-    PlayerHotbar, PlayerInventories, PlayerInventory, PlayerInventoryAccess, PlayerLookTarget,
+    HotbarSelect, LookCellChanged, LookTarget, LookTargetChanged, Player, PlayerEquipment,
+    PlayerHeldItems, PlayerHotbar, PlayerInventories, PlayerInventory, PlayerInventoryAccess,
+    PlayerLookTarget,
 };
 
 use bevy::prelude::*;

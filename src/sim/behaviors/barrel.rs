@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use serde::Deserialize;
 
 use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
 use crate::sim::block_entity::Interactable;
@@ -27,7 +28,8 @@ pub struct Barrel;
 /// `register_block_behavior("barrel", ...)` line and the string `"barrel"`
 /// in `barrel.json`. Delete the file and those two references, and the game
 /// still builds — and still opens inventories for everything else.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct BarrelSpawner {
     pub slots: usize,
 }
@@ -35,6 +37,8 @@ pub struct BarrelSpawner {
 impl Default for BarrelSpawner {
     fn default() -> Self { Self { slots: 27 } }
 }
+
+crate::spawner_behavior!(BarrelSpawner, "barrel");
 
 impl BlockEntitySpawner for BarrelSpawner {
     fn spawn(&self, ctx: &mut BlockSpawnContext) {

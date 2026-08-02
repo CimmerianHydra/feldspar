@@ -8,7 +8,7 @@ use crate::sim::inventory::cursor::CursorInventory;
 use crate::sim::inventory::spatial::SpatialInventory;
 use crate::sim::inventory::storage::{Inventory, InventoryChangedEvent};
 use crate::space::BlockPos;
-use crate::voxel::{Direction, Voxel};
+use crate::voxel::{Direction, FaceCell, Voxel};
 
 const SPATIAL_CRAFTING_PANEL_WIDTH:  f32 = 520.0;
 const SPATIAL_CRAFTING_PANEL_HEIGHT: f32 = 260.0;
@@ -248,21 +248,69 @@ pub fn on_hotbar_changed(
 /// two very different consumers read it: block placement (input) and the
 /// highlight box (presentation). Presentation may not import input, so the
 /// answer sits below both and each reads it without knowing about the other.
+///
+/// Deliberately coarse — block, face, and nothing finer. The sub-face
+/// answer lives on the resource beside it, because `LookTargetChanged` is
+/// what tooltips wake on and they do not care which ninth of a face the
+/// crosshair is over.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum LookTarget {
     Block { at: BlockPos, voxel: Voxel, face: Direction },
     Mob   { entity: Entity },
 }
 
+/// The whole raycast answer, coarse and fine.
+///
+/// `hit` is the raw truth and `cell` is derived from it — memoized here,
+/// with exactly one writer, rather than recomputed by each consumer. That
+/// is what stops the highlight and the dispatcher ever disagreeing about
+/// which cell the crosshair is on.
 #[derive(Resource, Default)]
 pub struct PlayerLookTarget {
     pub target: Option<LookTarget>,
+    /// Space-local hit point, in block units. `None` when nothing is hit.
+    pub hit: Option<Vec3>,
+    /// Which ninth of the hit face. `None` when nothing is hit.
+    pub cell: Option<FaceCell>,
 }
 
-/// Fired when the look target changes, for tooltips and anything else that
-/// shouldn't re-raycast.
+impl PlayerLookTarget {
+    /// The block being looked at, unpacked. Saves every caller an
+    /// `if let ... else { return }` chain.
+    pub fn block(&self) -> Option<(BlockPos, Voxel, Direction)> {
+        match self.target {
+            Some(LookTarget::Block { at, voxel, face }) => Some((at, voxel, face)),
+            _ => None,
+        }
+    }
+
+    /// The cell, or the centre when there isn't one. The centre resolves to
+    /// the struck face, so a caller that uses this is correct by default
+    /// even if the raycast somehow produced no sub-face answer.
+    pub fn cell_or_centre(&self) -> FaceCell {
+        self.cell.unwrap_or(FaceCell::CENTRE)
+    }
+}
+
+/// Fired when the *block or face* changes, for tooltips and anything else
+/// that shouldn't re-raycast.
 #[derive(Event, Clone, Copy, Debug)]
 pub struct LookTargetChanged(pub Option<LookTarget>);
+
+/// Fired when the *cell* changes, which includes every time the coarse
+/// target changes — the two are a strict hierarchy, and moving from one
+/// block's centre cell to another's is a real case that would otherwise
+/// slip through.
+///
+/// Nothing in the base game listens to this yet: the highlight polls,
+/// because a transform write is cheaper than the bookkeeping around
+/// avoiding one. It exists for the things that genuinely need an edge — a
+/// tick sound as the crosshair crosses a cell boundary, a "→ East" label.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct LookCellChanged {
+    pub target: Option<LookTarget>,
+    pub cell: Option<FaceCell>,
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // PLUGIN

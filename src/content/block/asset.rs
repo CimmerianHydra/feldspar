@@ -1,10 +1,13 @@
 use bevy::prelude::*;
 use bevy_asset_loader::prelude::*;
-use serde::Deserialize;
+use serde::de;
+use serde::{Deserialize, Deserializer};
+use serde_json::{Map, Value};
 
 use crate::content::block::components::{
-    BlockBehaviorRegistry, BlockComponents, InteractsOnSecondary,
+    BlockBehaviorRegistry,
 };
+
 use crate::content::block::definition::{
     BlockAppearance, BlockDefinition, BlockMaterial, FaceTextures, SoundProfile, TextureSlot,
 };
@@ -84,11 +87,10 @@ pub struct BlockDefinitionAsset {
     pub material:      BlockMaterialAsset,
     #[serde(default)]
     pub sound_profile: SoundProfileAsset,
-    /// Names resolved against `BlockBehaviorRegistry` at load time.
+    /// Names (and optional config) resolved against `BlockBehaviorRegistry`
+    /// at load time.
     #[serde(default)]
-    pub behaviors:     Vec<String>,
-    #[serde(default)]
-    pub interactable:  bool,
+    pub behaviors: Vec<BehaviorEntry>,
     /// Default render class for every surface. Per-surface `render` on a
     /// `model` appearance overrides it.
     #[serde(default)]
@@ -151,6 +153,77 @@ pub struct SoundProfileAsset {
     #[serde(default)] pub on_place: Option<String>,
 }
 
+/// One element of a block's `"behaviors"` array.
+///
+/// Two spellings, because most behaviours want their defaults:
+/// ```json
+/// "behaviors": [
+///   "barrel",
+///   { "chute": { "batch": 4, "batches_per_second": 8 } },
+///   { "orientable": { "mode": "horizontal" } }
+/// ]
+/// ```
+///
+/// ## Why an array of single-key objects, and not a map
+///
+/// A map (`"behaviors": { "chute": {...} }`) reads better and forbids
+/// duplicate keys for free. Two things beat that here:
+///
+/// - **Order survives.** `SpawnsBlockEntities` documents that its list runs
+///   in order against one shared root. `serde_json`'s `Map` is a `BTreeMap`
+///   by default, so a map would silently alphabetise spawners — a bug that
+///   would surface as a multiblock assembling wrong, months later, with
+///   nothing in the diff to blame.
+/// - **Nothing migrates.** `"behaviors": ["barrel"]` is still valid, so every
+///   block file written before this change keeps working verbatim.
+#[derive(Debug, Clone)]
+pub struct BehaviorEntry {
+    pub name: String,
+    /// The config that followed the name, if any. Interpreted by the
+    /// behaviour's own factory, never by this module.
+    pub data: Option<Value>,
+}
+
+impl<'de> Deserialize<'de> for BehaviorEntry {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        /// Untagged buffers the input and tries in order, which is what lets
+        /// a bare string and a configured object share one array.
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Raw {
+            Bare(String),
+            Configured(Map<String, Value>),
+        }
+
+        match Raw::deserialize(deserializer)? {
+            Raw::Bare(name) => Ok(BehaviorEntry { name, data: None }),
+
+            Raw::Configured(map) => {
+                let mut entries = map.into_iter();
+
+                let Some((name, data)) = entries.next() else {
+                    return Err(de::Error::custom(
+                        "a behavior object needs exactly one key — \
+                         the behavior's name — with its config as the value",
+                    ));
+                };
+
+                // Two keys is ambiguous about order, and order is load-bearing
+                // for spawners. Reject rather than guess.
+                if let Some((second, _)) = entries.next() {
+                    return Err(de::Error::custom(format!(
+                        "a behavior object needs exactly one key, but this one \
+                         has both '{name}' and '{second}'. Write them as two \
+                         separate array entries."
+                    )));
+                }
+
+                Ok(BehaviorEntry { name, data: Some(data) })
+            }
+        }
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – JSON → REGISTRY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -198,17 +271,12 @@ pub fn populate_block_registry_sys(
             continue;
         }
 
+
         // Resolved per generated block rather than once per asset: the
         // warning then names the block that actually failed, and the
         // AssetServer returns the same handle for a repeated path, so the
         // audio in a five-shape family is loaded once, not five times.
-        let mut components = BlockComponents::default();
-        if let Some(spawns) = behaviors.resolve(&block.src.behaviors, &block.name) {
-            components = components.with(spawns);
-        }
-        if block.src.interactable {
-            components = components.with(InteractsOnSecondary);
-        }
+        let mut components = behaviors.resolve(&block.src.behaviors, &block.name);
 
         let appearance = resolve_appearance(&block.src.appearance, &tex);
         // Texture slots are resolved here, next to the appearance they come

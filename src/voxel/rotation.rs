@@ -183,6 +183,64 @@ impl BlockRotation {
     pub fn all() -> impl Iterator<Item = BlockRotation> {
         (0..ROTATION_COUNT as u8).map(BlockRotation)
     }
+
+    /// Where the model's local +Y ended up. The inverse of the `up` half of
+    /// [`BlockRotation::from_parts`].
+    #[inline]
+    pub fn up(self) -> Direction {
+        match self.0 / 4 {
+            0 => Direction::Up,
+            1 => Direction::Down,
+            2 => Direction::North,
+            3 => Direction::South,
+            4 => Direction::East,
+            _ => Direction::West,
+        }
+    }
+
+    /// Quarter-turns about the `up()` axis.
+    #[inline]
+    pub fn spin(self) -> u8 {
+        self.0 & 0b11
+    }
+
+    /// The rotation that points local face `reference` at world-local
+    /// `target`, changing as little else as possible.
+    ///
+    /// Four rotations satisfy the constraint — the spin about the target
+    /// axis is free — so "as little else as possible" is the tie-break:
+    /// pick the candidate that agrees with `self` on the most face images.
+    /// A machine wrenched from north to east keeps its top on top instead
+    /// of arriving in an arbitrary roll.
+    ///
+    /// Ties resolve to the lowest raw value, so this is deterministic and
+    /// safe to run on both ends of a future network connection.
+    ///
+    /// Returns `self` unchanged if no candidate exists, which cannot happen
+    /// for a proper rotation group but keeps the signature total.
+    pub fn point_toward(self, reference: Direction, target: Direction) -> Self {
+        let current = ALL_DIRECTIONS.map(|d| self.apply_dir(d));
+        let mut best: Option<(usize, BlockRotation)> = None;
+
+        for candidate in Self::all() {
+            if candidate.apply_dir(reference) != target {
+                continue;
+            }
+
+            let agreement = ALL_DIRECTIONS
+                .iter()
+                .enumerate()
+                .filter(|(i, d)| candidate.apply_dir(**d) == current[*i])
+                .count();
+
+            // Strict `>` keeps the first (lowest raw) candidate on a tie.
+            if best.is_none_or(|(score, _)| agreement > score) {
+                best = Some((agreement, candidate));
+            }
+        }
+
+        best.map_or(self, |(_, r)| r)
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -248,5 +306,54 @@ mod tests {
                 assert!(q.cmpge(Vec3::ZERO).all() && q.cmple(Vec3::ONE).all());
             }
         }
+    }
+
+    #[test]
+    fn up_and_spin_invert_from_parts() {
+        for up in ALL_DIRECTIONS {
+            for spin in 0..4 {
+                let r = BlockRotation::from_parts(up, spin);
+                assert_eq!(r.up(), up);
+                assert_eq!(r.spin(), spin);
+            }
+        }
+    }
+
+    /// The guarantee the wrench depends on.
+    #[test]
+    fn point_toward_actually_points() {
+        for start in BlockRotation::all() {
+            for reference in ALL_DIRECTIONS {
+                for target in ALL_DIRECTIONS {
+                    let r = start.point_toward(reference, target);
+                    assert_eq!(
+                        r.apply_dir(reference),
+                        target,
+                        "from {start:?}, {reference:?} → {target:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Re-aiming at the face you are already aimed at must be a no-op, or
+    /// every wrench click would emit a spurious voxel write.
+    #[test]
+    fn point_toward_is_idempotent() {
+        for start in BlockRotation::all() {
+            for reference in ALL_DIRECTIONS {
+                let target = start.apply_dir(reference);
+                assert_eq!(start.point_toward(reference, target), start);
+            }
+        }
+    }
+
+    /// A horizontal re-aim keeps the block's top on top.
+    #[test]
+    fn point_toward_preserves_the_unaffected_axis() {
+        let start = BlockRotation::IDENTITY;
+        let r = start.point_toward(Direction::North, Direction::East);
+        assert_eq!(r.apply_dir(Direction::North), Direction::East);
+        assert_eq!(r.apply_dir(Direction::Up), Direction::Up);
     }
 }

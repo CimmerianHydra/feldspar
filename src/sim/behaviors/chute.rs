@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use serde::Deserialize;
 
 use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
@@ -110,7 +111,8 @@ fn segment_touched(mut world: DeferredWorld, ctx: HookContext) {
 /// Same modularity contract as the barrel: declare a component and stop.
 /// The hook on `ChuteSegment` handles both enrolment and withdrawal, so
 /// there is no despawn logic here and no way for the two paths to drift.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ChuteSpawner {
     pub batch: u16,
     pub batches_per_second: u32,
@@ -121,6 +123,8 @@ impl Default for ChuteSpawner {
         Self { batch: DEFAULT_BATCH, batches_per_second: DEFAULT_RATE }
     }
 }
+
+crate::spawner_behavior!(ChuteSpawner, "chute");
 
 impl BlockEntitySpawner for ChuteSpawner {
     fn spawn(&self, ctx: &mut BlockSpawnContext) {
