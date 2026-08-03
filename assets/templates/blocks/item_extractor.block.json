@@ -1,7 +1,7 @@
 {
     "name": "item_extractor",
     "display_name": "Item Extractor",
-    "shape": { "Custom": "item_extractor.bbmodel" },
+    "shape": { "Custom": "extractor" },
     "appearance": {
         "kind": "model",
         "surfaces": {

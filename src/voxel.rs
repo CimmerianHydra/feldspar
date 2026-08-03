@@ -12,6 +12,7 @@
 
 
 
+
 #[allow(clippy::module_inception)]
 pub mod voxel;
 
@@ -20,6 +21,7 @@ pub mod direction;
 pub mod face_grid;
 pub mod ids;
 pub mod rotation;
+pub mod rotation_set;
 pub mod shape;
 pub mod variants;
 pub use ids::{BlockID, ItemID};
@@ -34,3 +36,4 @@ pub use shape::{asset_stem, pipe_slots, slots, BlockShape, ConnectionMask, FACE_
 pub use variants::{ModelID, ModelTable, VariantKey, MAX_VARIANT_BITS};
 pub use voxel::{Voxel, ID_BITS, ROTATION_BITS, STATE_BITS};
 pub use face_grid::{face_uv, FaceBasis, FaceCell, CELL_SIZE};
+pub use rotation_set::RotationSet;

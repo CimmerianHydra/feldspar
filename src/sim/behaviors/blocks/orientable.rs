@@ -27,7 +27,7 @@ pub enum OrientationMode {
     Full,
     /// North/South/East/West. Anything with a fixed top — furnaces,
     /// workbenches, most player-facing UI machines.
-    Horizontal,
+    Yaw,
     /// The three axes. A log pointed "down" is a log pointed "up"; this
     /// folds the pair rather than rejecting it, so the click still lands.
     Axis,
@@ -81,7 +81,7 @@ impl Orientable {
         match self.mode {
             OrientationMode::Full => Some(target),
 
-            OrientationMode::Horizontal => match target {
+            OrientationMode::Yaw => match target {
                 Direction::Up | Direction::Down => None,
                 horizontal => Some(horizontal),
             },
@@ -135,7 +135,7 @@ mod tests {
         let value = json.data.unwrap();
         let orientable = Orientable::deserialize(&value).unwrap();
 
-        assert_eq!(orientable.mode, OrientationMode::Horizontal);
+        assert_eq!(orientable.mode, OrientationMode::Yaw);
         assert_eq!(orientable.reference, Direction::Up);
     }
 
@@ -174,7 +174,7 @@ mod tests {
     fn horizontal_mode_rejects_vertical_targets() {
         let orientable = Orientable {
             reference: Direction::Up,
-            mode: OrientationMode::Horizontal,
+            mode: OrientationMode::Yaw,
         };
 
         assert!(orientable.normalize(Direction::Up).is_none());

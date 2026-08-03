@@ -25,6 +25,7 @@ use crate::content::block::behaviors::BlockBehaviorRegistry;
 use crate::content::item::behaviors::ItemBehaviorRegistry;
 use crate::content::item::asset::{ItemDefinitionAsset, ItemDefinitionAssets};
 use crate::content::item::registry::ItemRegistry;
+use crate::content::model_def::{ModelDefRegistry, ModelDefinitionAsset, ModelDefinitionAssets};
 use crate::content::recipe::asset::{RecipeDefinitionAsset, SpatialRecipeAssets};
 use crate::content::recipe::registry::SpatialRecipeRegistry;
 use crate::content::shape_set::{ShapeSetAsset, ShapeSetAssets, ShapeSetRegistry};
@@ -40,6 +41,7 @@ use crate::content::model_source::{BbModel, ModelSourceAssets, ModelSourceRegist
 pub mod behavior;
 pub mod block;
 pub mod item;
+pub mod model_def;
 pub mod model_source;
 pub mod recipe;
 pub mod shape_set;
@@ -66,6 +68,7 @@ impl Plugin for ContentPlugin {
             .init_resource::<PartRegistry>()
             .init_resource::<SpatialRecipeRegistry>()
             .init_resource::<ModelSourceRegistry>()
+            .init_resource::<ModelDefRegistry>()
 
             // ---- parsers for the *.json definition files --------------------
             .add_plugins(JsonAssetPlugin::<BlockDefinitionAsset>::new(&["block.json"]))
@@ -75,6 +78,7 @@ impl Plugin for ContentPlugin {
             .add_plugins(JsonAssetPlugin::<PartProfileAsset>::new(&["part.json"]))
             .add_plugins(JsonAssetPlugin::<ShapeSetAsset>::new(&["shapeset.json"]))
             .add_plugins(JsonAssetPlugin::<BbModel>::new(&["bbmodel"]))
+            .add_plugins(JsonAssetPlugin::<ModelDefinitionAsset>::new(&["model.json"]))
 
             // ---- gate the state transition on every file being parsed -------
             .add_loading_state(
@@ -87,6 +91,7 @@ impl Plugin for ContentPlugin {
                     .load_collection::<PartProfileAssets>()
                     .load_collection::<SpatialRecipeAssets>()
                     .load_collection::<ModelSourceAssets>()
+                    .load_collection::<ModelDefinitionAssets>()
                     .finally_init_resource::<ContentFilesReady>()
             );
     }

@@ -35,6 +35,7 @@ use crate::app::schedule::LoadSet;
 use crate::content::block::asset::populate_block_registry_sys;
 use crate::content::item::asset::load_item_definitions_sys;
 use crate::content::model_source::populate_model_source_registry_sys;
+use crate::content::model_def::populate_model_def_registry_sys;
 use crate::content::recipe::asset::populate_spatial_recipe_registry_sys;
 use crate::content::shape_set::populate_shape_set_registry_sys;
 use crate::content::substance::{generate_substance_items_sys, populate_substance_registries_sys};
@@ -73,7 +74,9 @@ fn build_load_sequence(world: &mut World) -> LoadSequence {
         // Shape sets have to exist before blocks can reference them.
         .step("Reading shape sets", 5, populate_shape_set_registry_sys)
         // Custom model shapes from blockbench.
-        .step("Registering custom shapes", 5, populate_model_source_registry_sys)
+        .step("Reading Blockbench models", 5, populate_model_source_registry_sys)
+        // Turning blockbench models into actual in-game models.
+        .step("Registering custom models", 10, populate_model_def_registry_sys)
         // Blocks: identity, appearance, texture slots, behaviours.
         .step("Registering blocks", 20, populate_block_registry_sys)
         // Worldgen resolves block names, so it needs the registry.

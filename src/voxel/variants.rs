@@ -1,5 +1,5 @@
-use crate::voxel::rotation::ROTATION_COUNT;
-use crate::voxel::voxel::{Voxel, STATE_BITS};
+use crate::voxel::rotation::BlockRotation;
+use crate::voxel::voxel::{Voxel, STATE_BITS, ROTATION_BITS};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – MODEL IDENTITY
@@ -56,6 +56,10 @@ impl VariantKey {
 
     pub const fn stateful(state_bits: u8) -> Self {
         Self { uses_rotation: false, state_bits }
+    }
+
+    pub const fn rotated_stateful(state_bits: u8) -> Self {
+        Self { uses_rotation: true, state_bits }
     }
 
     #[inline]
@@ -136,15 +140,66 @@ impl ModelTable {
         Self { key, models }
     }
 
-    /// A rotation-keyed table. Rotation raw values 24..31 are unreachable
-    /// through `BlockRotation`, but the table is sized by bit width, so
-    /// those slots are filled with the identity model. A corrupted voxel
-    /// then renders upright instead of indexing out of bounds.
-    pub fn from_rotations(mut models: Vec<ModelID>) -> Self {
-        assert_eq!(models.len(), ROTATION_COUNT);
-        let identity = models[0];
-        models.resize(32, identity);
-        Self { key: VariantKey::rotated(), models }
+    /// A table keyed by rotation, from a possibly-sparse set of members.
+    ///
+    /// `set` and `models` are parallel — `models[i]` is the bake of
+    /// `set[i]`. Every one of the 32 raw rotation slots gets a model:
+    /// members get their own, and everything else — spins that this set
+    /// doesn't distinguish, plus the 8 unreachable raw values 24..31 —
+    /// falls back to `models[0]`.
+    ///
+    /// That fallback is why `RotationSet::rotations()` guarantees identity
+    /// comes first: a voxel carrying a rotation the model wasn't baked for
+    /// renders upright rather than indexing out of bounds.
+    pub fn from_rotation_set(set: &[BlockRotation], models: Vec<ModelID>) -> Self {
+        assert_eq!(
+            set.len(),
+            models.len(),
+            "rotation set has {} members but {} models were baked",
+            set.len(),
+            models.len()
+        );
+        assert!(!models.is_empty(), "a rotation set must have at least one member");
+
+        let mut table = vec![models[0]; 1 << ROTATION_BITS];
+        for (rotation, id) in set.iter().zip(&models) {
+            table[rotation.raw() as usize] = *id;
+        }
+
+        Self { key: VariantKey::rotated(), models: table }
+    }
+
+    /// Rotation × state. `models[i][s]` is `set[i]` at state value `s`.
+    ///
+    /// Index layout follows `VariantKey::index`: rotation in the high bits,
+    /// so a block's state variants stay contiguous under a fixed rotation.
+    pub fn from_rotation_state(
+        set: &[BlockRotation],
+        state_bits: u8,
+        models: &[Vec<ModelID>],
+    ) -> Self {
+        assert_eq!(set.len(), models.len(), "rotation set and model rows disagree");
+        assert!(!models.is_empty(), "a rotation set must have at least one member");
+
+        let states = 1usize << state_bits;
+        debug_assert!(models.iter().all(|row| row.len() == states));
+
+        // Every rotation starts as a copy of the identity row, then members
+        // overwrite theirs. Unreachable rotations therefore still vary
+        // correctly with state, which matters for a connecting block: a
+        // corrupted rotation should render an upright pipe with the right
+        // arms, not an upright pipe with no arms.
+        let mut table = Vec::with_capacity(states << ROTATION_BITS);
+        for _ in 0..(1 << ROTATION_BITS) {
+            table.extend_from_slice(&models[0]);
+        }
+
+        for (rotation, row) in set.iter().zip(models) {
+            let base = (rotation.raw() as usize) << state_bits;
+            table[base..base + states].copy_from_slice(row);
+        }
+
+        Self { key: VariantKey::rotated_stateful(state_bits), models: table }
     }
 
     /// The hot lookup. One index, no branch beyond the descriptor.
@@ -205,14 +260,5 @@ mod tests {
         let r = BlockRotation::from_parts(Direction::East, 1);
         let v = Voxel::full(1).with_rotation(r).with_state(0b11);
         assert_eq!(key.index(v), ((r.raw() as usize) << 2) | 0b11);
-    }
-
-    #[test]
-    fn rotation_table_pads_unreachable_slots() {
-        let models: Vec<ModelID> = (0..ROTATION_COUNT).map(|i| ModelID(i as u32)).collect();
-        let table = ModelTable::from_rotations(models);
-        assert_eq!(table.models.len(), 32);
-        // Slots 24..31 fall back to the identity model.
-        assert_eq!(table.models[31], ModelID(0));
     }
 }

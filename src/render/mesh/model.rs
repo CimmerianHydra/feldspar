@@ -110,30 +110,8 @@ impl ModelArena {
     /// Rotation is applied here, at startup, exactly once per variant —
     /// never per remesh.
     pub fn bake(&mut self, elements: &[Element], rotation: BlockRotation) -> ModelID {
-        let mut quads: Vec<BakedQuad> = Vec::new();
-        let mut colliders: Vec<[Vec3; 2]> = Vec::new();
-
-        for element in elements {
-            match element {
-                Element::Box(b) => {
-                    box_quads(b, &mut quads);
-                    colliders.push([b.min, b.max]);
-                }
-                Element::Raw { quads: raw, collider } => {
-                    quads.extend_from_slice(raw);
-                    colliders.extend_from_slice(collider);
-                }
-            }
-        }
-
-        for q in &mut quads {
-            rotate_quad(q, rotation);
-        }
-        for c in &mut colliders {
-            let (a, b) = (rotation.apply_point(c[0]), rotation.apply_point(c[1]));
-            *c = [a.min(b), a.max(b)];
-        }
-
+        let (mut quads, mut colliders) = flatten(elements);
+        apply_rotation(&mut quads, &mut colliders, rotation);
         self.intern(quads, colliders)
     }
 
@@ -180,6 +158,69 @@ impl ModelArena {
         self.dedup.insert(key, id);
         id
     }
+}
+
+/// Flatten an element list into raw quads and colliders.
+///
+/// Shared by `bake` and `rotate_elements`, which want the same conversion
+/// for different reasons: one is about to intern the result, the other is
+/// about to hand it back as a single `Element::Raw` for composition.
+fn flatten(elements: &[Element]) -> (Vec<BakedQuad>, Vec<[Vec3; 2]>) {
+    let mut quads: Vec<BakedQuad> = Vec::new();
+    let mut colliders: Vec<[Vec3; 2]> = Vec::new();
+
+    for element in elements {
+        match element {
+            Element::Box(b) => {
+                box_quads(b, &mut quads);
+                colliders.push([b.min, b.max]);
+            }
+            Element::Raw { quads: raw, collider } => {
+                quads.extend_from_slice(raw);
+                colliders.extend_from_slice(collider);
+            }
+        }
+    }
+
+    (quads, colliders)
+}
+
+fn apply_rotation(
+    quads: &mut [BakedQuad],
+    colliders: &mut [[Vec3; 2]],
+    rotation: BlockRotation,
+) {
+    for q in quads {
+        rotate_quad(q, rotation);
+    }
+    for c in colliders {
+        let (a, b) = (rotation.apply_point(c[0]), rotation.apply_point(c[1]));
+        *c = [a.min(b), a.max(b)];
+    }
+}
+
+/// Rotate an element list in place, in the element IR rather than in the
+/// arena.
+///
+/// Needed because a composed model has to rotate its *pieces* before
+/// concatenating them, and `bake` only rotates a finished whole. One arm
+/// file then serves all six directions of a pipe instead of six near-
+/// identical exports.
+///
+/// The result is always a single `Element::Raw`: a 90-degree lattice
+/// rotation does keep an AABB axis-aligned, but it permutes which face
+/// carries which slot, and reconstructing an `ElementBox` from that is more
+/// work than it saves. Collapsing to quads loses nothing downstream —
+/// `flatten` is the first thing `bake` does anyway.
+pub fn rotate_elements(elements: &[Element], rotation: BlockRotation) -> Vec<Element> {
+    if rotation == BlockRotation::IDENTITY {
+        return elements.to_vec();
+    }
+
+    let (mut quads, mut colliders) = flatten(elements);
+    apply_rotation(&mut quads, &mut colliders, rotation);
+
+    vec![Element::Raw { quads, collider: colliders }]
 }
 
 fn rotate_quad(q: &mut BakedQuad, r: BlockRotation) {

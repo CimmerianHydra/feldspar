@@ -1,0 +1,5 @@
+{
+  "model":     "extractor",
+  "geometry":  "models/blocks/extractor.bbmodel",
+  "rotations": "full"
+}
