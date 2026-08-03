@@ -1,7 +1,8 @@
 use bevy::prelude::*;
 use std::collections::HashMap;
 
-use crate::content::item::components::{ItemComponents, PlacesBlock};
+use crate::content::item::behaviors::ItemBehaviors;
+use crate::sim::behaviors::items::places_block::PlacesBlock;
 use crate::content::item::display::ItemDisplay;
 use crate::content::substance::{PartID, SubstanceID};
 use crate::voxel::{BlockID, ItemID};
@@ -36,7 +37,7 @@ pub struct ItemDefinition {
     pub max_stack:    u16,       // e.g. 99 for ore, 1 for unique tools
     pub kind:         ItemKind,
     pub display:      ItemDisplay,
-    pub components:   ItemComponents,
+    pub behaviors:    ItemBehaviors,
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -78,14 +79,8 @@ impl ItemRegistry {
         let id = ItemID(self.items.len() as u16);
         let name = def.name.clone();
 
-        // If this item places a block, record the reverse link
         if let ItemKind::Block { block_id } = def.kind {
             self.block_to_item.insert(block_id, id);
-        }
-
-        // WIP: we're currently moving over to ItemComponents
-        if let Some(pb) = def.components.get::<PlacesBlock>() {
-            self.block_to_item.insert(pb.block_id, id);
         }
 
         self.items.push(def);

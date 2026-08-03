@@ -5,7 +5,7 @@ use bevy::ecs::lifecycle::HookContext;
 use bevy::ecs::world::DeferredWorld;
 use bevy::prelude::*;
 
-use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
+use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
 use crate::sim::transport::mover::{
     credit_per_tick, set_endpoints, ItemMover, TransportDirty, TransportSet,
 };
@@ -136,21 +136,21 @@ fn segment_touched(mut world: DeferredWorld, ctx: HookContext) {
 /// there is no despawn logic here and no way for the two paths to drift.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct ChuteSpawner {
+pub struct ChuteBehavior {
     pub batch: u16,
     pub batches_per_second: u32,
 }
 
-impl Default for ChuteSpawner {
+impl Default for ChuteBehavior {
     fn default() -> Self {
         Self { batch: DEFAULT_BATCH, batches_per_second: DEFAULT_RATE }
     }
 }
 
-crate::spawner_behavior!(ChuteSpawner, "chute");
+impl BlockBehavior for ChuteBehavior {
+    const NAME: &'static str = "chute";
 
-impl BlockEntitySpawner for ChuteSpawner {
-    fn spawn(&self, ctx: &mut BlockSpawnContext) {
+    fn on_place(&self, ctx: &mut BlockSpawnContext) {
         ctx.insert(ChuteSegment {
             at: ctx.at,
             run: Entity::PLACEHOLDER,
@@ -159,11 +159,12 @@ impl BlockEntitySpawner for ChuteSpawner {
         });
     }
 
-    fn despawn(&self, _commands: &mut Commands, _root: Entity) {
-        // `segment_touched` fires on removal and marks the rebuild. The
-        // run this segment belonged to is *not* despawned here: whether it
-        // should die depends on the rest of the column, which only the
-        // rebuild can see.
+    // `segment_touched` fires on removal and marks the rebuild, so there is
+    // no teardown here and no way for the two paths to drift.
+
+    /// The chute's own systems travel with the chute.
+    fn build(app: &mut App) {
+        app.add_plugins(ChutePlugin);
     }
 }
 

@@ -3,8 +3,11 @@ use bevy::math::Mat3;
 use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::{prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef};
 
-use crate::content::block::{BlockRegistry, FaceTargeted, Orientable};
-use crate::content::item::{ItemRegistry, OrientsBlocks};
+use crate::content::block::BlockRegistry;
+use crate::content::item::ItemRegistry;
+use crate::sim::behaviors::blocks::face_targeted::FaceTargeted;
+use crate::sim::behaviors::blocks::orientable::Orientable;
+use crate::sim::behaviors::items::orients_blocks::OrientsBlocks;
 use crate::sim::player::{LookTarget, PlayerHeldItems, PlayerLookTarget};
 use crate::space::VoxelWorld;
 use crate::voxel::{
@@ -279,9 +282,7 @@ fn resolve_face_grid(
     let (at, voxel, face) = look_target.block()?;
 
     let definition = block_registry.get(BlockID(voxel.id()));
-    if !definition.components.has::<FaceTargeted>() {
-        return None;
-    }
+    if !definition.behaviors.has::<FaceTargeted>() { return None; }
 
     let world_tf = voxel_world.world_transform(at)?;
 
@@ -317,9 +318,9 @@ fn resolve_face_grid(
     //
     // Only meaningful while a configuring tool is out: bare-handed, a
     // face-targeted pipe has no illegal cells.
-    let legal = match (held_item.right_hand, definition.components.get::<Orientable>()) {
+    let legal = match (held_item.right_hand, definition.behaviors.get::<Orientable>()) {
         (Some(held), Some(orientable))
-            if item_registry.get(held.id).components.has::<OrientsBlocks>() =>
+            if item_registry.get(held.id).behaviors.has::<OrientsBlocks>() =>
         {
             orientable.normalize(target_face).is_some()
         }

@@ -3,7 +3,8 @@ use bevy_asset_loader::prelude::*;
 use serde::Deserialize;
 
 use crate::content::block::registry::BlockRegistry;
-use crate::content::item::components::ItemComponents;
+use crate::content::behavior::BehaviorEntry;
+use crate::content::item::behaviors::{ItemBehaviorRegistry, ItemLoadContext};
 use crate::content::item::display::{DisplayLayer, ItemDisplay};
 use crate::content::item::registry::{ItemDefinition, ItemKind, ItemRegistry};
 use crate::content::item::MAX_STACK;
@@ -54,6 +55,10 @@ pub struct ItemDefJson {
     #[serde(default)]
     pub kind:         ItemKindJson,
     pub display:      DisplayJson,
+    /// Names (and optional config) resolved against `ItemBehaviorRegistry`
+    /// at load time. Same spelling as a block's `"behaviors"`.
+    #[serde(default)]
+    pub behaviors:    Vec<BehaviorEntry>,
 }
 
 fn default_max_stack() -> u16 { MAX_STACK }
@@ -142,6 +147,7 @@ pub fn load_item_definitions_sys(
     assets:         Res<ItemDefinitionAssets>,
     parsed:         Res<Assets<ItemDefinitionAsset>>,
     block_registry: Res<BlockRegistry>,
+    behaviors:         Res<ItemBehaviorRegistry>,
     mut item_registry: ResMut<ItemRegistry>,
     asset_server:   Res<AssetServer>,
 ) {
@@ -177,14 +183,21 @@ pub fn load_item_definitions_sys(
                 }
             };
 
+            let resolved = behaviors.resolve(
+                &def.behaviors,
+                ItemLoadContext { blocks: &block_registry, item_name: &def.name },
+                &def.name,
+            );
+
             item_registry.register(ItemDefinition {
                 name:         def.name.clone(),
                 display_name: def.display_name.clone(),
                 max_stack:    def.max_stack,
                 kind,
                 display:      resolve_display(&def.display, &asset_server),
-                components: ItemComponents::default(), // WIP: parse item components from JSON
+                behaviors:    resolved,
             });
+
             loaded += 1;
         }
     }

@@ -3,7 +3,6 @@ use bevy::{
     prelude::*,
 };
 
-use crate::content::block::components::SpawnsBlockEntities;
 use crate::content::block::{BlockRegistry, BlockSpawnContext};
 use crate::space::{BlockEvent, BlockPos, ChunkBlockEntities, VoxelAddress, VoxelWorld};
 use crate::voxel::{BlockID, Direction};
@@ -204,17 +203,23 @@ pub fn build_block_entity(
     block_id: BlockID,
 ) -> Option<Entity> {
     let definition = registry.get(block_id);
-    let spawns = definition.components.get::<SpawnsBlockEntities>()?;
 
-    // Inserting the tag *is* indexing and parenting it — see the hooks.
-    let root = commands
-        .spawn((tag, Name::new(format!("BlockEntity<{}>", definition.name))))
-        .id();
+    // Scoped so the `&mut Commands` borrow ends before the tag is attached.
+    let root = {
+        let mut ctx = BlockSpawnContext::new(commands, at, block_id);
+        definition.behaviors.on_place(&mut ctx);
+        ctx.spawned()
+    };
 
-    let mut ctx = BlockSpawnContext { commands, root, at, block_id };
-    for spawner in spawns.iter() {
-        spawner.spawn(&mut ctx);
-    }
+    // Nothing touched the context, so nothing wanted an entity. A wrenchable
+    // stair lands here, and stays a bare voxel.
+    let root = root?;
+
+    // Inserted last, on purpose: the tag's `on_add` hook indexes and parents
+    // the entity, and it should do that to a finished one.
+    commands
+        .entity(root)
+        .insert((tag, Name::new(format!("BlockEntity<{}>", definition.name))));
 
     Some(root)
 }
@@ -260,11 +265,7 @@ fn despawn_block_entities_on_break_obs(
     let Some(root) = voxel_world.block_entity_at(at) else { return };
     if tags.get(root).is_err() { return; }
 
-    if let Some(spawns) = registry.get(block_id).components.get::<SpawnsBlockEntities>() {
-        for spawner in spawns.iter() {
-            spawner.despawn(&mut commands, root);
-        }
-    }
+    registry.get(block_id).behaviors.on_break(&mut commands, root);
 
     commands.entity(root).despawn();
 }

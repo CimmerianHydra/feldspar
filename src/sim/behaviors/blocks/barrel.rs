@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use serde::Deserialize;
 
-use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
+use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
 use crate::sim::block_entity::Interactable;
 use crate::sim::inventory::storage::Inventory;
 
@@ -25,32 +25,37 @@ pub struct Barrel;
 /// with the others.
 ///
 /// Nothing outside this file mentions barrels except the single
-/// `register_block_behavior("barrel", ...)` line and the string `"barrel"`
-/// in `barrel.json`. Delete the file and those two references, and the game
-/// still builds — and still opens inventories for everything else.
+/// `.register_block_behavior::<BarrelBehavior>()` line and the string
+/// `"barrel"` in `barrel.json`. Delete the file and those two references,
+/// and the game still builds — and still opens inventories for everything
+/// else.
+///
+/// Note there is no `fn build`: a barrel needs no systems of its own. The
+/// default is a no-op, so the absence is the declaration.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct BarrelSpawner {
+pub struct BarrelBehavior {
     pub slots: usize,
 }
 
-impl Default for BarrelSpawner {
-    fn default() -> Self { Self { slots: 27 } }
+impl Default for BarrelBehavior {
+    fn default() -> Self {
+        Self { slots: 27 }
+    }
 }
 
-crate::spawner_behavior!(BarrelSpawner, "barrel");
+impl BlockBehavior for BarrelBehavior {
+    const NAME: &'static str = "barrel";
 
-impl BlockEntitySpawner for BarrelSpawner {
-    fn spawn(&self, ctx: &mut BlockSpawnContext) {
+    /// Touching `ctx` is what promotes the voxel to an entity. A behaviour
+    /// that never calls into the context — `orientable`, say — leaves the
+    /// block a bare voxel, which is why a wrenchable stair costs nothing.
+    fn on_place(&self, ctx: &mut BlockSpawnContext) {
         // "Spawn an entity with the following bundle of components:"
-        ctx.insert((
-            Inventory::storage(self.slots),
-            Interactable,
-            Barrel,
-        ));
+        ctx.insert((Inventory::storage(self.slots), Interactable, Barrel));
     }
 
-    fn despawn(&self, _commands: &mut Commands, _root: Entity) {
+    fn on_break(&self, _commands: &mut Commands, _root: Entity) {
         // Screens viewing this barrel close themselves — see
         // `ui::inventory::close_screens_for_removed_inventory_obs`.
         // TODO: spill items on floor.

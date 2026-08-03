@@ -1,0 +1,14 @@
+[
+  {
+    "name": "wrench",
+    "display_name": "Wrench",
+    "max_stack": 1,
+    "kind": {
+      "tool": {
+        "max_durability": 128
+      }
+    },
+    "display": "icons/items/cube.png",
+    "behaviors": ["orients_blocks"]
+  }
+]

@@ -4,18 +4,21 @@
 //! As with blocks, `ItemID` itself lives in [`crate::voxel::ids`] and is
 //! re-exported here.
 
+
 pub mod asset;
-pub mod components;
+pub mod behaviors;
 pub mod display;
 pub mod registry;
-
 pub use crate::voxel::ItemID;
 
 pub use asset::{
     load_item_definitions_sys, parse_hex_color, resolve_display, DisplayJson, ItemDefinitionAsset,
     ItemDefinitionAssets,
 };
-pub use components::{Durability, Fuel, ItemComponent, ItemComponents, OrientsBlocks, PlacesBlock};
+pub use behaviors::{
+    ItemBehavior, ItemBehaviorData, ItemBehaviorRegistry, ItemBehaviors,
+    ItemFamily, ItemLoadContext, RegisterItemBehaviorExtension,
+};
 pub use display::{DisplayLayer, ItemDisplay};
 pub use registry::{ItemDefinition, ItemKind, ItemRegistry};
 

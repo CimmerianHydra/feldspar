@@ -1,7 +1,7 @@
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
 
-use crate::content::block::components::BlockComponents;
+use crate::content::block::behaviors::BlockBehaviors;
 use crate::voxel::{BlockShape, ModelTable};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -27,7 +27,7 @@ pub struct BlockDefinition {
     pub has_collision:  bool,
     pub material:       BlockMaterial,
     pub sound_profile:  SoundProfile,
-    pub components:     BlockComponents,
+    pub behaviors: BlockBehaviors,
 }
 
 impl BlockDefinition {
@@ -52,7 +52,7 @@ impl Default for BlockDefinition {
             has_collision: true,
             material: BlockMaterial::default(),
             sound_profile: SoundProfile::default(),
-            components: BlockComponents::default(),
+            behaviors: BlockBehaviors::default(),
         }
     }
 }

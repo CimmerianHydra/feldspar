@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use bevy::prelude::*;
 use serde::Deserialize;
 
-use crate::content::block::components::{BlockEntitySpawner, BlockSpawnContext};
-use crate::sim::block_entity::{BlockEntityEvent, Interactable};
+use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
+use crate::sim::BlockEntityEvent;
 use crate::sim::transport::mover::{set_endpoints, ItemMover, TransportDirty, TransportSet};
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
@@ -90,21 +90,21 @@ impl ItemExtractor {
 /// section 4 is what it routes to.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct ExtractorSpawner {
+pub struct ExtractorBehavior {
     pub batch: u16,
     pub batches_per_second: u32,
 }
 
-impl Default for ExtractorSpawner {
+impl Default for ExtractorBehavior {
     fn default() -> Self {
         Self { batch: DEFAULT_BATCH, batches_per_second: DEFAULT_RATE }
     }
 }
 
-crate::spawner_behavior!(ExtractorSpawner, "extractor");
+impl BlockBehavior for ExtractorBehavior {
+    const NAME: &'static str = "item_extractor";   // whatever the JSON says today
 
-impl BlockEntitySpawner for ExtractorSpawner {
-    fn spawn(&self, ctx: &mut BlockSpawnContext) {
+    fn on_place(&self, ctx: &mut BlockSpawnContext) {
         ctx.insert((
             // `output` is a placeholder; the first resolution pass reads
             // the real value off the voxel. The write that placed this
@@ -112,13 +112,11 @@ impl BlockEntitySpawner for ExtractorSpawner {
             // next tick.
             ItemExtractor { at: ctx.at, output: CANONICAL_OUTPUT },
             ItemMover::new(self.batch, self.batches_per_second),
-            Interactable,
         ));
     }
 
-    fn despawn(&self, _commands: &mut Commands, _root: Entity) {
-        // Nothing to unwind: watcher lists tolerate dead entries, and the
-        // mover dies with the entity.
+    fn build(app: &mut App) {
+        app.add_plugins(ExtractorPlugin);
     }
 }
 
@@ -174,41 +172,6 @@ pub fn resolve_extractors_sys(
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 – INTERACTION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// Right-clicking a face makes that face the output.
-///
-/// Note what this handler does *not* do: it doesn't touch `ItemExtractor`,
-/// doesn't touch `ItemMover`, and doesn't resolve anything. It writes a
-/// voxel. Everything downstream — the remesh, the dirty mark, the endpoint
-/// swap, the wake — happens through machinery that already exists for other
-/// reasons. That's the payoff for making the voxel authoritative.
-///
-/// Clicking the current output face is a no-op rather than a spin, because
-/// an extractor is rotationally symmetric about its axis and a write that
-/// changes nothing would still cost a remesh.
-pub fn configure_extractor_obs(
-    event: On<BlockEntityEvent>,
-    mut commands: Commands,
-    extractors: Query<&ItemExtractor>,
-    voxels: VoxelWorld,
-) {
-    let Ok(extractor) = extractors.get(event.entity) else { return };
-
-    if event.target_face == extractor.output.opposite() {
-        return;
-    }
-
-    let voxel = voxels.get_voxel(extractor.at);
-
-    commands.trigger(VoxelWriteRequest {
-        at: extractor.at,
-        voxel: Voxel::new(voxel.id(), rotation_for_output(event.target_face), voxel.state()),
-    });
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 5 – PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -220,6 +183,6 @@ impl Plugin for ExtractorPlugin {
             FixedUpdate,
             resolve_extractors_sys.in_set(TransportSet::Topology),
         )
-        .add_observer(configure_extractor_obs);
+        ;
     }
 }

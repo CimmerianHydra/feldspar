@@ -46,9 +46,8 @@ use bevy::camera::visibility::RenderLayers;
 use bevy::camera::{ClearColorConfig, OrthographicProjection, Projection, RenderTarget, ScalingMode};
 
 use crate::content::block::BlockRegistry;
-use crate::content::item::{
-    ItemComponents, ItemDefinition, ItemDisplay, ItemKind, ItemRegistry, PlacesBlock, MAX_STACK,
-};
+use crate::content::item::{ItemBehaviors, ItemDefinition, ItemDisplay, ItemKind, ItemRegistry, MAX_STACK};
+use crate::sim::behaviors::items::places_block::PlacesBlock;
 use crate::render::material::VoxelMaterials;
 use crate::render::mesh::mesher::build_single_model_mesh;
 use crate::render::mesh::model::ModelArena;
@@ -206,7 +205,8 @@ pub fn register_block_items_sys(
             max_stack: MAX_STACK,
             kind: ItemKind::Block { block_id },
             display: ItemDisplay::Image { image: icon },
-            components: ItemComponents::default().with(PlacesBlock { block_id }),
+            behaviors: ItemBehaviors::default()
+                .with(PlacesBlock::resolved(block.name.clone(), block_id)),
         });
     }
 

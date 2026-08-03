@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
 use crate::content::item::asset::parse_hex_color;
-use crate::content::item::components::ItemComponents;
+use crate::content::item::behaviors::ItemBehaviors;
 use crate::content::item::display::{DisplayLayer, ItemDisplay};
 use crate::content::item::registry::{ItemDefinition, ItemKind, ItemRegistry};
 use crate::content::item::MAX_STACK;
@@ -382,7 +382,7 @@ pub fn generate_substance_items_sys(
                 max_stack:    part.max_stack,
                 kind:         ItemKind::SubstancePart { part: part_id, substance: sub.id },
                 display:      ItemDisplay::Layered { layers },
-                components:   ItemComponents::default(),
+                behaviors:    ItemBehaviors::default(),
             });
         }
     }

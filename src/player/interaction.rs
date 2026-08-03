@@ -1,8 +1,12 @@
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 
-use crate::content::block::{BlockRegistry, FaceTargeted, Orientable};
-use crate::content::item::{ItemRegistry, OrientsBlocks, PlacesBlock};
+use crate::content::block::BlockRegistry;
+use crate::content::item::ItemRegistry;
+use crate::sim::behaviors::blocks::face_targeted::FaceTargeted;
+use crate::sim::behaviors::blocks::orientable::Orientable;
+use crate::sim::behaviors::items::orients_blocks::OrientsBlocks;
+use crate::sim::behaviors::items::places_block::PlacesBlock;
 use crate::player::input::{PrimaryFire, SecondaryFire};
 use crate::sim::block_entity::{BlockEntityEvent, Interactable};
 use crate::sim::player::{
@@ -252,7 +256,7 @@ fn handle_secondary_fire_obs(
     // and handed to every rung below — so nothing downstream has to know
     // that face targeting exists, and a handler that ignores `target_face`
     // behaves exactly as it did before.
-    let target_face = if def.components.has::<FaceTargeted>() {
+    let target_face = if def.behaviors.has::<FaceTargeted>() {
         look_target.cell_or_centre().resolve(face)
     } else {
         face
@@ -268,8 +272,8 @@ fn handle_secondary_fire_obs(
     // This is the seam to widen if a tool grows more configuring jobs:
     // match on the item's capability set here, not on new rungs below.
     if let Some(held) = held_item.right_hand {
-        if item_registry.get(held.id).components.has::<OrientsBlocks>() {
-            if let Some(orientable) = def.components.get::<Orientable>() {
+        if item_registry.get(held.id).behaviors.has::<OrientsBlocks>() {
+            if let Some(orientable) = def.behaviors.get::<Orientable>() {
                 if let Some(rotation) = orientable.rotation_for(voxel.rotation(), target_face) {
                     // Already pointing there — skip the write rather than
                     // emit a no-op that dirties a chunk and wakes the mesher.
@@ -307,8 +311,9 @@ fn handle_secondary_fire_obs(
     let item_def = item_registry.get(held.id);
 
     // ── 3.1 The item places a block
-    let Some(PlacesBlock { block_id }) =
-        item_def.components.get::<PlacesBlock>().copied() else { return };
+    let Some(block_id) = item_def.behaviors.get::<PlacesBlock>()
+        .and_then(|p| p.block_id())
+        else { return };
 
     // Placement uses the *geometric* face, never the target face. Clicking
     // the top-left corner of a wall should build against that wall, not

@@ -20,8 +20,9 @@ use bevy_asset_loader::prelude::*;
 use bevy_common_assets::json::JsonAssetPlugin;
 
 use crate::content::block::asset::{BlockDefinitionAsset, BlockDefinitionAssets};
-use crate::content::block::components::BlockBehaviorRegistry;
 use crate::content::block::registry::BlockRegistry;
+use crate::content::block::behaviors::BlockBehaviorRegistry;
+use crate::content::item::behaviors::ItemBehaviorRegistry;
 use crate::content::item::asset::{ItemDefinitionAsset, ItemDefinitionAssets};
 use crate::content::item::registry::ItemRegistry;
 use crate::content::recipe::asset::{RecipeDefinitionAsset, SpatialRecipeAssets};
@@ -35,6 +36,8 @@ use crate::content::texture::{BlockTextureAssets, TextureRegistry};
 use crate::GameState;
 use crate::content::model_source::{BbModel, ModelSourceAssets, ModelSourceRegistry};
 
+
+pub mod behavior;
 pub mod block;
 pub mod item;
 pub mod model_source;
@@ -42,7 +45,6 @@ pub mod recipe;
 pub mod shape_set;
 pub mod substance;
 pub mod texture;
-
 /// Inserted by `bevy_asset_loader` the instant every collection above has
 /// been built. `app::loading` gates the elaboration sequence on it, so no
 /// step ever runs against a half-parsed world.
@@ -57,6 +59,7 @@ impl Plugin for ContentPlugin {
             .init_resource::<TextureRegistry>()
             .init_resource::<BlockRegistry>()
             .init_resource::<BlockBehaviorRegistry>()
+            .init_resource::<ItemBehaviorRegistry>()
             .init_resource::<ShapeSetRegistry>()
             .init_resource::<ItemRegistry>()
             .init_resource::<SubstanceRegistry>()

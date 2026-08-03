@@ -13,7 +13,8 @@
         "on_place": "audio/block/stone_on_place.ogg"
     },
     "behaviors": [
-        "extractor",
+        "item_extractor",
+        { "orientable": { "mode" : "all" } }
         "face_targeted"
     ]
 }
