@@ -4,13 +4,11 @@ use bevy::prelude::*;
 use serde::Deserialize;
 
 use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
-use crate::sim::BlockEntityEvent;
 use crate::sim::transport::mover::{set_endpoints, ItemMover, TransportDirty, TransportSet};
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
 use crate::voxel::rotation::BlockRotation;
-use crate::voxel::{Direction, Voxel, ALL_DIRECTIONS};
-use crate::prelude::VoxelWriteRequest;
+use crate::voxel::{Direction, ALL_DIRECTIONS};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // ITEM EXTRACTOR
@@ -32,29 +30,6 @@ use crate::prelude::VoxelWriteRequest;
 // dirties the position so endpoints re-resolve through the path that
 // already exists.
 
-
-// ── tuning ───────────────────────────────────────────────────────────────
-
-/// Which way an *unrotated* extractor points.
-///
-/// Down, so a freshly-placed extractor behaves exactly like a chute. Good
-/// for teaching the block: it does the familiar thing until you turn it.
-const CANONICAL_OUTPUT: Direction = Direction::Down;
-
-const DEFAULT_BATCH: u16 = 1;
-const DEFAULT_RATE: u32 = 3;
-
-/// The face a rotated extractor pushes out of.
-#[inline]
-fn output_of(rotation: BlockRotation) -> Direction {
-    rotation.apply_dir(CANONICAL_OUTPUT)
-}
-
-/// The rotation that makes an extractor push out of `output`.
-#[inline]
-fn rotation_for_output(output: Direction) -> BlockRotation {
-    BlockRotation::from_parts(output, 0)
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – COMPONENTS
@@ -123,6 +98,21 @@ impl BlockBehavior for ExtractorBehavior {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – RESOLUTION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/// Which way an *unrotated* extractor points.
+///
+/// Down, so a freshly-placed extractor behaves exactly like a chute. Good
+/// for teaching the block: it does the familiar thing until you turn it.
+const CANONICAL_OUTPUT: Direction = Direction::Down;
+
+const DEFAULT_BATCH: u16 = 1;
+const DEFAULT_RATE: u32 = 3;
+
+/// The face a rotated extractor pushes out of.
+#[inline]
+fn output_of(rotation: BlockRotation) -> Direction {
+    rotation.apply_dir(CANONICAL_OUTPUT)
+}
 
 /// Re-point every extractor whose surroundings changed.
 ///

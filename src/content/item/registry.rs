@@ -2,7 +2,6 @@ use bevy::prelude::*;
 use std::collections::HashMap;
 
 use crate::content::item::behaviors::ItemBehaviors;
-use crate::sim::behaviors::items::places_block::PlacesBlock;
 use crate::content::item::display::ItemDisplay;
 use crate::content::substance::{PartID, SubstanceID};
 use crate::voxel::{BlockID, ItemID};

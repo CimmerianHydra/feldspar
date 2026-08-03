@@ -8,7 +8,7 @@
         "max_durability": 128
       }
     },
-    "display": "icons/items/cube.png",
+    "display": "icons/items/wrench.png",
     "behaviors": ["orients_blocks"]
   }
 ]
