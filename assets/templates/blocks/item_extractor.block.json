@@ -1,12 +1,14 @@
 {
     "name": "item_extractor",
     "display_name": "Item Extractor",
-    "shape": "Cube",
+    "shape": { "Custom": "item_extractor.bbmodel" },
     "appearance": {
-        "kind": "top_bot_side",
-        "up":   { "kind": "simple", "texture": "chute_top" },
-        "down": { "kind": "simple", "texture": "chute_top" },
-        "side": { "kind": "simple", "texture": "chute_side"}
+        "kind": "model",
+        "surfaces": {
+        "side": { "kind": "simple", "texture": "extract_side" },
+        "top":  { "kind": "simple", "texture": "extract_top"},
+        "bottom":  { "kind": "simple", "texture": "extract_bottom"}
+        }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
@@ -14,7 +16,7 @@
     },
     "behaviors": [
         "item_extractor",
-        { "orientable": { "mode" : "all" } }
+        { "orientable": { "mode" : "full" } },
         "face_targeted"
     ]
 }

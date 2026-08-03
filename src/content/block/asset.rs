@@ -173,8 +173,16 @@ pub fn populate_block_registry_sys(
             continue;
         };
 
-        for shape in resolve_shapes(src, &shape_sets) {
-            let (name, display_name) = derive_names(&shape, &src.name, &src.display_name);
+        let shapes = resolve_shapes(src, &shape_sets);
+        let shapes_len = shapes.len();
+
+        for shape in shapes {
+            // If there's multiple shapes defined for this block (such as in the case of shape sets)
+            // then we need to differentiate them in name and display name through the use of slugs.
+            let (name, display_name) = 
+                if shapes_len > 1 { derive_names(&shape, &src.name, &src.display_name) }
+                else { (src.name.to_owned(), src.display_name.to_owned()) };
+            
             pending.push(PendingBlock { name, display_name, shape, src });
         }
     }

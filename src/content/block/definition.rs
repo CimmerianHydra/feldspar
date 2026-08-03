@@ -1,5 +1,6 @@
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
+use serde::Deserialize;
 
 use crate::content::block::behaviors::BlockBehaviors;
 use crate::voxel::{BlockShape, ModelTable};
@@ -27,7 +28,7 @@ pub struct BlockDefinition {
     pub has_collision:  bool,
     pub material:       BlockMaterial,
     pub sound_profile:  SoundProfile,
-    pub behaviors: BlockBehaviors,
+    pub behaviors:      BlockBehaviors,
 }
 
 impl BlockDefinition {
@@ -152,7 +153,7 @@ impl From<(u32, u32, [f32; 4])> for TextureSlot {
     }
 }
 
-use serde::Deserialize;
+
 
 /// Which pipeline a surface draws through.
 ///

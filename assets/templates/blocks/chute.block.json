@@ -5,9 +5,9 @@
     "appearance": {
         "kind": "model",
         "surfaces": {
-        "chute_side": { "kind": "simple", "texture": "chute_side" },
-        "chute_top":  { "kind": "simple", "texture": "chute_top"},
-        "chute_bottom":  { "kind": "simple", "texture": "chute_bottom"}
+        "side": { "kind": "simple", "texture": "chute_side" },
+        "top":  { "kind": "simple", "texture": "chute_top"},
+        "bottom":  { "kind": "simple", "texture": "chute_bottom"}
         }
     },
     "sound_profile": {
