@@ -3,8 +3,8 @@
     "display_name": "Oak Planks",
     "appearance": [
         { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } },
-        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } },
-        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } }
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } }, "slug": "slab"  },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } }, "slug": "stair"  }
     ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",

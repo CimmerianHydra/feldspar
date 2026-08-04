@@ -3,8 +3,8 @@
     "display_name": "Marble",
     "appearance": [
         { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "marble" } } },
-        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "marble" } } },
-        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "marble" } } }
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "marble" } }, "slug": "slab"  },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "marble" } }, "slug": "stair"  }
     ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",

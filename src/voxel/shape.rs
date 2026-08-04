@@ -43,7 +43,7 @@ impl BlockShape {
     /// name and the label to disagree about whether a shape is suffixed.
     pub fn suffixes(&self) -> Option<(Cow<'_, str>, Cow<'_, str>)> {
         let pair = match self {
-            BlockShape::Cube  => return None,
+            BlockShape::Cube  => (Cow::Borrowed("cube"),  Cow::Borrowed("Cube")),
             BlockShape::Slab  => (Cow::Borrowed("slab"),  Cow::Borrowed("Slab")),
             BlockShape::Panel => (Cow::Borrowed("panel"), Cow::Borrowed("Panel")),
             BlockShape::Stair => (Cow::Borrowed("stair"), Cow::Borrowed("Stair")),

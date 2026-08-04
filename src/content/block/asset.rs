@@ -282,16 +282,20 @@ fn derive_names(appearance: &AppearanceAsset, name: &str, display: &str) -> (Str
         .clone()
         .or_else(|| shape_pair.as_ref().map(|(_, l)| l.to_string()));
 
-    match (slug, label) {
-        (Some(slug), Some(label)) => {
-            (format!("{name}_{slug}"), format!("{display} ({label})"))
-        }
-        _ => {
-            warn!(
-                "Block '{name}' lists several appearances but one of them has no \
-                 slug and a shape that supplies none. Give it \"slug\": \"…\"."
-            );
-            (name.to_owned(), display.to_owned())
+    // Special pleading for cube slugs: they dont' add anything by design.
+    if appearance.shape == BlockShape::Cube { (format!("{name}"), format!("{display}")) }
+    else {
+        match (slug, label) {
+            (Some(slug), Some(label)) => {
+                (format!("{name}_{slug}"), format!("{display} ({label})"))
+            }
+            _ => {
+                warn!(
+                    "Block '{name}' lists several appearances but one of them has no \
+                    slug and a non-Cube shape that supplies none. Give it \"slug\": \"…\"."
+                );
+                (name.to_owned(), display.to_owned())
+            }
         }
     }
 }

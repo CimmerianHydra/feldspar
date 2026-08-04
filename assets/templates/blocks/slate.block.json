@@ -3,8 +3,8 @@
     "display_name": "Slate",
     "appearance": [
         { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "slate" } } },
-        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "slate" } } },
-        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "slate" } } }
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "slate" } }, "slug": "slab"  },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "slate" } }, "slug": "stair"  }
     ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
