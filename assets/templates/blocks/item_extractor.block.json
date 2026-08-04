@@ -4,9 +4,9 @@
     "appearance": {
         "shape": { "Custom": "extractor" },
         "surfaces": {
-            "side": { "kind": "simple", "texture": "extract_side" },
-            "top":  { "kind": "simple", "texture": "extract_top"},
-            "bottom":  { "kind": "simple", "texture": "extract_bottom"}
+            "0":  { "kind": "simple", "texture": "extract_side" },
+            "1":  { "kind": "simple", "texture": "extract_top"},
+            "2":  { "kind": "simple", "texture": "extract_bottom"}
         }
     },
     "sound_profile": {

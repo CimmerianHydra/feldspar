@@ -4,9 +4,9 @@
     "appearance": {
         "shape": { "Custom": "chute.bbmodel" },
         "surfaces": {
-            "side":     { "kind": "simple", "texture": "chute_side" },
-            "top":      { "kind": "simple", "texture": "chute_top"},
-            "bottom":   { "kind": "simple", "texture": "chute_bottom"}
+            "0":     { "kind": "simple", "texture": "chute_side" },
+            "1":     { "kind": "simple", "texture": "chute_top"},
+            "2":     { "kind": "simple", "texture": "chute_bottom"}
         }
     },
     "sound_profile": {

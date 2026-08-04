@@ -43,7 +43,6 @@ pub mod item;
 pub mod model_def;
 pub mod model_source;
 pub mod recipe;
-pub mod shape_set;
 pub mod substance;
 pub mod texture;
 /// Inserted by `bevy_asset_loader` the instant every collection above has
