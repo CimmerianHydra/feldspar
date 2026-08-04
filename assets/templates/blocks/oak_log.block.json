@@ -1,12 +1,13 @@
 {
     "name": "oak_log",
     "display_name": "Oak Log",
-    "shape": "Cube",
     "appearance": {
-        "kind": "top_bot_side",
-        "up":   { "kind": "simple", "texture": "oak_log_top" },
-        "down": { "kind": "simple", "texture": "oak_log_top" },
-        "side": { "kind": "simple", "texture": "oak_log_side"}
+        "shape": "Cube",
+        "surfaces": {
+            "all":      { "kind": "simple", "texture": "oak_log_side" },
+            "top":      { "kind": "simple", "texture": "oak_log_top" },
+            "bottom":   { "kind": "simple", "texture": "oak_log_top" }
+        }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",

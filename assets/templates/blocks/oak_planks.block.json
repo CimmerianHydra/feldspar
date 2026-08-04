@@ -1,11 +1,11 @@
 {
     "name": "oak_planks",
     "display_name": "Oak Planks",
-    "shape_sets": ["decorative"],
-    "appearance": {
-        "kind": "uniform",
-        "texture":   { "kind": "simple", "texture": "oak_planks" }
-    },
+    "appearance": [
+        { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } },
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "oak_planks" } } }
+    ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
         "on_place": "audio/block/stone_on_place.ogg"

@@ -1,11 +1,11 @@
 {
     "name": "marble",
     "display_name": "Marble",
-    "shape_sets": ["decorative"],
-    "appearance": {
-        "kind": "uniform",
-        "texture": { "kind": "simple", "texture": "marble" }
-    },
+    "appearance": [
+        { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "marble" } } },
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "marble" } } },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "marble" } } }
+    ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
         "on_place": "audio/block/stone_on_place.ogg"

@@ -11,18 +11,19 @@ pub mod asset;
 pub mod behaviors;
 pub mod definition;
 pub mod registry;
+pub mod surface;
 pub use crate::voxel::BlockID;
 
 pub use asset::{
-    populate_block_registry_sys, resolve_slots, BlockAppearanceAsset, BlockDefinitionAsset,
-    BlockDefinitionAssets, BlockMaterialAsset, FaceTexturesAsset, ShapeSpec, SoundProfileAsset,
+    populate_block_registry_sys, BlockDefinitionAsset,
+    BlockDefinitionAssets, BlockMaterialAsset, FaceTexturesAsset, SoundProfileAsset,
 };
 pub use behaviors::{
     BlockBehavior, BlockBehaviorData, BlockBehaviorRegistry, BlockBehaviors,
     BlockFamily, BlockSpawnContext, RegisterBlockBehaviorExtension,
 };
 pub use definition::{
-    BlockAppearance, BlockDefinition, BlockMaterial, FaceTextures, SoundProfile, TextureSlot,
+    BlockDefinition, BlockMaterial, FaceTextures, SoundProfile, TextureSlot,
     ToolType,
 };
 pub use registry::{BlockRegistry, ChunkPalette};

@@ -1,12 +1,13 @@
 {
     "name": "basalt",
     "display_name": "Basalt",
-    "shape": "Cube",
     "appearance": {
-        "kind": "top_bot_side",
-        "up":   { "kind": "simple", "texture": "basalt_top" },
-        "down": { "kind": "simple", "texture": "basalt_top" },
-        "side": { "kind": "simple", "texture": "basalt_side"}
+        "shape": "Cube",
+        "surfaces": {
+            "all":      { "kind": "simple", "texture": "basalt_side" },
+            "top":      { "kind": "simple", "texture": "basalt_top" },
+            "bottom":   { "kind": "simple", "texture": "basalt_top" }
+        }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",

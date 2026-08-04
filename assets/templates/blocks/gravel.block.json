@@ -1,11 +1,7 @@
 {
     "name": "gravel",
     "display_name": "Gravel",
-    "shape": "Cube",
-    "appearance": {
-        "kind": "uniform",
-        "texture": { "kind": "simple", "texture": "gravel" }
-    },
+    "appearance": { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "gravel" } } },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
         "on_place": "audio/block/stone_on_place.ogg"

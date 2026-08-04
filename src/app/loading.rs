@@ -37,7 +37,6 @@ use crate::content::item::asset::load_item_definitions_sys;
 use crate::content::model_source::populate_model_source_registry_sys;
 use crate::content::model_def::populate_model_def_registry_sys;
 use crate::content::recipe::asset::populate_spatial_recipe_registry_sys;
-use crate::content::shape_set::populate_shape_set_registry_sys;
 use crate::content::substance::{generate_substance_items_sys, populate_substance_registries_sys};
 use crate::content::texture::assemble_texture_arrays_sys;
 use crate::content::ContentFilesReady;
@@ -71,8 +70,6 @@ fn build_load_sequence(world: &mut World) -> LoadSequence {
         .step("Assembling texture arrays", 60, assemble_texture_arrays_sys)
         // ...which become one PBR material.
         .step("Building voxel material", 5, build_voxel_materials_sys)
-        // Shape sets have to exist before blocks can reference them.
-        .step("Reading shape sets", 5, populate_shape_set_registry_sys)
         // Custom model shapes from blockbench.
         .step("Reading Blockbench models", 5, populate_model_source_registry_sys)
         // Turning blockbench models into actual in-game models.

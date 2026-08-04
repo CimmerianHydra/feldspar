@@ -1,13 +1,12 @@
 {
     "name": "item_extractor",
     "display_name": "Item Extractor",
-    "shape": { "Custom": "extractor" },
     "appearance": {
-        "kind": "model",
+        "shape": { "Custom": "extractor" },
         "surfaces": {
-        "side": { "kind": "simple", "texture": "extract_side" },
-        "top":  { "kind": "simple", "texture": "extract_top"},
-        "bottom":  { "kind": "simple", "texture": "extract_bottom"}
+            "side": { "kind": "simple", "texture": "extract_side" },
+            "top":  { "kind": "simple", "texture": "extract_top"},
+            "bottom":  { "kind": "simple", "texture": "extract_bottom"}
         }
     },
     "sound_profile": {

@@ -60,17 +60,6 @@ impl BlockShape {
         Some(pair)
     }
 
-    /// How many paintable surfaces a block of this shape resolves.
-    ///
-    /// Lives here rather than in the mesher because the texture resolver
-    /// (content) and the shape generators (render) have to agree on it, and
-    /// neither may import the other.
-    pub fn slot_count(&self) -> usize {
-        match self {
-            BlockShape::Pipe => pipe_slots::PIPE_SLOT_COUNT,
-            _                => slots::PRIMITIVE_SLOT_COUNT,
-        }
-    }
 }
 
 /// Last path segment with the first extension stripped. Handles both
@@ -102,15 +91,10 @@ fn title_case(slug: &str) -> String {
 // SECTION 2 – TEXTURE SLOT NUMBERING
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Slot numbering shared by the primitive shapes, so a `BlockAppearance`
-/// resolves the same way whatever shape a block uses.
-///
-/// `PerFace` fills 0..5 in `ALL_DIRECTIONS` order; `TopBotSide` fills
-/// 4 (up), 5 (down) and the rest with side; `Uniform` fills all six.
-///
-/// This is the contract between the shape generators, which stamp slot
-/// indices onto quads, and the texture resolver, which fills the table
-/// those indices point into. Neither owns it, so it sits in vocabulary.
+/// Reserved terminal key of every fallback chain. A model may not name a
+/// surface this, or it would shadow itself.
+pub const RESERVED_FALLBACK: &str = "all";
+
 pub mod slots {
     pub const NORTH: u8 = 0;
     pub const SOUTH: u8 = 1;
@@ -123,6 +107,14 @@ pub mod slots {
     pub const INTERIOR: u8 = 6;
 
     pub const PRIMITIVE_SLOT_COUNT: usize = 7;
+    /// The primitive surface names, in slot order.
+    ///
+    /// This array and the constants above are the same fact written twice,
+    /// which is why the test below asserts they agree. Adding a slot means
+    /// adding a name.
+    pub const NAMES: &[&str] = &[
+        "north", "south", "east", "west", "up", "down", "interior",
+    ];
 }
 
 /// Slots a pipe paints. Three, not six — a pipe has no meaningful "north
@@ -134,12 +126,25 @@ pub mod pipe_slots {
     pub const CAP:  u8 = 2;
 
     pub const PIPE_SLOT_COUNT: usize = 3;
+    pub const NAMES: &[&str] = &["core", "arm", "cap"];
 }
 
 /// The six directional slots, in `ALL_DIRECTIONS` order.
 pub const FACE_SLOTS: [u8; 6] = [
     slots::NORTH, slots::SOUTH, slots::EAST, slots::WEST, slots::UP, slots::DOWN,
 ];
+
+/// The surfaces a shape exposes, in slot order.
+///
+/// `None` for `Custom`, whose names live in its `.model.json` — the
+/// vocabulary layer can't see the model registry, and shouldn't.
+pub fn surface_names(shape: &BlockShape) -> Option<&'static [&'static str]> {
+    match shape {
+        BlockShape::Pipe      => Some(pipe_slots::NAMES),
+        BlockShape::Custom(_) => None,
+        _                     => Some(slots::NAMES),
+    }
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 3 – CONNECTION MASKS
@@ -223,5 +228,16 @@ mod tests {
         let (slug, label) = shape.suffixes().unwrap();
         assert_eq!(&*slug, "lantern_post");
         assert_eq!(&*label, "Lantern Post");
+    }
+
+    #[test]
+    fn slot_constants_agree_with_surface_names() {
+        assert_eq!(slots::NAMES.len(), slots::PRIMITIVE_SLOT_COUNT);
+        assert_eq!(slots::NAMES[slots::NORTH as usize], "north");
+        assert_eq!(slots::NAMES[slots::UP as usize], "up");
+        assert_eq!(slots::NAMES[slots::INTERIOR as usize], "interior");
+
+        assert_eq!(pipe_slots::NAMES.len(), pipe_slots::PIPE_SLOT_COUNT);
+        assert_eq!(pipe_slots::NAMES[pipe_slots::CAP as usize], "cap");
     }
 }

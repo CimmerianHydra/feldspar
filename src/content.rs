@@ -28,7 +28,6 @@ use crate::content::item::registry::ItemRegistry;
 use crate::content::model_def::{ModelDefRegistry, ModelDefinitionAsset, ModelDefinitionAssets};
 use crate::content::recipe::asset::{RecipeDefinitionAsset, SpatialRecipeAssets};
 use crate::content::recipe::registry::SpatialRecipeRegistry;
-use crate::content::shape_set::{ShapeSetAsset, ShapeSetAssets, ShapeSetRegistry};
 use crate::content::substance::{
     PartProfileAsset, PartProfileAssets, PartRegistry, SubstanceDefinitionAssets, SubstanceFileAsset,
     SubstanceRegistry,
@@ -62,7 +61,6 @@ impl Plugin for ContentPlugin {
             .init_resource::<BlockRegistry>()
             .init_resource::<BlockBehaviorRegistry>()
             .init_resource::<ItemBehaviorRegistry>()
-            .init_resource::<ShapeSetRegistry>()
             .init_resource::<ItemRegistry>()
             .init_resource::<SubstanceRegistry>()
             .init_resource::<PartRegistry>()
@@ -76,7 +74,6 @@ impl Plugin for ContentPlugin {
             .add_plugins(JsonAssetPlugin::<ItemDefinitionAsset>::new(&["item.json"]))
             .add_plugins(JsonAssetPlugin::<SubstanceFileAsset>::new(&["substance.json"]))
             .add_plugins(JsonAssetPlugin::<PartProfileAsset>::new(&["part.json"]))
-            .add_plugins(JsonAssetPlugin::<ShapeSetAsset>::new(&["shapeset.json"]))
             .add_plugins(JsonAssetPlugin::<BbModel>::new(&["bbmodel"]))
             .add_plugins(JsonAssetPlugin::<ModelDefinitionAsset>::new(&["model.json"]))
 
@@ -85,7 +82,6 @@ impl Plugin for ContentPlugin {
                 LoadingState::new(GameState::AssetLoading)
                     .load_collection::<BlockDefinitionAssets>()
                     .load_collection::<BlockTextureAssets>()
-                    .load_collection::<ShapeSetAssets>()
                     .load_collection::<ItemDefinitionAssets>()
                     .load_collection::<SubstanceDefinitionAssets>()
                     .load_collection::<PartProfileAssets>()

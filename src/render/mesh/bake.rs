@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::content::block::surface::SurfaceLayout;
 use crate::content::block::BlockRegistry;
 use crate::content::block::TextureSlot;
 use crate::content::model_def::{ModelDef, ModelDefRegistry, ModelLayout};
@@ -141,7 +142,7 @@ fn bake_custom(
         }
     };
 
-    pad_texture_slots(name, key, def, sources, registry);
+    pad_texture_slots(name, key, defs, sources, registry);
 
     // ── bake the cross product ───────────────────────────────────────────
     let rotations = def.rotations.rotations();
@@ -226,33 +227,27 @@ fn import_geometry(name: &str, path: &str, sources: &ModelSourceRegistry) -> Vec
     }
 }
 
-/// Make sure the block resolved at least as many texture slots as the model
-/// declares surfaces.
+/// Make sure the block resolved as many texture slots as its shape exposes
+/// surfaces.
 ///
-/// The slot table was resolved from the same definition, so the two can
-/// only disagree if a block used a non-model appearance. Pad rather than
-/// panic — a wrong texture is a better failure than a crash in the mesher's
-/// inner loop, which is the only other place this could show up.
+/// Both numbers come from `SurfaceLayout` now — the loader resolved the
+/// block's slots from it, and this asks it again — so the two can only
+/// disagree if the definition changed between load and bake, which it
+/// can't. What's left is a cheap assertion that costs one lookup per custom
+/// block and would catch exactly that.
+///
+/// Pad rather than panic: a wrong texture is a better failure than an
+/// out-of-bounds index in the mesher's inner loop, which is the only other
+/// place a short table could show up.
 fn pad_texture_slots(
     name: &str,
     key: &str,
-    def: &ModelDef,
+    defs: &ModelDefRegistry,
     sources: &ModelSourceRegistry,
     registry: &mut BlockRegistry,
 ) {
-    // An explicit surface list is the contract when several files
-    // contribute; otherwise fall back to the widest single document, which
-    // reproduces the old single-geometry behaviour exactly.
-    let needed = if def.surfaces.is_empty() {
-        def.geometry_paths()
-            .iter()
-            .filter_map(|path| sources.get(path))
-            .map(|doc| doc.slot_count())
-            .max()
-            .unwrap_or(0)
-    } else {
-        def.surfaces.len()
-    };
+    let shape = BlockShape::Custom(key.to_owned());
+    let needed = SurfaceLayout::resolve(&shape, defs, sources, name).len();
 
     let index = registry.by_name(name.to_string()).map(|id| id.0 as usize);
     let Some(index) = index else { return };
@@ -260,9 +255,8 @@ fn pad_texture_slots(
 
     if slots.len() < needed {
         warn!(
-            "Block '{name}' resolved {} texture slots but model '{key}' declares \
-             {needed} surfaces — padding with 'missing'. Give it an appearance of \
-             kind 'model'.",
+            "Block '{name}' resolved {} texture slots but model '{key}' exposes \
+             {needed} surfaces — padding with 'missing'.",
             slots.len()
         );
         slots.resize(needed, TextureSlot::MISSING);

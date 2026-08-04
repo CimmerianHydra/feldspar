@@ -1,11 +1,11 @@
 {
     "name": "slate",
     "display_name": "Slate",
-    "shape_sets": ["decorative"],
-    "appearance": {
-        "kind": "uniform",
-        "texture": { "kind": "simple", "texture": "slate" }
-    },
+    "appearance": [
+        { "shape": "Cube",  "surfaces": { "all": { "kind": "simple", "texture": "slate" } } },
+        { "shape": "Slab",  "surfaces": { "all": { "kind": "simple", "texture": "slate" } } },
+        { "shape": "Stair", "surfaces": { "all": { "kind": "simple", "texture": "slate" } } }
+    ],
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
         "on_place": "audio/block/stone_on_place.ogg"

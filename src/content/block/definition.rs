@@ -1,9 +1,12 @@
+use std::collections::BTreeMap;
+
 use bevy::audio::AudioSource;
 use bevy::prelude::*;
 use serde::Deserialize;
 
 use crate::content::block::behaviors::BlockBehaviors;
 use crate::voxel::{BlockShape, ModelTable};
+use crate::content::block::surface::Surface;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – THE DEFINITION
@@ -20,11 +23,14 @@ pub struct BlockDefinition {
     pub name:           String,             // e.g. "ore_iron_andesite"
     pub display_name:   String,             // e.g. "Andesite Iron Ore"
     pub shape:          BlockShape,
-    pub appearance:     BlockAppearance,
     /// Resolved and baked models, one per geometric variant.
     pub models:         ModelTable,
     /// Resolved texture palette, indexed by a quad's slot number.
     pub texture_slots:  Vec<TextureSlot>,
+    /// The painted surfaces by name, kept for tooling and debug UI.
+    /// The renderer never reads this — `texture_slots` is the resolved
+    /// artifact and the only thing on the hot path.
+    pub surfaces:       BTreeMap<String, Surface>,
     pub has_collision:  bool,
     pub material:       BlockMaterial,
     pub sound_profile:  SoundProfile,
@@ -47,8 +53,8 @@ impl Default for BlockDefinition {
             name: "default_cube".to_string(),
             display_name: "Default Cube".to_string(),
             shape: BlockShape::default(),
-            appearance: BlockAppearance::default(),
             models: ModelTable::default(),
+            surfaces: BTreeMap::new(),
             texture_slots: Vec::new(),
             has_collision: true,
             material: BlockMaterial::default(),
@@ -71,52 +77,6 @@ pub enum FaceTextures {
     /// First index is into base texture array, second into overlay array.
     /// Color is used to tint the overlay texture.
     Tinted(u32, u32, Color),
-}
-
-/// How a block distributes textures across its faces. Authoring-side; the
-/// renderer never sees it, because `texture_slots` is resolved from it once
-/// at load.
-pub enum BlockAppearance {
-    /// All six faces use the same texture. Default choice.
-    Uniform(FaceTextures),
-    /// Top/bottom differ from sides.
-    TopBotSide {
-        up:    FaceTextures,
-        down:  FaceTextures,
-        side:  FaceTextures,
-    },
-    PerFace {
-        up:    FaceTextures,
-        down:  FaceTextures,
-        north: FaceTextures,
-        south: FaceTextures,
-        east:  FaceTextures,
-        west:  FaceTextures,
-    },
-    /// All six faces use the same texture, but an "internal" texture is
-    /// defined for all those faces that don't sit on the boundary of the
-    /// voxel.
-    UniformWithInternal {
-        ext:    FaceTextures,
-        int:    FaceTextures,
-    },
-    /// Surfaces of an imported model, keyed by the name the model gives
-    /// them. Resolution order comes from the model file, not from here.
-    Model(std::collections::BTreeMap<String, ModelSurface>),
-}
-
-impl Default for BlockAppearance {
-    fn default() -> Self {
-        BlockAppearance::Uniform(FaceTextures::Simple(1))
-    }
-}
-
-/// One paintable surface of an imported model.
-#[derive(Clone, Debug)]
-pub struct ModelSurface {
-    pub textures: FaceTextures,
-    /// `None` inherits the block-wide default.
-    pub render:   Option<RenderClass>,
 }
 
 /// One paintable surface, resolved down to what the shader wants.

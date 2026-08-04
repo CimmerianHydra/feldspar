@@ -1,12 +1,13 @@
 {
     "name": "grass",
     "display_name": "Grass",
-    "shape": "Cube",
     "appearance": {
-        "kind": "top_bot_side",
-        "up":   { "kind": "tinted", "texture": "dirt", "overlay": "grass_top",  "tint": [108, 185, 71] },
-        "down": { "kind": "simple", "texture": "dirt" },
-        "side": { "kind": "tinted", "texture": "dirt", "overlay": "grass_side", "tint": [108, 185, 71] }
+        "shape": "Cube",
+        "surfaces": {
+            "all":      { "kind": "tinted", "texture": "dirt", "overlay": "grass_side", "tint": [108, 185, 71] },
+            "top":      { "kind": "tinted", "texture": "dirt", "overlay": "grass_top",  "tint": [108, 185, 71] },
+            "bottom":   { "kind": "simple", "texture": "dirt" }
+        }
     },
     "sound_profile": {
         "on_break": "audio/block/stone_on_break.ogg",
