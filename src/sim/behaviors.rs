@@ -22,12 +22,14 @@ use blocks::chute::ChuteBehavior;
 use blocks::extractor::ExtractorBehavior;
 use blocks::face_targeted::FaceTargeted;
 use blocks::orientable::Orientable;
+use blocks::configurable::Configurable;
 use blocks::interacts::InteractsOnSecondary;
 use blocks::pipe::ItemPipeBehavior;
 
 use items::durability::Durability;
 use items::fuel::Fuel;
 use items::orients_blocks::OrientsBlocks;
+use items::configures_blocks::ConfiguresBlocks;
 use items::places_block::PlacesBlock;
 
 pub struct BehaviorsPlugin;
@@ -38,6 +40,7 @@ impl Plugin for BehaviorsPlugin {
             // ── blocks ───────────────────────────────────────────────────
             .register_block_behavior::<FaceTargeted>()
             .register_block_behavior::<Orientable>()
+            .register_block_behavior::<Configurable>()
             .register_block_behavior::<InteractsOnSecondary>()
             .register_block_behavior::<BarrelBehavior>()
             .register_block_behavior::<ChuteBehavior>()
@@ -46,6 +49,7 @@ impl Plugin for BehaviorsPlugin {
             // ── items ────────────────────────────────────────────────────
             .register_item_behavior::<PlacesBlock>()
             .register_item_behavior::<OrientsBlocks>()
+            .register_item_behavior::<ConfiguresBlocks>()
             .register_item_behavior::<Fuel>()
             .register_item_behavior::<Durability>();
     }

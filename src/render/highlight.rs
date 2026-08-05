@@ -4,11 +4,8 @@ use bevy::mesh::{Mesh, PrimitiveTopology};
 use bevy::{prelude::*, reflect::TypePath, render::render_resource::AsBindGroup, shader::ShaderRef};
 
 use crate::content::block::BlockRegistry;
-use crate::content::item::ItemRegistry;
 use crate::sim::behaviors::blocks::face_targeted::FaceTargeted;
-use crate::sim::behaviors::blocks::orientable::Orientable;
-use crate::sim::behaviors::items::orients_blocks::OrientsBlocks;
-use crate::sim::player::{LookTarget, PlayerHeldItems, PlayerLookTarget};
+use crate::sim::player::{LookTarget, PlayerLookTarget};
 use crate::space::VoxelWorld;
 use crate::voxel::{
     dir_index, BlockID, Direction, FaceCell, ALL_DIRECTIONS, BLOCK_SIZE, CELL_SIZE,
@@ -25,7 +22,7 @@ pub const HIGHLIGHT_EPSILON: f32 = 1.01;
 /// How far off the face the interaction grid floats, in block units. Larger
 /// than the cube's epsilon so the grid always reads as being in front of the
 /// wireframe rather than tangled in it.
-pub const FACE_OVERLAY_LIFT: f32 = 0.02;
+pub const FACE_OVERLAY_LIFT: f32 = 0.01;
 
 const LINE_SHADER_PATH: &str = "shaders\\line_material.wgsl";
 
@@ -69,7 +66,7 @@ fn build_cuboid_of_lines(side_length: f32) -> LineList {
         (Vec3::new(0.0, s_l, s_l), Vec3::new(s_l, s_l, s_l)),
         (Vec3::new(s_l, s_l, s_l), Vec3::new(s_l, s_l, 0.0)),
         (Vec3::new(s_l, s_l, 0.0), Vec3::new(0.0, s_l, 0.0)),
-        // Sides (CCW)
+        // 4 Edges on the Sides (CCW)
         (Vec3::new(0.0, s_l, 0.0), Vec3::new(0.0, 0.0, 0.0)),
         (Vec3::new(0.0, s_l, s_l), Vec3::new(0.0, 0.0, s_l)),
         (Vec3::new(s_l, s_l, s_l), Vec3::new(s_l, 0.0, s_l)),
@@ -275,8 +272,6 @@ struct FaceGridState {
 fn resolve_face_grid(
     look_target: &PlayerLookTarget,
     block_registry: &BlockRegistry,
-    item_registry: &ItemRegistry,
-    held_item: &PlayerHeldItems,
     voxel_world: &VoxelWorld,
 ) -> Option<FaceGridState> {
     let (at, voxel, face) = look_target.block()?;
@@ -314,20 +309,7 @@ fn resolve_face_grid(
         scale: world_tf.scale,
     };
 
-    // ── Legality ─────────────────────────────────────────────────────────
-    //
-    // Only meaningful while a configuring tool is out: bare-handed, a
-    // face-targeted pipe has no illegal cells.
-    let legal = match (held_item.right_hand, definition.behaviors.get::<Orientable>()) {
-        (Some(held), Some(orientable))
-            if item_registry.get(held.id).behaviors.has::<OrientsBlocks>() =>
-        {
-            orientable.normalize(target_face).is_some()
-        }
-        _ => true,
-    };
-
-    Some(FaceGridState { frame, cell, target_face, legal })
+    Some(FaceGridState { frame, cell, target_face, legal: true })
 }
 
 /// Draws the interaction grid, and marks the cell the crosshair is on with
@@ -358,9 +340,7 @@ fn update_face_grid_sys(
         (With<FaceCellIndicator>, Without<FaceGridOverlay>),
     >,
     look_target: Res<PlayerLookTarget>,
-    held_item: Res<PlayerHeldItems>,
     block_registry: Res<BlockRegistry>,
-    item_registry: Res<ItemRegistry>,
     palette: Res<HighlightMaterials>,
     voxel_world: VoxelWorld,
 ) {
@@ -370,8 +350,6 @@ fn update_face_grid_sys(
     let Some(state) = resolve_face_grid(
         &look_target,
         &block_registry,
-        &item_registry,
-        &held_item,
         &voxel_world,
     ) else {
         *grid_vis = Visibility::Hidden;

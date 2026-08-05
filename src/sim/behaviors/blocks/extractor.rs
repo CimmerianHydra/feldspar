@@ -34,13 +34,6 @@ use crate::voxel::{Direction, ALL_DIRECTIONS};
 // already exists. The dispatch for that lives in `player::interaction`,
 // which reads `Orientable` off this block's definition — so this file owns
 // no interaction at all.
-//
-// ## What changed when pipes arrived
-//
-// One function call. `block_entity_at` became `resolve_port`, and the
-// endpoints became `ItemPort` instead of `Option<Entity>`. An extractor
-// pointed at a pipe now feeds a network; an extractor pointed at a barrel
-// behaves exactly as it did. Nothing here knows what a pipe is.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – COMPONENTS
