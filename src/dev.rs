@@ -142,6 +142,7 @@ fn dev_submit_command(mut pending: ResMut<PendingCommands>, player: Single<Entit
     pending.push(CommandSource::Player(*player), "/give barrel 64");
     pending.push(CommandSource::Player(*player), "/give item_extractor 64");
     pending.push(CommandSource::Player(*player), "/give wrench 1");
+    pending.push(CommandSource::Player(*player), "/give pipe 1");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

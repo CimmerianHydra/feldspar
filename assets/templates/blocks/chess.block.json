@@ -1,0 +1,22 @@
+{
+    "name": "chess",
+    "display_name": "Chess",
+    "appearance": [
+        { "slug": "white_pawn",
+            "shape": "Custom", 
+            "surfaces": {
+            "0": { "kind": "simple", "texture": "marble" },
+            "1": { "kind": "simple", "texture": "pawn" }
+        } },
+        { "slug": "white_rook",
+            "shape": "Custom", 
+            "surfaces": {
+            "0": { "kind": "simple", "texture": "marble" },
+            "1": { "kind": "simple", "texture": "rook" }
+        } },
+    ],
+    "sound_profile": {
+        "on_break": "audio/block/stone_on_break.ogg",
+        "on_place": "audio/block/stone_on_place.ogg"
+    }
+}
