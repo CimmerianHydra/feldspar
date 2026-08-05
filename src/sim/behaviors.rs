@@ -22,6 +22,8 @@ use blocks::chute::ChuteBehavior;
 use blocks::extractor::ExtractorBehavior;
 use blocks::face_targeted::FaceTargeted;
 use blocks::orientable::Orientable;
+use blocks::interacts::InteractsOnSecondary;
+use blocks::pipe::ItemPipeBehavior;
 
 use items::durability::Durability;
 use items::fuel::Fuel;
@@ -36,9 +38,11 @@ impl Plugin for BehaviorsPlugin {
             // ── blocks ───────────────────────────────────────────────────
             .register_block_behavior::<FaceTargeted>()
             .register_block_behavior::<Orientable>()
+            .register_block_behavior::<InteractsOnSecondary>()
             .register_block_behavior::<BarrelBehavior>()
             .register_block_behavior::<ChuteBehavior>()
             .register_block_behavior::<ExtractorBehavior>()
+            .register_block_behavior::<ItemPipeBehavior>()
             // ── items ────────────────────────────────────────────────────
             .register_item_behavior::<PlacesBlock>()
             .register_item_behavior::<OrientsBlocks>()

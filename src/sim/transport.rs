@@ -1,10 +1,11 @@
 //! Logistics mechanics for items, fluids and more.
 
-pub mod mover;
 
 use bevy::prelude::*;
 use mover::ItemTransportPlugin;
 
+pub mod mover;
+pub mod network;
 pub struct TransportPlugin;
 
 impl Plugin for TransportPlugin {

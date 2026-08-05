@@ -3,8 +3,6 @@ use std::borrow::Cow;
 use bevy::prelude::*;
 use serde::Deserialize;
 
-use crate::voxel::direction::{dir_index, Direction, ALL_DIRECTIONS};
-
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – SHAPE FAMILIES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -147,72 +145,12 @@ pub fn surface_names(shape: &BlockShape) -> Option<&'static [&'static str]> {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 3 – CONNECTION MASKS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-/// The pipe connection mask, as stored in the voxel's low six state bits.
-///
-/// Authored, never derived from neighbours — which is what keeps a pipe's
-/// geometry a pure function of its own 32 bits, with no cross-chunk
-/// dependency and no cascade when a neighbour changes.
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct ConnectionMask(pub u8);
-
-impl ConnectionMask {
-    pub const NONE: Self = Self(0);
-
-    #[inline]
-    pub fn has(self, d: Direction) -> bool {
-        self.0 & (1 << dir_index(d)) != 0
-    }
-
-    #[inline]
-    pub fn with(self, d: Direction, on: bool) -> Self {
-        let bit = 1 << dir_index(d);
-        Self(if on { self.0 | bit } else { self.0 & !bit })
-    }
-
-    #[inline]
-    pub fn toggled(self, d: Direction) -> Self {
-        Self(self.0 ^ (1 << dir_index(d)))
-    }
-
-    #[inline]
-    pub fn count(self) -> u32 { self.0.count_ones() }
-
-    /// True when this pipe is a junction rather than a straight run or an
-    /// endpoint. The pipe network's reduced graph keys off exactly this.
-    #[inline]
-    pub fn is_junction(self) -> bool { self.count() >= 3 }
-
-    pub fn directions(self) -> impl Iterator<Item = Direction> {
-        ALL_DIRECTIONS
-            .into_iter()
-            .enumerate()
-            .filter_map(move |(i, d)| (self.0 & (1 << i) != 0).then_some(d))
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // TESTS
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn connection_mask_roundtrips() {
-        let m = ConnectionMask::NONE
-            .with(Direction::North, true)
-            .with(Direction::Up, true);
-        assert!(m.has(Direction::North) && m.has(Direction::Up));
-        assert!(!m.has(Direction::South));
-        assert_eq!(m.count(), 2);
-        assert!(!m.is_junction());
-        assert!(m.toggled(Direction::North).count() == 1);
-        assert_eq!(m.directions().count(), 2);
-    }
 
     #[test]
     fn cube_keeps_the_family_name() {

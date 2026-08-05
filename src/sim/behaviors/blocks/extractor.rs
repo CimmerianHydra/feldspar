@@ -4,7 +4,10 @@ use bevy::prelude::*;
 use serde::Deserialize;
 
 use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
-use crate::sim::transport::mover::{set_endpoints, ItemMover, TransportDirty, TransportSet};
+use crate::sim::transport::mover::{
+    resolve_port, set_endpoints, ItemMover, ItemPort, TransportDirty, TransportSet,
+};
+use crate::sim::transport::network::{NetworkIndex, TransportNetwork};
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
 use crate::voxel::rotation::BlockRotation;
@@ -15,21 +18,29 @@ use crate::voxel::{Direction, ALL_DIRECTIONS};
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
 // An omnidirectional chute. It draws from the block on one face and pushes
-// into the block on the opposite one, and the player picks which face is
-// which by right-clicking it.
+// into whatever is on the opposite one, and the player picks which face is
+// which by pointing it with a configuring tool.
 //
-// All the actual item-moving is `ItemMover`; this file is geometry and one
-// interaction. That is the whole point of the split — a new mover costs a
-// resolution system, and nothing else.
+// All the actual item-moving is `ItemMover`; this file is geometry. That is
+// the whole point of the split — a new mover costs a resolution system, and
+// nothing else.
 //
 // Facing lives in the voxel, not in a component.
 //
-// The extractor's configuration *is* its `BlockRotation`. Right-clicking
+// The extractor's configuration *is* its `BlockRotation`. Wrenching it
 // rewrites the voxel; the mesh rotates for free, the setting survives save
 // and load for free, it travels with a moving grid for free, and the write
 // dirties the position so endpoints re-resolve through the path that
-// already exists.
-
+// already exists. The dispatch for that lives in `player::interaction`,
+// which reads `Orientable` off this block's definition — so this file owns
+// no interaction at all.
+//
+// ## What changed when pipes arrived
+//
+// One function call. `block_entity_at` became `resolve_port`, and the
+// endpoints became `ItemPort` instead of `Option<Entity>`. An extractor
+// pointed at a pipe now feeds a network; an extractor pointed at a barrel
+// behaves exactly as it did. Nothing here knows what a pipe is.
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1 – COMPONENTS
@@ -60,9 +71,13 @@ impl ItemExtractor {
 // SECTION 2 – BLOCK BEHAVIOR
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-/// Declares three components and stops. `Interactable` is what routes a
-/// right-click here instead of placing the held block; the observer in
-/// section 4 is what it routes to.
+/// Declares two components and stops.
+///
+/// Being pointable is not declared here — it comes from `orientable` in the
+/// block's JSON, which is also what earns it the 3x3 face grid. That means
+/// this file has no interaction code and no `Interactable`: the extractor
+/// is not entity-interactive, it is *configurable*, and those are different
+/// rungs of `handle_secondary_fire_obs`.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ExtractorBehavior {
@@ -77,7 +92,7 @@ impl Default for ExtractorBehavior {
 }
 
 impl BlockBehavior for ExtractorBehavior {
-    const NAME: &'static str = "item_extractor";   // whatever the JSON says today
+    const NAME: &'static str = "item_extractor";
 
     fn on_place(&self, ctx: &mut BlockSpawnContext) {
         ctx.insert((
@@ -122,10 +137,17 @@ fn output_of(rotation: BlockRotation) -> Direction {
 /// become or stopped being its endpoint. Checking the position plus its
 /// neighbours covers both without the extractor and the barrel needing to
 /// know about each other.
+///
+/// A rebuilt pipe network re-dirties its own node cells for exactly this
+/// reason: the network entity may have been recycled and the node index may
+/// have moved, so any extractor touching it has to come back through here.
+/// That is why this runs in `Topology`, strictly after `Network`.
 pub fn resolve_extractors_sys(
     mut commands: Commands,
     dirty: Res<TransportDirty>,
     voxels: VoxelWorld,
+    index: Res<NetworkIndex>,
+    networks: Query<&TransportNetwork>,
     mut extractors: Query<(&mut ItemExtractor, &mut ItemMover)>,
 ) {
     if dirty.current().is_empty() {
@@ -154,15 +176,27 @@ pub fn resolve_extractors_sys(
         let output = output_of(voxels.get_voxel(at).rotation());
         extractor.output = output;
 
-        let source = voxels.block_entity_at(at.neighbor(output.opposite()));
-        let sink = voxels.block_entity_at(at.neighbor(output));
+        // Pipes push, they never pull. Collapsing a network on the input
+        // face to `None` here rather than leaving the tick system to
+        // decline it keeps the watcher lists honest — a source we will
+        // never draw from has no business registering wake-ups on every
+        // acceptor that network happens to reach.
+        //
+        // When the priority merger lands, "a network you may draw from" is
+        // a real thing and this collapse becomes a check on which kind.
+        let source = match resolve_port(&voxels, &index, at, output.opposite()) {
+            ItemPort::Network { .. } => ItemPort::None,
+            port => port,
+        };
 
-        set_endpoints(&mut commands, entity, &mut mover, source, sink);
+        let sink = resolve_port(&voxels, &index, at, output);
+
+        set_endpoints(&mut commands, entity, &mut mover, source, sink, &networks);
     }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 5 – PLUGIN
+// SECTION 4 – PLUGIN
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 pub struct ExtractorPlugin;
@@ -172,7 +206,6 @@ impl Plugin for ExtractorPlugin {
         app.add_systems(
             FixedUpdate,
             resolve_extractors_sys.in_set(TransportSet::Topology),
-        )
-        ;
+        );
     }
 }

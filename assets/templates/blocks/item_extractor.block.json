@@ -15,7 +15,6 @@
     },
     "behaviors": [
         "item_extractor",
-        { "orientable": { "mode" : "full" } },
-        "face_targeted"
+        { "orientable": { "mode" : "full" } }
     ]
 }

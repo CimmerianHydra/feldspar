@@ -4,6 +4,7 @@ use bevy_enhanced_input::prelude::*;
 use crate::content::block::BlockRegistry;
 use crate::content::item::ItemRegistry;
 use crate::sim::behaviors::blocks::face_targeted::FaceTargeted;
+use crate::sim::behaviors::blocks::interacts::InteractsOnSecondary;
 use crate::sim::behaviors::blocks::orientable::Orientable;
 use crate::sim::behaviors::items::orients_blocks::OrientsBlocks;
 use crate::sim::behaviors::items::places_block::PlacesBlock;
@@ -12,7 +13,7 @@ use crate::sim::block_entity::{BlockEntityEvent, Interactable};
 use crate::sim::player::{
     LookCellChanged, LookTarget, LookTargetChanged, PlayerHeldItems, PlayerLookTarget,
 };
-use crate::space::{BlockPos, ChunkMap, VoxelWorld, VoxelWriteRequest};
+use crate::space::{BlockEvent, BlockPos, ChunkMap, VoxelWorld, VoxelWriteRequest};
 use crate::voxel::{BlockID, BlockRotation, Direction, FaceCell, Voxel, BLOCK_SIZE};
 use crate::GameplaySet;
 
@@ -304,6 +305,22 @@ fn handle_secondary_fire_obs(
             });
             return;
         }
+    }
+    
+    // ── 2. Entity-less interaction ───────────────────────────────────────
+    //
+    // A pipe has no block entity and must not gain one just to be clicked.
+    // The capability is declared on the definition; whoever cares observes
+    // the event and filters on the same bag.
+    if def.behaviors.has::<InteractsOnSecondary>() {
+        commands.trigger(BlockEvent::Interact {
+            block_id,
+            at,
+            player,
+            face,
+            target_face,
+        });
+        return;
     }
 
     // ── 3. Otherwise do whatever the held item wants to do ───────────────

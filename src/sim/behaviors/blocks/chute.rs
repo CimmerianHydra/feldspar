@@ -7,10 +7,13 @@ use bevy::prelude::*;
 
 use crate::content::block::behaviors::{BlockBehavior, BlockSpawnContext};
 use crate::sim::transport::mover::{
-    credit_per_tick, set_endpoints, ItemMover, TransportDirty, TransportSet,
+    credit_per_tick, resolve_port, set_endpoints, ItemMover, ItemPort, TransportDirty,
+    TransportSet,
 };
+use crate::sim::transport::network::{NetworkIndex, TransportNetwork};
 use crate::space::access::VoxelWorld;
 use crate::space::address::BlockPos;
+use crate::voxel::Direction;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CHUTE
@@ -49,6 +52,14 @@ use crate::space::address::BlockPos;
 // *column*, not the span. A span that has just been deleted cannot be
 // found by scanning, which is exactly why it cannot be the thing that
 // drives the search.
+//
+// ## What changed when pipes arrived
+//
+// The two lines that found the blocks above and below a run. They ask
+// `resolve_port` now, so a chute that ends over a pipe drops into the
+// network instead of into nothing. Everything else in this file — spans,
+// surveys, the claim rules, the sweep — is untouched, which is the test
+// that `ItemPort` was cut in the right place.
 
 // ── tuning ───────────────────────────────────────────────────────────────
 
@@ -253,6 +264,8 @@ pub fn rebuild_chutes_sys(
     mut commands: Commands,
     dirty: Res<TransportDirty>,
     voxels: VoxelWorld,
+    index: Res<NetworkIndex>,
+    networks: Query<&TransportNetwork>,
     mut segments: Query<&mut ChuteSegment>,
     mut runs: Query<(Entity, &mut ChuteRun, &mut ItemMover)>,
 ) {
@@ -272,7 +285,9 @@ pub fn rebuild_chutes_sys(
     // be the ones above and below it — hence the ±1 probes. A write to a
     // *barrel* above or below a chute lands in the same column too, which
     // is what makes endpoint re-resolution fall out of the same grouping
-    // rather than needing a rule of its own.
+    // rather than needing a rule of its own. A rebuilt pipe network
+    // re-dirties its node cells for the same reason, and they land here by
+    // the same route.
     let mut columns: HashMap<ColumnKey, ColumnWork> = HashMap::new();
 
     for &at in dirty.current() {
@@ -318,7 +333,15 @@ pub fn rebuild_chutes_sys(
 
     // ── Phase 2 — commit, one column at a time ───────────────────────────
     for work in columns.into_values() {
-        rebuild_column(&mut commands, &voxels, &mut segments, &mut runs, work);
+        rebuild_column(
+            &mut commands,
+            &voxels,
+            &index,
+            &networks,
+            &mut segments,
+            &mut runs,
+            work,
+        );
     }
 }
 
@@ -400,6 +423,31 @@ fn survey_span(
     Some(Survey { span, segments: entities, batch, credit_per_tick: rate, referenced })
 }
 
+/// What a run at this span draws from, and what it delivers into.
+///
+/// The only place in this file that knows endpoints are not always
+/// inventories. A chute ending over a pipe hands items to the network; a
+/// chute ending over a barrel behaves exactly as it always did.
+///
+/// The source is collapsed to `None` when it resolves to a network, for the
+/// same reason it is in the extractor: nothing pulls out of a pipe, and a
+/// source we will never draw from should not be registering wake-ups on
+/// every acceptor that network reaches.
+fn endpoints_for(
+    voxels: &VoxelWorld,
+    index: &NetworkIndex,
+    span: Span,
+) -> (ItemPort, ItemPort) {
+    let source = match resolve_port(voxels, index, span.at(span.top), Direction::Up) {
+        ItemPort::Network { .. } => ItemPort::None,
+        port => port,
+    };
+
+    let sink = resolve_port(voxels, index, span.at(span.bottom), Direction::Down);
+
+    (source, sink)
+}
+
 /// Reconcile one column's runs against one column's spans.
 ///
 /// Both directions, which is the whole point. Every span ends up with
@@ -407,9 +455,12 @@ fn survey_span(
 /// without a span is despawned. "Column emptied" and "merge absorbed a
 /// neighbour" are then the same three lines, rather than one case handled
 /// and one case forgotten.
+#[allow(clippy::too_many_arguments)]
 fn rebuild_column(
     commands: &mut Commands,
     voxels: &VoxelWorld,
+    index: &NetworkIndex,
+    networks: &Query<&TransportNetwork>,
     segments: &mut Query<&mut ChuteSegment>,
     runs: &mut Query<(Entity, &mut ChuteRun, &mut ItemMover)>,
     work: ColumnWork,
@@ -443,8 +494,7 @@ fn rebuild_column(
 
     for survey in surveys {
         let span = survey.span;
-        let source = voxels.block_entity_at(span.at(span.top + 1));
-        let sink = voxels.block_entity_at(span.at(span.bottom - 1));
+        let (source, sink) = endpoints_for(voxels, index, span);
 
         let mut reused = None;
 
@@ -457,7 +507,7 @@ fn rebuild_column(
 
                 mover.batch = survey.batch;
                 mover.credit_per_tick = survey.credit_per_tick;
-                set_endpoints(commands, entity, &mut mover, source, sink);
+                set_endpoints(commands, entity, &mut mover, source, sink, networks);
 
                 reused = Some(entity);
             }
@@ -465,7 +515,7 @@ fn rebuild_column(
 
         let run_entity = match reused {
             Some(entity) => entity,
-            None => spawn_run(commands, &survey, source, sink),
+            None => spawn_run(commands, &survey, source, sink, networks),
         };
 
         taken.push(run_entity);
@@ -533,8 +583,9 @@ fn pick_run(
 fn spawn_run(
     commands: &mut Commands,
     survey: &Survey,
-    source: Option<Entity>,
-    sink: Option<Entity>,
+    source: ItemPort,
+    sink: ItemPort,
+    networks: &Query<&TransportNetwork>,
 ) -> Entity {
     let span = survey.span;
 
@@ -553,7 +604,7 @@ fn spawn_run(
         ))
         .id();
 
-    set_endpoints(commands, entity, &mut mover, source, sink);
+    set_endpoints(commands, entity, &mut mover, source, sink, networks);
     commands.entity(entity).insert(mover);
 
     entity

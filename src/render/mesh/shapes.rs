@@ -148,9 +148,9 @@ pub fn slope() -> Vec<Element> {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 /// Half-width of an arm, in sixteenths. 4 gives an 8/16 tube.
-const ARM_HALF: f32 = 4.0;
-/// Half-width of the central junction. Slightly fatter.
-const CORE_HALF: f32 = 5.0;
+const ARM_HALF: f32 = 3.0;
+/// Half-width of the central junction.
+const CORE_HALF: f32 = 3.0;
 
 /// Elements for one pipe connection mask.
 ///
